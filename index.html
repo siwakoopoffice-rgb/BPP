@@ -410,7 +410,22 @@ function pageTitle() {
             "จัดการผู้ใช้งาน",
 
         profile:
-            "ข้อมูลส่วนตัว"
+            "ข้อมูลส่วนตัว",
+
+        installments:
+            "งวดงาน",
+
+        disbursement:
+            "การเบิกจ่าย",
+
+        appeal:
+            "อุทธรณ์",
+
+        institutions:
+            "วิทยาลัย",
+
+        audit:
+            "Audit Log"
 
     };
 
@@ -425,6 +440,53 @@ function pageTitle() {
 /* ============================================================
    4. SUPABASE RPC
    ============================================================ */
+
+/*
+   ข้อความ error ที่แปลว่า session ไม่ถูกต้อง/หมดอายุ
+   (หรือ role ไม่ตรงกับตอน login ซึ่งในทางปฏิบัติ
+   หมายถึง session เก่าไม่ตรงกับสิทธิ์ปัจจุบันแล้ว)
+*/
+
+const SESSION_INVALID_MESSAGES = [
+
+    "Session หมดอายุหรือไม่ถูกต้อง",
+
+    "Session ไม่ถูกต้อง",
+
+    "ไม่มีสิทธิ์ใช้งาน",
+
+    "ไม่มีสิทธิ์",
+
+    "เฉพาะ Admin เท่านั้น"
+
+];
+
+
+function isSessionInvalidMessage(
+    message
+) {
+
+    return SESSION_INVALID_MESSAGES.includes(
+        message
+    );
+}
+
+
+function handleSessionExpired() {
+
+    clearSession();
+
+    state.currentPage =
+        "dashboard";
+
+    render();
+
+    toast(
+        "Session หมดอายุ กรุณาเข้าสู่ระบบใหม่",
+        "warning"
+    );
+}
+
 
 async function callRpc(
     functionName,
@@ -451,6 +513,24 @@ async function callRpc(
                 result.error.message ||
                 "เกิดข้อผิดพลาดจากระบบฐานข้อมูล"
             );
+        }
+
+
+        if (
+
+            result.data &&
+
+            result.data.success === false &&
+
+            isSessionInvalidMessage(
+                result.data.message
+            ) &&
+
+            state.sessionToken
+
+        ) {
+
+            handleSessionExpired();
         }
 
 
@@ -6746,16 +6826,16 @@ function navigateProjectModule(
             "contract",
 
         installments:
-            "contract",
+            "installments",
 
         disbursement:
-            "contractManagement",
+            "disbursement",
 
         progress:
             "contractManagement",
 
         appeal:
-            "workflow"
+            "appeal"
 
     };
 
@@ -7012,6 +7092,34 @@ function simpleEmpty(
 }
 
 
+function comingSoonPage(
+    title
+) {
+
+    return `
+
+        <div class="space-y-5">
+
+            <h1
+                class="
+                    text-xl
+                    sm:text-2xl
+                    font-semibold
+                "
+            >
+                ${escapeHtml(title)}
+            </h1>
+
+
+            ${simpleEmpty(
+                "ฟีเจอร์นี้ยังไม่พร้อมใช้งาน กำลังพัฒนา"
+            )}
+
+        </div>
+    `;
+}
+
+
 function forbiddenPage() {
 
     return `
@@ -7182,6 +7290,22 @@ function render() {
             break;
 
 
+        case "installments":
+
+            content =
+                installmentsPage();
+
+            break;
+
+
+        case "disbursement":
+
+            content =
+                disbursementPage();
+
+            break;
+
+
         case "contractManagement":
 
             content =
@@ -7218,6 +7342,26 @@ function render() {
 
             content =
                 appealPage();
+
+            break;
+
+
+        case "institutions":
+
+            content =
+                comingSoonPage(
+                    "วิทยาลัย"
+                );
+
+            break;
+
+
+        case "audit":
+
+            content =
+                comingSoonPage(
+                    "Audit Log"
+                );
 
             break;
 
