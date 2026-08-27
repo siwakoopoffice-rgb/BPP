@@ -1,0 +1,8346 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8" />
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
+    />
+
+    <title>STIPS | ระบบติดตามงบประมาณลงทุน</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Kanit -->
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+    />
+
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin
+    />
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet"
+    />
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        kanit: ["Kanit", "sans-serif"]
+                    }
+                }
+            }
+        };
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Kanit", sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            font-family: inherit;
+        }
+
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .safe-top {
+            padding-top: env(safe-area-inset-top);
+        }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+
+        .modal-backdrop {
+            backdrop-filter: blur(3px);
+        }
+
+        .transition-page {
+            animation: pageIn .18s ease-out;
+        }
+
+        @keyframes pageIn {
+            from {
+                opacity: 0;
+                transform: translateY(3px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="app"></div>
+
+<!-- GLOBAL LOADER -->
+<div
+    id="globalLoader"
+    class="hidden fixed inset-0 z-[9999] bg-slate-950/30 items-center justify-center p-4"
+>
+    <div class="bg-white rounded-2xl shadow-2xl px-5 py-4 flex items-center gap-3 max-w-[90vw]">
+        <div class="w-6 h-6 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin shrink-0"></div>
+        <div id="globalLoaderText" class="text-sm sm:text-base">
+            กำลังประมวลผล...
+        </div>
+    </div>
+</div>
+
+<script>
+
+/* ============================================================
+   1. CONFIGURATION
+   ============================================================ */
+
+/*
+   ใส่ค่า Project URL และ Publishable / Anon Key ของ Supabase
+
+   ห้ามใช้ service_role / secret key ที่นี่
+*/
+
+const SUPABASE_URL = "https://jfkqxwkukotmjaeuttcs.supabase.co";
+
+const SUPABASE_ANON_KEY = "sb_publishable_hEoWELY_mQr3E-5ldGB4og_82jI5BY_";
+
+
+/*
+   ห้ามใช้ชื่อตัวแปรว่า "supabase"
+*/
+
+const supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+);
+
+
+/* ============================================================
+   2. APPLICATION STATE
+   ============================================================ */
+
+const state = {
+
+    sessionToken:
+        localStorage.getItem("stips_session_token"),
+
+    user:
+        JSON.parse(
+            localStorage.getItem("stips_user") || "null"
+        ),
+
+    currentPage: "dashboard",
+
+    previousPage: null,
+
+    projects: [],
+
+    users: [],
+
+    dashboard: null,
+
+    selectedProject: null,
+
+    workflow: null,
+
+    adminPanelOpen: false,
+
+    projectModalOpen: false,
+
+    loading: false
+
+};
+
+
+/* ============================================================
+   3. BASIC HELPERS
+   ============================================================ */
+
+function escapeHtml(value) {
+
+    if (
+        value === null ||
+        value === undefined
+    ) {
+        return "";
+    }
+
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+
+function money(value) {
+
+    return Number(value || 0)
+        .toLocaleString("th-TH", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+}
+
+
+function formatDate(value) {
+
+    if (!value) {
+        return "-";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+
+    return date.toLocaleDateString(
+        "th-TH",
+        {
+            year: "numeric",
+            month: "short",
+            day: "numeric"
+        }
+    );
+}
+
+
+function showLoader(
+    message = "กำลังประมวลผล..."
+) {
+
+    state.loading = true;
+
+    const loader =
+        document.getElementById(
+            "globalLoader"
+        );
+
+    const text =
+        document.getElementById(
+            "globalLoaderText"
+        );
+
+    if (!loader || !text) {
+        return;
+    }
+
+    text.textContent = message;
+
+    loader.classList.remove("hidden");
+    loader.classList.add("flex");
+}
+
+
+function hideLoader() {
+
+    state.loading = false;
+
+    const loader =
+        document.getElementById(
+            "globalLoader"
+        );
+
+    if (!loader) {
+        return;
+    }
+
+    loader.classList.add("hidden");
+    loader.classList.remove("flex");
+}
+
+
+function toast(
+    message,
+    type = "success"
+) {
+
+    const palette = {
+
+        success:
+            "bg-emerald-600",
+
+        error:
+            "bg-red-600",
+
+        warning:
+            "bg-amber-500",
+
+        info:
+            "bg-blue-600"
+
+    };
+
+    const icon = {
+
+        success: "✓",
+
+        error: "×",
+
+        warning: "!",
+
+        info: "i"
+
+    }[type] || "i";
+
+
+    const el =
+        document.createElement("div");
+
+
+    el.className =
+        `
+        fixed
+        top-4
+        right-4
+        z-[10000]
+        ${palette[type] || palette.info}
+        text-white
+        rounded-2xl
+        shadow-2xl
+        px-4
+        py-3
+        flex
+        gap-3
+        items-start
+        max-w-[calc(100vw-2rem)]
+        text-sm
+        sm:text-base
+        transition
+        `;
+
+
+    el.innerHTML = `
+        <div
+            class="w-6 h-6 rounded-full bg-white/20
+                   flex items-center justify-center
+                   shrink-0 font-medium"
+        >
+            ${icon}
+        </div>
+
+        <div class="leading-6">
+            ${escapeHtml(message)}
+        </div>
+    `;
+
+
+    document.body.appendChild(el);
+
+
+    setTimeout(
+        () => el.remove(),
+        3500
+    );
+}
+
+
+function pageTitle() {
+
+    const titles = {
+
+        dashboard:
+            "Dashboard",
+
+        projects:
+            "โครงการงบประมาณ",
+
+        projectDetail:
+            "รายละเอียดโครงการ",
+
+        workflow:
+            "ติดตามขั้นตอนโครงการ",
+
+        contract:
+            "สัญญา",
+
+        contractManagement:
+            "บริหารสัญญา",
+
+        reports:
+            "รายงาน",
+
+        users:
+            "จัดการผู้ใช้งาน",
+
+        profile:
+            "ข้อมูลส่วนตัว",
+
+        installments:
+            "งวดงาน",
+
+        disbursement:
+            "การเบิกจ่าย",
+
+        appeal:
+            "อุทธรณ์",
+
+        institutions:
+            "วิทยาลัย",
+
+        audit:
+            "Audit Log"
+
+    };
+
+
+    return (
+        titles[state.currentPage]
+        || "STIPS"
+    );
+}
+
+
+/* ============================================================
+   4. SUPABASE RPC
+   ============================================================ */
+
+/*
+   ข้อความ error ที่แปลว่า session ไม่ถูกต้อง/หมดอายุ
+   (หรือ role ไม่ตรงกับตอน login ซึ่งในทางปฏิบัติ
+   หมายถึง session เก่าไม่ตรงกับสิทธิ์ปัจจุบันแล้ว)
+*/
+
+const SESSION_INVALID_MESSAGES = [
+
+    "Session หมดอายุหรือไม่ถูกต้อง",
+
+    "Session ไม่ถูกต้อง",
+
+    "ไม่มีสิทธิ์ใช้งาน",
+
+    "ไม่มีสิทธิ์",
+
+    "เฉพาะ Admin เท่านั้น"
+
+];
+
+
+function isSessionInvalidMessage(
+    message
+) {
+
+    return SESSION_INVALID_MESSAGES.includes(
+        message
+    );
+}
+
+
+function handleSessionExpired() {
+
+    clearSession();
+
+    state.currentPage =
+        "dashboard";
+
+    render();
+
+    toast(
+        "Session หมดอายุ กรุณาเข้าสู่ระบบใหม่",
+        "warning"
+    );
+}
+
+
+async function callRpc(
+    functionName,
+    params = {}
+) {
+
+    try {
+
+        const result =
+            await supabaseClient.rpc(
+                functionName,
+                params
+            );
+
+
+        if (result.error) {
+
+            console.error(
+                `[RPC ERROR] ${functionName}`,
+                result.error
+            );
+
+            throw new Error(
+                result.error.message ||
+                "เกิดข้อผิดพลาดจากระบบฐานข้อมูล"
+            );
+        }
+
+
+        if (
+
+            result.data &&
+
+            result.data.success === false &&
+
+            isSessionInvalidMessage(
+                result.data.message
+            ) &&
+
+            state.sessionToken
+
+        ) {
+
+            handleSessionExpired();
+        }
+
+
+        return result.data;
+
+    } catch (error) {
+
+        console.error(
+            `[RPC EXCEPTION] ${functionName}`,
+            error
+        );
+
+        throw error;
+    }
+}
+
+
+/*
+   เรียก RPC แบบ Optional
+
+   ใช้สำหรับ Function ที่อาจจะยังไม่ได้สร้างใน Database
+*/
+
+async function callOptionalRpc(
+    functionName,
+    params = {}
+) {
+
+    try {
+
+        return await callRpc(
+            functionName,
+            params
+        );
+
+    } catch (error) {
+
+        const message =
+            String(
+                error?.message || ""
+            ).toLowerCase();
+
+
+        if (
+            message.includes("does not exist") ||
+            message.includes("could not find")
+        ) {
+
+            return {
+                success: false,
+                notImplemented: true,
+                message:
+                    `Backend Function ${functionName} ยังไม่ได้สร้าง`
+            };
+        }
+
+
+        throw error;
+    }
+}
+
+
+/* ============================================================
+   5. AUTHENTICATION
+   ============================================================ */
+
+async function login(
+    username,
+    password
+) {
+
+    if (!username || !password) {
+
+        toast(
+            "กรุณาระบุชื่อผู้ใช้และรหัสผ่าน",
+            "warning"
+        );
+
+        return;
+    }
+
+
+    showLoader(
+        "กำลังเข้าสู่ระบบ..."
+    );
+
+
+    try {
+
+        const data =
+            await callRpc(
+                "custom_login",
+                {
+                    p_username:
+                        username,
+
+                    p_password:
+                        password,
+
+                    p_user_agent:
+                        navigator.userAgent
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "เข้าสู่ระบบไม่สำเร็จ"
+            );
+        }
+
+
+        state.sessionToken =
+            data.session_token;
+
+        state.user =
+            data.user;
+
+
+        localStorage.setItem(
+            "stips_session_token",
+            state.sessionToken
+        );
+
+        localStorage.setItem(
+            "stips_user",
+            JSON.stringify(state.user)
+        );
+
+
+        state.currentPage =
+            "dashboard";
+
+
+        state.adminPanelOpen =
+            false;
+
+
+        toast(
+            "เข้าสู่ระบบสำเร็จ",
+            "success"
+        );
+
+
+        render();
+
+
+        await refreshDashboard();
+
+    } catch (error) {
+
+        toast(
+            error.message ||
+            "ไม่สามารถเข้าสู่ระบบได้",
+            "error"
+        );
+
+    } finally {
+
+        hideLoader();
+    }
+}
+
+
+async function validateSession() {
+
+    if (!state.sessionToken) {
+
+        return false;
+    }
+
+
+    try {
+
+        const data =
+            await callRpc(
+                "custom_me",
+                {
+                    p_session_token:
+                        state.sessionToken
+                }
+            );
+
+
+        if (!data?.success) {
+
+            clearSession();
+
+            return false;
+        }
+
+
+        state.user =
+            data.user;
+
+
+        localStorage.setItem(
+            "stips_user",
+            JSON.stringify(
+                state.user
+            )
+        );
+
+
+        return true;
+
+    } catch (error) {
+
+        console.error(
+            "Session validation failed",
+            error
+        );
+
+        clearSession();
+
+        return false;
+    }
+}
+
+
+function clearSession() {
+
+    state.sessionToken =
+        null;
+
+    state.user =
+        null;
+
+    state.projects =
+        [];
+
+    state.users =
+        [];
+
+    state.dashboard =
+        null;
+
+    state.selectedProject =
+        null;
+
+
+    localStorage.removeItem(
+        "stips_session_token"
+    );
+
+    localStorage.removeItem(
+        "stips_user"
+    );
+}
+
+
+async function logout() {
+
+    showLoader(
+        "กำลังออกจากระบบ..."
+    );
+
+    try {
+
+        if (state.sessionToken) {
+
+            await callRpc(
+                "custom_logout",
+                {
+                    p_session_token:
+                        state.sessionToken
+                }
+            );
+        }
+
+    } catch (error) {
+
+        console.warn(
+            "Logout RPC error",
+            error
+        );
+
+    } finally {
+
+        clearSession();
+
+        state.currentPage =
+            "dashboard";
+
+        hideLoader();
+
+        render();
+
+        toast(
+            "ออกจากระบบแล้ว",
+            "success"
+        );
+    }
+}
+
+
+/* ============================================================
+   6. LOGIN PAGE
+   ============================================================ */
+
+function renderLogin() {
+
+    return `
+
+        <div
+            class="
+                min-h-screen
+                bg-slate-950
+                flex
+                items-center
+                justify-center
+                p-4
+            "
+        >
+
+            <div
+                class="
+                    w-full
+                    max-w-md
+                    bg-white
+                    rounded-3xl
+                    shadow-2xl
+                    overflow-hidden
+                "
+            >
+
+                <div
+                    class="
+                        bg-gradient-to-br
+                        from-blue-600
+                        to-blue-800
+                        px-6
+                        sm:px-8
+                        py-8
+                        text-white
+                    "
+                >
+
+                    <div
+                        class="
+                            w-14
+                            h-14
+                            rounded-2xl
+                            bg-white/15
+                            flex
+                            items-center
+                            justify-center
+                            text-2xl
+                            font-bold
+                            border
+                            border-white/20
+                        "
+                    >
+                        S
+                    </div>
+
+
+                    <div class="mt-5">
+
+                        <h1
+                            class="
+                                text-2xl
+                                sm:text-3xl
+                                font-semibold
+                            "
+                        >
+                            STIPS
+                        </h1>
+
+                        <p
+                            class="
+                                text-blue-100
+                                mt-1
+                                text-sm
+                                sm:text-base
+                            "
+                        >
+                            ระบบติดตามงบประมาณลงทุน
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="
+                        p-6
+                        sm:p-8
+                    "
+                >
+
+                    <form
+                        id="loginForm"
+                        class="space-y-5"
+                    >
+
+                        <div>
+
+                            <label
+                                class="
+                                    block
+                                    text-sm
+                                    font-medium
+                                    mb-2
+                                "
+                            >
+                                ชื่อผู้ใช้งาน
+                            </label>
+
+                            <input
+                                id="loginUsername"
+                                type="text"
+                                autocomplete="username"
+                                required
+                                placeholder="Username"
+                                class="
+                                    w-full
+                                    h-12
+                                    px-4
+                                    rounded-xl
+                                    border
+                                    border-slate-200
+                                    bg-slate-50
+                                    outline-none
+                                    focus:border-blue-500
+                                    focus:ring-4
+                                    focus:ring-blue-500/10
+                                "
+                            />
+
+                        </div>
+
+
+                        <div>
+
+                            <label
+                                class="
+                                    block
+                                    text-sm
+                                    font-medium
+                                    mb-2
+                                "
+                            >
+                                รหัสผ่าน
+                            </label>
+
+                            <input
+                                id="loginPassword"
+                                type="password"
+                                autocomplete="current-password"
+                                required
+                                placeholder="Password"
+                                class="
+                                    w-full
+                                    h-12
+                                    px-4
+                                    rounded-xl
+                                    border
+                                    border-slate-200
+                                    bg-slate-50
+                                    outline-none
+                                    focus:border-blue-500
+                                    focus:ring-4
+                                    focus:ring-blue-500/10
+                                "
+                            />
+
+                        </div>
+
+
+                        <button
+                            type="submit"
+                            class="
+                                w-full
+                                h-12
+                                rounded-xl
+                                bg-blue-600
+                                text-white
+                                font-medium
+                                hover:bg-blue-700
+                                active:scale-[.99]
+                                transition
+                            "
+                        >
+                            เข้าสู่ระบบ
+                        </button>
+
+                    </form>
+
+
+                    <div
+                        class="
+                            text-center
+                            text-xs
+                            text-slate-400
+                            mt-6
+                            leading-5
+                        "
+                    >
+                        ระบบบริหารและติดตามงบประมาณลงทุน
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* ============================================================
+   7. DESKTOP SIDEBAR
+   ============================================================ */
+
+function renderSidebar() {
+
+    if (!state.user) {
+        return "";
+    }
+
+
+    const menu = [
+
+        {
+            page: "dashboard",
+            icon: "▣",
+            label: "Dashboard"
+        },
+
+        {
+            page: "projects",
+            icon: "▤",
+            label: "โครงการ"
+        },
+
+        {
+            page: "reports",
+            icon: "▥",
+            label: "รายงาน"
+        },
+
+        {
+            page: "profile",
+            icon: "♙",
+            label: "ข้อมูลส่วนตัว"
+        }
+
+    ];
+
+
+    if (
+        state.user.role === "admin"
+    ) {
+
+        menu.push({
+
+            page: "users",
+
+            icon: "⚙",
+
+            label: "จัดการผู้ใช้งาน"
+
+        });
+    }
+
+
+    return `
+
+        <aside
+            class="
+                hidden
+                lg:flex
+                fixed
+                inset-y-0
+                left-0
+                z-50
+                w-64
+                flex-col
+                bg-slate-950
+                text-white
+            "
+        >
+
+            <div
+                class="
+                    h-20
+                    px-5
+                    border-b
+                    border-white/10
+                    flex
+                    items-center
+                    gap-3
+                "
+            >
+
+                <div
+                    class="
+                        w-10
+                        h-10
+                        rounded-xl
+                        bg-blue-600
+                        flex
+                        items-center
+                        justify-center
+                        font-bold
+                    "
+                >
+                    S
+                </div>
+
+                <div>
+
+                    <div
+                        class="
+                            font-semibold
+                        "
+                    >
+                        STIPS
+                    </div>
+
+                    <div
+                        class="
+                            text-xs
+                            text-slate-400
+                        "
+                    >
+                        ระบบงบประมาณลงทุน
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <nav
+                class="
+                    flex-1
+                    p-4
+                    space-y-1
+                    overflow-y-auto
+                "
+            >
+
+                ${menu.map(item => {
+
+                    const active =
+                        state.currentPage ===
+                        item.page;
+
+                    return `
+
+                        <button
+                            onclick="navigate('${item.page}')"
+                            class="
+                                w-full
+                                flex
+                                items-center
+                                gap-3
+                                px-4
+                                py-3
+                                rounded-xl
+                                text-left
+                                text-sm
+                                transition
+                                ${
+                                    active
+                                    ? "bg-blue-600 text-white"
+                                    : "text-slate-300 hover:bg-white/10"
+                                }
+                            "
+                        >
+
+                            <span
+                                class="
+                                    w-6
+                                    text-center
+                                "
+                            >
+                                ${item.icon}
+                            </span>
+
+                            <span>
+                                ${item.label}
+                            </span>
+
+                        </button>
+
+                    `;
+                }).join("")}
+
+            </nav>
+
+
+            <div
+                class="
+                    border-t
+                    border-white/10
+                    p-4
+                "
+            >
+
+                <div
+                    class="
+                        text-sm
+                        font-medium
+                        truncate
+                    "
+                >
+                    ${escapeHtml(
+                        state.user.full_name
+                    )}
+                </div>
+
+
+                <div
+                    class="
+                        text-xs
+                        text-slate-400
+                        mt-1
+                    "
+                >
+                    ${
+                        state.user.role === "admin"
+                        ? "ผู้ดูแลระบบ"
+                        : "ผู้ใช้งาน"
+                    }
+                </div>
+
+
+                <button
+                    onclick="confirmLogout()"
+                    class="
+                        mt-4
+                        w-full
+                        h-10
+                        rounded-xl
+                        bg-white/10
+                        hover:bg-red-500/20
+                        text-sm
+                    "
+                >
+                    ออกจากระบบ
+                </button>
+
+            </div>
+
+        </aside>
+    `;
+}
+
+
+/* ============================================================
+   8. TOP BAR
+   ============================================================ */
+
+function renderTopBar() {
+
+    return `
+
+        <header
+            class="
+                sticky
+                top-0
+                z-40
+                h-16
+                bg-white/90
+                backdrop-blur
+                border-b
+                border-slate-200
+            "
+        >
+
+            <div
+                class="
+                    h-full
+                    px-4
+                    sm:px-6
+                    lg:px-8
+                    flex
+                    items-center
+                    justify-between
+                    gap-4
+                "
+            >
+
+                <div class="min-w-0">
+
+                    <div
+                        class="
+                            text-lg
+                            sm:text-xl
+                            font-semibold
+                            truncate
+                        "
+                    >
+                        ${pageTitle()}
+                    </div>
+
+                    <div
+                        class="
+                            hidden
+                            sm:block
+                            text-xs
+                            text-slate-400
+                            mt-0.5
+                        "
+                    >
+                        ระบบติดตามงบประมาณลงทุน
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="
+                        hidden
+                        sm:flex
+                        items-center
+                        gap-3
+                    "
+                >
+
+                    <div
+                        class="
+                            text-right
+                            max-w-[220px]
+                        "
+                    >
+
+                        <div
+                            class="
+                                text-sm
+                                font-medium
+                                truncate
+                            "
+                        >
+                            ${escapeHtml(
+                                state.user.full_name
+                            )}
+                        </div>
+
+                        <div
+                            class="
+                                text-xs
+                                text-slate-400
+                            "
+                        >
+                            ${
+                                state.user.role === "admin"
+                                ? "Administrator"
+                                : "User"
+                            }
+                        </div>
+
+                    </div>
+
+
+                    <button
+                        onclick="confirmLogout()"
+                        class="
+                            w-9
+                            h-9
+                            rounded-full
+                            bg-slate-100
+                            hover:bg-red-50
+                            flex
+                            items-center
+                            justify-center
+                        "
+                        aria-label="ออกจากระบบ"
+                    >
+                        ⇥
+                    </button>
+
+                </div>
+
+            </div>
+
+        </header>
+    `;
+}
+
+
+/* ============================================================
+   9. MOBILE BOTTOM NAVIGATION
+   ============================================================ */
+
+function renderMobileBottomNav() {
+
+    if (!state.user) {
+        return "";
+    }
+
+
+    const isAdmin =
+        state.user.role === "admin";
+
+
+    return `
+
+        <nav
+            class="
+                lg:hidden
+                fixed
+                left-0
+                right-0
+                bottom-0
+                z-50
+                bg-white
+                border-t
+                border-slate-200
+                safe-bottom
+            "
+        >
+
+            <div
+                class="
+                    h-16
+                    grid
+                    ${
+                        isAdmin
+                        ? "grid-cols-4"
+                        : "grid-cols-3"
+                    }
+                "
+            >
+
+                <button
+                    onclick="navigate('dashboard')"
+                    class="
+                        flex
+                        flex-col
+                        items-center
+                        justify-center
+                        gap-0.5
+                        ${
+                            state.currentPage === "dashboard"
+                            ? "text-blue-600"
+                            : "text-slate-500"
+                        }
+                    "
+                >
+
+                    <span class="text-lg">
+                        ▣
+                    </span>
+
+                    <span class="text-[10px]">
+                        หน้าแรก
+                    </span>
+
+                </button>
+
+
+                <button
+                    onclick="navigate('projects')"
+                    class="
+                        flex
+                        flex-col
+                        items-center
+                        justify-center
+                        gap-0.5
+                        ${
+                            state.currentPage === "projects" ||
+                            state.currentPage === "projectDetail" ||
+                            state.currentPage === "workflow" ||
+                            state.currentPage === "contract" ||
+                            state.currentPage === "contractManagement"
+                            ? "text-blue-600"
+                            : "text-slate-500"
+                        }
+                    "
+                >
+
+                    <span class="text-lg">
+                        ▤
+                    </span>
+
+                    <span class="text-[10px]">
+                        โครงการ
+                    </span>
+
+                </button>
+
+
+                ${
+                    isAdmin
+
+                    ? `
+
+                        <button
+                            onclick="toggleAdminPanel()"
+                            class="
+                                flex
+                                flex-col
+                                items-center
+                                justify-center
+                                gap-0.5
+                                text-blue-600
+                            "
+                        >
+
+                            <span
+                                class="
+                                    w-10
+                                    h-10
+                                    -mt-5
+                                    rounded-full
+                                    bg-blue-600
+                                    text-white
+                                    shadow-xl
+                                    flex
+                                    items-center
+                                    justify-center
+                                    text-lg
+                                "
+                            >
+                                ☰
+                            </span>
+
+                            <span class="text-[10px]">
+                                Admin
+                            </span>
+
+                        </button>
+
+                    `
+
+                    : ""
+                }
+
+
+                <button
+                    onclick="navigate('reports')"
+                    class="
+                        flex
+                        flex-col
+                        items-center
+                        justify-center
+                        gap-0.5
+                        ${
+                            state.currentPage === "reports"
+                            ? "text-blue-600"
+                            : "text-slate-500"
+                        }
+                    "
+                >
+
+                    <span class="text-lg">
+                        ▥
+                    </span>
+
+                    <span class="text-[10px]">
+                        รายงาน
+                    </span>
+
+                </button>
+
+            </div>
+
+        </nav>
+    `;
+}
+
+
+/* ============================================================
+   10. ADMIN MOBILE PANEL
+   ============================================================ */
+
+function renderAdminPanel() {
+
+    if (
+        !state.user ||
+        state.user.role !== "admin" ||
+        !state.adminPanelOpen
+    ) {
+
+        return "";
+    }
+
+
+    const items = [
+
+        {
+            page: "users",
+            icon: "♙",
+            label: "ผู้ใช้งาน"
+        },
+
+        {
+            page: "projects",
+            icon: "▤",
+            label: "โครงการทั้งหมด"
+        },
+
+        {
+            page: "reports",
+            icon: "▥",
+            label: "รายงาน"
+        },
+
+        {
+            page: "profile",
+            icon: "⚙",
+            label: "บัญชี Admin"
+        },
+
+        {
+            page: "institutions",
+            icon: "⌂",
+            label: "วิทยาลัย"
+        },
+
+        {
+            page: "audit",
+            icon: "◉",
+            label: "Audit Log"
+        }
+
+    ];
+
+
+    return `
+
+        <div
+            class="
+                lg:hidden
+                fixed
+                inset-0
+                z-[100]
+                bg-slate-950/40
+                flex
+                items-end
+                modal-backdrop
+            "
+            onclick="closeAdminPanel(event)"
+        >
+
+            <div
+                class="
+                    w-full
+                    bg-white
+                    rounded-t-3xl
+                    max-h-[82vh]
+                    overflow-y-auto
+                    p-5
+                    safe-bottom
+                "
+                onclick="event.stopPropagation()"
+            >
+
+                <div
+                    class="
+                        flex
+                        items-center
+                        justify-between
+                        mb-5
+                    "
+                >
+
+                    <div>
+
+                        <div
+                            class="
+                                text-lg
+                                font-semibold
+                            "
+                        >
+                            Admin Menu
+                        </div>
+
+                        <div
+                            class="
+                                text-xs
+                                text-slate-400
+                                mt-1
+                            "
+                        >
+                            ระบบจัดการหลังบ้าน
+                        </div>
+
+                    </div>
+
+
+                    <button
+                        onclick="toggleAdminPanel()"
+                        class="
+                            w-9
+                            h-9
+                            rounded-full
+                            bg-slate-100
+                            text-lg
+                        "
+                        aria-label="ปิดเมนู"
+                    >
+                        ×
+                    </button>
+
+                </div>
+
+
+                <div
+                    class="
+                        grid
+                        grid-cols-2
+                        sm:grid-cols-3
+                        gap-3
+                    "
+                >
+
+                    ${items.map(item => `
+
+                        <button
+                            onclick="adminNavigate('${item.page}')"
+                            class="
+                                p-4
+                                rounded-2xl
+                                bg-slate-50
+                                border
+                                border-slate-100
+                                text-left
+                                hover:bg-blue-50
+                                transition
+                            "
+                        >
+
+                            <div
+                                class="
+                                    w-11
+                                    h-11
+                                    rounded-xl
+                                    bg-white
+                                    shadow-sm
+                                    flex
+                                    items-center
+                                    justify-center
+                                    text-xl
+                                "
+                            >
+                                ${item.icon}
+                            </div>
+
+                            <div
+                                class="
+                                    mt-3
+                                    text-sm
+                                    font-medium
+                                "
+                            >
+                                ${item.label}
+                            </div>
+
+                        </button>
+
+                    `).join("")}
+
+                </div>
+
+
+                <button
+                    onclick="confirmLogout()"
+                    class="
+                        w-full
+                        h-11
+                        rounded-xl
+                        bg-red-50
+                        text-red-600
+                        mt-4
+                    "
+                >
+                    ออกจากระบบ
+                </button>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* ============================================================
+   11. MAIN SHELL
+   ============================================================ */
+
+function renderShell(content) {
+
+    return `
+
+        ${renderSidebar()}
+
+        <div
+            class="
+                lg:pl-64
+                min-h-screen
+            "
+        >
+
+            ${renderTopBar()}
+
+            <main
+                class="
+                    p-4
+                    sm:p-6
+                    lg:p-8
+                    pb-24
+                    lg:pb-8
+                "
+            >
+
+                <div
+                    class="
+                        max-w-[1600px]
+                        mx-auto
+                        transition-page
+                    "
+                >
+                    ${content}
+                </div>
+
+            </main>
+
+        </div>
+
+        ${renderMobileBottomNav()}
+
+        ${renderAdminPanel()}
+    `;
+}
+
+
+/* ============================================================
+   12. DASHBOARD
+   ============================================================ */
+
+async function refreshDashboard() {
+
+    if (!state.user) {
+        return;
+    }
+
+
+    try {
+
+        const data =
+            await callRpc(
+                "custom_dashboard",
+                {
+                    p_session_token:
+                        state.sessionToken
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "โหลด Dashboard ไม่สำเร็จ"
+            );
+        }
+
+
+        state.dashboard =
+            data.data || {};
+
+
+        if (
+            state.currentPage ===
+            "dashboard"
+        ) {
+
+            render();
+        }
+
+    } catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+    }
+}
+
+
+function dashboardPage() {
+
+    const d =
+        state.dashboard || {};
+
+
+    const cards = [
+
+        {
+            label:
+                "โครงการทั้งหมด",
+
+            value:
+                Number(
+                    d.total_projects || 0
+                ).toLocaleString(
+                    "th-TH"
+                ),
+
+            icon:
+                "▤"
+        },
+
+        {
+            label:
+                "งบประมาณรวม",
+
+            value:
+                money(
+                    d.total_budget
+                ),
+
+            icon:
+                "฿"
+        },
+
+        {
+            label:
+                "งบครุภัณฑ์",
+
+            value:
+                money(
+                    d.equipment_budget
+                ),
+
+            icon:
+                "▦"
+        },
+
+        {
+            label:
+                "ที่ดิน/สิ่งก่อสร้าง",
+
+            value:
+                money(
+                    d.construction_budget
+                ),
+
+            icon:
+                "⌂"
+        }
+
+    ];
+
+
+    return `
+
+        <div class="space-y-5">
+
+            <section>
+
+                <h1
+                    class="
+                        text-xl
+                        sm:text-2xl
+                        font-semibold
+                    "
+                >
+                    สวัสดี, ${escapeHtml(
+                        state.user.full_name
+                    )}
+                </h1>
+
+                <p
+                    class="
+                        text-sm
+                        text-slate-500
+                        mt-1
+                    "
+                >
+                    ภาพรวมข้อมูลที่คุณมีสิทธิ์เข้าถึง
+                </p>
+
+            </section>
+
+
+            <!-- Summary Cards -->
+
+            <section
+                class="
+                    grid
+                    grid-cols-2
+                    lg:grid-cols-4
+                    gap-3
+                    sm:gap-4
+                "
+            >
+
+                ${cards.map(card => `
+
+                    <div
+                        class="
+                            bg-white
+                            rounded-2xl
+                            border
+                            border-slate-200
+                            p-4
+                            sm:p-5
+                            min-w-0
+                        "
+                    >
+
+                        <div
+                            class="
+                                flex
+                                items-start
+                                justify-between
+                                gap-3
+                            "
+                        >
+
+                            <div
+                                class="
+                                    text-xs
+                                    sm:text-sm
+                                    text-slate-500
+                                "
+                            >
+                                ${card.label}
+                            </div>
+
+                            <div
+                                class="
+                                    w-8
+                                    h-8
+                                    rounded-lg
+                                    bg-blue-50
+                                    text-blue-600
+                                    flex
+                                    items-center
+                                    justify-center
+                                    shrink-0
+                                "
+                            >
+                                ${card.icon}
+                            </div>
+
+                        </div>
+
+                        <div
+                            class="
+                                mt-3
+                                text-lg
+                                sm:text-2xl
+                                font-semibold
+                                break-words
+                            "
+                        >
+                            ${card.value}
+                        </div>
+
+                    </div>
+
+                `).join("")}
+
+            </section>
+
+
+            <!-- Workflow + User -->
+
+            <section
+                class="
+                    grid
+                    grid-cols-1
+                    xl:grid-cols-2
+                    gap-5
+                "
+            >
+
+                <div
+                    class="
+                        bg-white
+                        rounded-2xl
+                        border
+                        border-slate-200
+                        p-4
+                        sm:p-6
+                    "
+                >
+
+                    <div
+                        class="
+                            flex
+                            items-center
+                            justify-between
+                            gap-3
+                        "
+                    >
+
+                        <div>
+
+                            <h2
+                                class="
+                                    font-semibold
+                                "
+                            >
+                                สถานะโครงการ
+                            </h2>
+
+                            <p
+                                class="
+                                    text-xs
+                                    sm:text-sm
+                                    text-slate-400
+                                    mt-1
+                                "
+                            >
+                                จำนวนโครงการในแต่ละขั้นตอน
+                            </p>
+
+                        </div>
+
+
+                        <button
+                            onclick="navigate('projects')"
+                            class="
+                                text-xs
+                                sm:text-sm
+                                text-blue-600
+                            "
+                        >
+                            ดูทั้งหมด →
+                        </button>
+
+                    </div>
+
+
+                    <div
+                        class="
+                            mt-5
+                            space-y-3
+                        "
+                    >
+
+                        ${workflowProgress(
+                            "1. ยังไม่ดำเนินการ",
+                            d.status_1
+                        )}
+
+                        ${workflowProgress(
+                            "2. จัดทำร่าง TOR",
+                            d.status_2
+                        )}
+
+                        ${workflowProgress(
+                            "3. เผยแพร่ร่าง TOR",
+                            d.status_3
+                        )}
+
+                        ${workflowProgress(
+                            "4. ประกาศเชิญชวน",
+                            d.status_4
+                        )}
+
+                        ${workflowProgress(
+                            "5. ประกาศผู้ชนะ",
+                            d.status_5
+                        )}
+
+                        ${workflowProgress(
+                            "6. รอผลอุทธรณ์",
+                            d.status_6
+                        )}
+
+                        ${workflowProgress(
+                            "7. ลงนามสัญญา",
+                            d.status_7
+                        )}
+
+                        ${workflowProgress(
+                            "8. บริหารสัญญา",
+                            d.status_8
+                        )}
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="
+                        bg-white
+                        rounded-2xl
+                        border
+                        border-slate-200
+                        p-4
+                        sm:p-6
+                    "
+                >
+
+                    <h2
+                        class="
+                            font-semibold
+                        "
+                    >
+                        ข้อมูลบัญชี
+                    </h2>
+
+
+                    <div
+                        class="
+                            mt-5
+                            space-y-4
+                        "
+                    >
+
+                        ${infoRow(
+                            "Username",
+                            state.user.username
+                        )}
+
+                        ${infoRow(
+                            "ชื่อผู้ใช้งาน",
+                            state.user.full_name
+                        )}
+
+                        ${infoRow(
+                            "สิทธิ์",
+                            state.user.role === "admin"
+                            ? "Administrator"
+                            : "User"
+                        )}
+
+                        ${infoRow(
+                            "โทรศัพท์",
+                            state.user.phone || "-"
+                        )}
+
+                        ${infoRow(
+                            "Email",
+                            state.user.email || "-"
+                        )}
+
+                    </div>
+
+
+                    <div
+                        class="
+                            grid
+                            grid-cols-2
+                            gap-3
+                            mt-6
+                        "
+                    >
+
+                        <button
+                            onclick="navigate('projects')"
+                            class="
+                                h-11
+                                rounded-xl
+                                bg-blue-600
+                                text-white
+                                text-sm
+                            "
+                        >
+                            ดูโครงการ
+                        </button>
+
+
+                        <button
+                            onclick="navigate('profile')"
+                            class="
+                                h-11
+                                rounded-xl
+                                bg-slate-100
+                                text-slate-700
+                                text-sm
+                            "
+                        >
+                            แก้ไขข้อมูล
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+        </div>
+    `;
+}
+
+
+function workflowProgress(
+    label,
+    value
+) {
+
+    const number =
+        Number(value || 0);
+
+
+    const width =
+        Math.min(
+            number * 10,
+            100
+        );
+
+
+    return `
+
+        <div>
+
+            <div
+                class="
+                    flex
+                    items-center
+                    justify-between
+                    gap-3
+                    text-xs
+                    sm:text-sm
+                "
+            >
+
+                <span class="truncate">
+                    ${label}
+                </span>
+
+                <span
+                    class="
+                        font-semibold
+                        shrink-0
+                    "
+                >
+                    ${number}
+                </span>
+
+            </div>
+
+
+            <div
+                class="
+                    mt-1.5
+                    h-2
+                    rounded-full
+                    bg-slate-100
+                    overflow-hidden
+                "
+            >
+
+                <div
+                    class="
+                        h-full
+                        rounded-full
+                        bg-blue-600
+                    "
+                    style="width:${width}%"
+                ></div>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+function infoRow(
+    label,
+    value
+) {
+
+    return `
+
+        <div
+            class="
+                flex
+                items-start
+                justify-between
+                gap-4
+                text-sm
+            "
+        >
+
+            <span
+                class="
+                    text-slate-400
+                    shrink-0
+                "
+            >
+                ${escapeHtml(label)}
+            </span>
+
+            <span
+                class="
+                    font-medium
+                    text-right
+                    break-all
+                "
+            >
+                ${escapeHtml(value)}
+            </span>
+
+        </div>
+    `;
+}
+
+
+/* ============================================================
+   13. PROJECTS
+   ============================================================ */
+
+async function refreshProjects() {
+
+    showLoader(
+        "กำลังโหลดโครงการ..."
+    );
+
+    try {
+
+        const data =
+            await callRpc(
+                "custom_get_projects",
+                {
+                    p_session_token:
+                        state.sessionToken
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "โหลดโครงการไม่สำเร็จ"
+            );
+        }
+
+
+        state.projects =
+            data.data || [];
+
+
+        render();
+
+    } catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    } finally {
+
+        hideLoader();
+
+    }
+}
+
+
+function projectsPage() {
+
+    return `
+
+        <div class="space-y-5">
+
+            <section
+                class="
+                    flex
+                    flex-col
+                    sm:flex-row
+                    sm:items-center
+                    sm:justify-between
+                    gap-3
+                "
+            >
+
+                <div>
+
+                    <h1
+                        class="
+                            text-xl
+                            sm:text-2xl
+                            font-semibold
+                        "
+                    >
+                        โครงการงบประมาณ
+                    </h1>
+
+                    <p
+                        class="
+                            text-sm
+                            text-slate-500
+                            mt-1
+                        "
+                    >
+                        ${
+                            state.user.role === "admin"
+                            ? "Admin สามารถเห็นโครงการทุกวิทยาลัย"
+                            : "แสดงเฉพาะโครงการของวิทยาลัยคุณ"
+                        }
+                    </p>
+
+                </div>
+
+
+                <button
+                    onclick="openProjectModal()"
+                    class="
+                        h-11
+                        px-4
+                        rounded-xl
+                        bg-blue-600
+                        text-white
+                        text-sm
+                    "
+                >
+                    + สร้างโครงการ
+                </button>
+
+            </section>
+
+
+            ${
+                state.projects.length === 0
+
+                ? renderEmptyProjects()
+
+                : `
+
+                    <!-- Mobile Cards -->
+
+                    <div
+                        class="
+                            lg:hidden
+                            space-y-3
+                        "
+                    >
+
+                        ${state.projects
+                            .map(
+                                projectCard
+                            )
+                            .join("")}
+
+                    </div>
+
+
+                    <!-- Desktop Table -->
+
+                    <div
+                        class="
+                            hidden
+                            lg:block
+                            bg-white
+                            rounded-2xl
+                            border
+                            border-slate-200
+                            overflow-hidden
+                        "
+                    >
+
+                        <div
+                            class="
+                                overflow-x-auto
+                                scrollbar-thin
+                            "
+                        >
+
+                            <table
+                                class="
+                                    w-full
+                                    min-w-[950px]
+                                    text-sm
+                                "
+                            >
+
+                                <thead
+                                    class="
+                                        bg-slate-50
+                                        border-b
+                                        border-slate-200
+                                    "
+                                >
+
+                                    <tr>
+
+                                        <th
+                                            class="
+                                                px-5
+                                                py-4
+                                                text-left
+                                            "
+                                        >
+                                            รหัส
+                                        </th>
+
+                                        <th
+                                            class="
+                                                px-5
+                                                py-4
+                                                text-left
+                                            "
+                                        >
+                                            โครงการ
+                                        </th>
+
+                                        ${
+                                            state.user.role === "admin"
+                                            ? `
+                                                <th
+                                                    class="
+                                                        px-5
+                                                        py-4
+                                                        text-left
+                                                    "
+                                                >
+                                                    วิทยาลัย
+                                                </th>
+                                            `
+                                            : ""
+                                        }
+
+                                        <th
+                                            class="
+                                                px-5
+                                                py-4
+                                                text-left
+                                            "
+                                        >
+                                            ประเภท
+                                        </th>
+
+                                        <th
+                                            class="
+                                                px-5
+                                                py-4
+                                                text-right
+                                            "
+                                        >
+                                            งบประมาณ
+                                        </th>
+
+                                        <th
+                                            class="
+                                                px-5
+                                                py-4
+                                                text-left
+                                            "
+                                        >
+                                            สถานะ
+                                        </th>
+
+                                        <th
+                                            class="
+                                                px-5
+                                                py-4
+                                                text-center
+                                            "
+                                        >
+                                            จัดการ
+                                        </th>
+
+                                    </tr>
+
+                                </thead>
+
+
+                                <tbody>
+
+                                    ${state.projects
+                                        .map(
+                                            projectRow
+                                        )
+                                        .join("")}
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+
+                `
+            }
+
+        </div>
+    `;
+}
+
+
+function projectCard(project) {
+
+    return `
+
+        <div
+            class="
+                bg-white
+                rounded-2xl
+                border
+                border-slate-200
+                p-4
+            "
+        >
+
+            <div
+                class="
+                    flex
+                    items-start
+                    justify-between
+                    gap-3
+                "
+            >
+
+                <div
+                    class="
+                        min-w-0
+                    "
+                >
+
+                    <div
+                        class="
+                            text-xs
+                            text-slate-400
+                        "
+                    >
+                        ${escapeHtml(
+                            project.project_code
+                        )}
+                    </div>
+
+                    <div
+                        class="
+                            font-medium
+                            mt-1
+                            leading-6
+                        "
+                    >
+                        ${escapeHtml(
+                            project.project_name
+                        )}
+                    </div>
+
+                </div>
+
+
+                ${statusBadge(
+                    project.status_name
+                )}
+
+            </div>
+
+
+            ${
+                state.user.role === "admin"
+
+                ? `
+
+                    <div
+                        class="
+                            mt-3
+                            text-xs
+                            text-slate-400
+                        "
+                    >
+                        ${escapeHtml(
+                            project.institution_name
+                        )}
+                    </div>
+
+                `
+                : ""
+            }
+
+
+            <div
+                class="
+                    grid
+                    grid-cols-2
+                    gap-3
+                    mt-4
+                "
+            >
+
+                <div>
+
+                    <div
+                        class="
+                            text-[11px]
+                            text-slate-400
+                        "
+                    >
+                        ประเภท
+                    </div>
+
+                    <div
+                        class="
+                            text-sm
+                            mt-1
+                        "
+                    >
+                        ${escapeHtml(
+                            project.project_type
+                        )}
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="
+                        text-right
+                    "
+                >
+
+                    <div
+                        class="
+                            text-[11px]
+                            text-slate-400
+                        "
+                    >
+                        งบประมาณ
+                    </div>
+
+                    <div
+                        class="
+                            text-sm
+                            mt-1
+                            font-medium
+                            text-blue-600
+                        "
+                    >
+                        ${money(
+                            project.budget_amount
+                        )}
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div
+                class="
+                    grid
+                    grid-cols-3
+                    gap-2
+                    mt-4
+                "
+            >
+
+                <button
+                    onclick="openProject('${project.id}')"
+                    class="
+                        h-10
+                        rounded-xl
+                        bg-slate-100
+                        text-xs
+                        sm:text-sm
+                    "
+                >
+                    เปิด
+                </button>
+
+
+                <button
+                    onclick="openEditProjectModal('${project.id}')"
+                    class="
+                        h-10
+                        rounded-xl
+                        bg-blue-50
+                        text-blue-700
+                        text-xs
+                        sm:text-sm
+                    "
+                >
+                    แก้ไข
+                </button>
+
+
+                <button
+                    onclick="confirmDeleteProject('${project.id}')"
+                    class="
+                        h-10
+                        rounded-xl
+                        bg-red-50
+                        text-red-600
+                        text-xs
+                        sm:text-sm
+                    "
+                >
+                    ลบ
+                </button>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+function projectRow(project) {
+
+    return `
+
+        <tr
+            class="
+                border-b
+                border-slate-100
+                last:border-0
+            "
+        >
+
+            <td
+                class="
+                    px-5
+                    py-4
+                "
+            >
+                ${escapeHtml(
+                    project.project_code
+                )}
+            </td>
+
+
+            <td
+                class="
+                    px-5
+                    py-4
+                "
+            >
+
+                <div
+                    class="
+                        font-medium
+                    "
+                >
+                    ${escapeHtml(
+                        project.project_name
+                    )}
+                </div>
+
+            </td>
+
+
+            ${
+                state.user.role === "admin"
+
+                ? `
+
+                    <td
+                        class="
+                            px-5
+                            py-4
+                        "
+                    >
+                        ${escapeHtml(
+                            project.institution_name
+                        )}
+                    </td>
+
+                `
+                : ""
+            }
+
+
+            <td
+                class="
+                    px-5
+                    py-4
+                "
+            >
+                ${escapeHtml(
+                    project.project_type
+                )}
+            </td>
+
+
+            <td
+                class="
+                    px-5
+                    py-4
+                    text-right
+                    whitespace-nowrap
+                "
+            >
+                ${money(
+                    project.budget_amount
+                )}
+            </td>
+
+
+            <td
+                class="
+                    px-5
+                    py-4
+                "
+            >
+                ${statusBadge(
+                    project.status_name
+                )}
+            </td>
+
+
+            <td
+                class="
+                    px-5
+                    py-4
+                "
+            >
+
+                <div
+                    class="
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
+                    "
+                >
+
+                    <button
+                        onclick="openProject('${project.id}')"
+                        class="
+                            px-3
+                            py-2
+                            rounded-lg
+                            bg-slate-100
+                            text-xs
+                        "
+                    >
+                        เปิด
+                    </button>
+
+
+                    <button
+                        onclick="openEditProjectModal('${project.id}')"
+                        class="
+                            px-3
+                            py-2
+                            rounded-lg
+                            bg-blue-50
+                            text-blue-700
+                            text-xs
+                        "
+                    >
+                        แก้ไข
+                    </button>
+
+
+                    <button
+                        onclick="confirmDeleteProject('${project.id}')"
+                        class="
+                            px-3
+                            py-2
+                            rounded-lg
+                            bg-red-50
+                            text-red-600
+                            text-xs
+                        "
+                    >
+                        ลบ
+                    </button>
+
+                </div>
+
+            </td>
+
+        </tr>
+    `;
+}
+
+
+function statusBadge(
+    status
+) {
+
+    const colors = {
+
+        "ยังไม่ดำเนินการ":
+            "bg-slate-100 text-slate-600",
+
+        "จัดทำร่าง TOR":
+            "bg-blue-50 text-blue-700",
+
+        "เผยแพร่ร่าง TOR":
+            "bg-indigo-50 text-indigo-700",
+
+        "ประกาศเชิญชวน":
+            "bg-violet-50 text-violet-700",
+
+        "ประกาศผู้ชนะ":
+            "bg-amber-50 text-amber-700",
+
+        "รอผลอุทธรณ์":
+            "bg-orange-50 text-orange-700",
+
+        "ลงนามสัญญา":
+            "bg-emerald-50 text-emerald-700",
+
+        "บริหารสัญญา":
+            "bg-green-50 text-green-700"
+
+    };
+
+
+    return `
+
+        <span
+            class="
+                inline-flex
+                items-center
+                rounded-full
+                px-2.5
+                py-1
+                text-[10px]
+                sm:text-xs
+                font-medium
+                whitespace-nowrap
+                ${colors[status] || "bg-slate-100 text-slate-600"}
+            "
+        >
+            ${escapeHtml(status || "ไม่ระบุ")}
+        </span>
+    `;
+}
+
+
+function renderEmptyProjects() {
+
+    return `
+
+        <div
+            class="
+                bg-white
+                rounded-2xl
+                border
+                border-dashed
+                border-slate-300
+                p-10
+                text-center
+            "
+        >
+
+            <div
+                class="
+                    text-4xl
+                    text-slate-300
+                "
+            >
+                ▤
+            </div>
+
+
+            <div
+                class="
+                    font-medium
+                    mt-3
+                "
+            >
+                ยังไม่มีโครงการ
+            </div>
+
+
+            <div
+                class="
+                    text-sm
+                    text-slate-400
+                    mt-1
+                "
+            >
+                เริ่มต้นสร้างโครงการแรก
+            </div>
+
+
+            <button
+                onclick="openProjectModal()"
+                class="
+                    mt-5
+                    h-11
+                    px-5
+                    rounded-xl
+                    bg-blue-600
+                    text-white
+                "
+            >
+                + สร้างโครงการ
+            </button>
+
+        </div>
+    `;
+}
+
+
+/* ============================================================
+   14. CREATE / EDIT PROJECT
+   ============================================================ */
+
+function openProjectModal() {
+
+    renderProjectModal(null);
+}
+
+
+function openEditProjectModal(
+    projectId
+) {
+
+    const project =
+        state.projects.find(
+            p =>
+                p.id ===
+                projectId
+        );
+
+
+    if (!project) {
+
+        toast(
+            "ไม่พบข้อมูลโครงการ",
+            "error"
+        );
+
+        return;
+    }
+
+
+    renderProjectModal(
+        project
+    );
+}
+
+
+function renderProjectModal(
+    project
+) {
+
+    const isEdit =
+        !!project;
+
+
+    const modal =
+        document.createElement("div");
+
+
+    modal.id =
+        "projectModal";
+
+
+    modal.className =
+        `
+        fixed
+        inset-0
+        z-[90]
+        bg-slate-950/40
+        flex
+        items-end
+        sm:items-center
+        justify-center
+        p-0
+        sm:p-4
+        modal-backdrop
+        `;
+
+
+    modal.innerHTML = `
+
+        <div
+            class="
+                bg-white
+                w-full
+                sm:max-w-xl
+                rounded-t-3xl
+                sm:rounded-2xl
+                max-h-[92vh]
+                overflow-y-auto
+                p-5
+                sm:p-6
+            "
+        >
+
+            <div
+                class="
+                    flex
+                    items-center
+                    justify-between
+                    gap-3
+                "
+            >
+
+                <div>
+
+                    <div
+                        class="
+                            text-lg
+                            sm:text-xl
+                            font-semibold
+                        "
+                    >
+                        ${
+                            isEdit
+                            ? "แก้ไขโครงการ"
+                            : "สร้างโครงการ"
+                        }
+                    </div>
+
+
+                    <div
+                        class="
+                            text-xs
+                            sm:text-sm
+                            text-slate-400
+                            mt-1
+                        "
+                    >
+                        ข้อมูลจะถูกตรวจสอบโดย Backend
+                    </div>
+
+                </div>
+
+
+                <button
+                    onclick="closeModalById('projectModal')"
+                    class="
+                        w-9
+                        h-9
+                        rounded-full
+                        bg-slate-100
+                        text-lg
+                        shrink-0
+                    "
+                    aria-label="ปิด"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <form
+                id="projectForm"
+                class="
+                    mt-5
+                    space-y-4
+                "
+            >
+
+                <div>
+
+                    <label
+                        class="
+                            block
+                            text-sm
+                            font-medium
+                            mb-1.5
+                        "
+                    >
+                        รหัสโครงการ
+                    </label>
+
+
+                    <input
+                        name="project_code"
+                        value="${escapeHtml(
+                            project?.project_code || ""
+                        )}"
+                        required
+                        class="
+                            w-full
+                            h-11
+                            px-4
+                            rounded-xl
+                            border
+                            border-slate-200
+                            outline-none
+                            focus:ring-4
+                            focus:ring-blue-500/10
+                            focus:border-blue-500
+                        "
+                    />
+
+                </div>
+
+
+                <div>
+
+                    <label
+                        class="
+                            block
+                            text-sm
+                            font-medium
+                            mb-1.5
+                        "
+                    >
+                        ชื่อโครงการ
+                    </label>
+
+
+                    <input
+                        name="project_name"
+                        value="${escapeHtml(
+                            project?.project_name || ""
+                        )}"
+                        required
+                        class="
+                            w-full
+                            h-11
+                            px-4
+                            rounded-xl
+                            border
+                            border-slate-200
+                            outline-none
+                            focus:ring-4
+                            focus:ring-blue-500/10
+                            focus:border-blue-500
+                        "
+                    />
+
+                </div>
+
+
+                <div>
+
+                    <label
+                        class="
+                            block
+                            text-sm
+                            font-medium
+                            mb-1.5
+                        "
+                    >
+                        ประเภทโครงการ
+                    </label>
+
+
+                    <select
+                        name="project_type"
+                        required
+                        class="
+                            w-full
+                            h-11
+                            px-4
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-white
+                            outline-none
+                            focus:ring-4
+                            focus:ring-blue-500/10
+                            focus:border-blue-500
+                        "
+                    >
+
+                        <option value="">
+                            เลือกประเภท
+                        </option>
+
+
+                        <option
+                            value="ที่ดิน/สิ่งก่อสร้าง"
+                            ${
+                                project?.project_type === "ที่ดิน/สิ่งก่อสร้าง"
+                                ? "selected"
+                                : ""
+                            }
+                        >
+                            ที่ดิน/สิ่งก่อสร้าง
+                        </option>
+
+
+                        <option
+                            value="ครุภัณฑ์"
+                            ${
+                                project?.project_type === "ครุภัณฑ์"
+                                ? "selected"
+                                : ""
+                            }
+                        >
+                            ครุภัณฑ์
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div>
+
+                    <label
+                        class="
+                            block
+                            text-sm
+                            font-medium
+                            mb-1.5
+                        "
+                    >
+                        วงเงินงบประมาณ
+                    </label>
+
+
+                    <div
+                        class="
+                            relative
+                        "
+                    >
+
+                        <input
+                            name="budget_amount"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value="${
+                                project?.budget_amount ?? ""
+                            }"
+                            required
+                            class="
+                                w-full
+                                h-11
+                                px-4
+                                pr-14
+                                rounded-xl
+                                border
+                                border-slate-200
+                                outline-none
+                                focus:ring-4
+                                focus:ring-blue-500/10
+                                focus:border-blue-500
+                            "
+                        />
+
+
+                        <span
+                            class="
+                                absolute
+                                right-4
+                                top-1/2
+                                -translate-y-1/2
+                                text-xs
+                                text-slate-400
+                            "
+                        >
+                            บาท
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="
+                        w-full
+                        h-11
+                        rounded-xl
+                        bg-blue-600
+                        text-white
+                        font-medium
+                    "
+                >
+                    ${
+                        isEdit
+                        ? "บันทึกการแก้ไข"
+                        : "บันทึกโครงการ"
+                    }
+                </button>
+
+            </form>
+
+        </div>
+    `;
+
+
+    document.body.appendChild(
+        modal
+    );
+
+
+    document
+        .getElementById("projectForm")
+        .addEventListener(
+            "submit",
+            event =>
+                saveProject(
+                    event,
+                    isEdit
+                        ? project.id
+                        : null
+                )
+        );
+}
+
+
+async function saveProject(
+    event,
+    projectId = null
+) {
+
+    event.preventDefault();
+
+
+    const form =
+        event.target;
+
+
+    const formData =
+        new FormData(form);
+
+
+    const projectCode =
+        String(
+            formData.get(
+                "project_code"
+            ) || ""
+        ).trim();
+
+
+    const projectName =
+        String(
+            formData.get(
+                "project_name"
+            ) || ""
+        ).trim();
+
+
+    const projectType =
+        formData.get(
+            "project_type"
+        );
+
+
+    const budget =
+        Number(
+            formData.get(
+                "budget_amount"
+            )
+        );
+
+
+    if (!projectCode) {
+
+        toast(
+            "กรุณาระบุรหัสโครงการ",
+            "warning"
+        );
+
+        return;
+    }
+
+
+    if (!projectName) {
+
+        toast(
+            "กรุณาระบุชื่อโครงการ",
+            "warning"
+        );
+
+        return;
+    }
+
+
+    if (!projectType) {
+
+        toast(
+            "กรุณาเลือกประเภทโครงการ",
+            "warning"
+        );
+
+        return;
+    }
+
+
+    if (
+        !Number.isFinite(budget) ||
+        budget <= 0
+    ) {
+
+        toast(
+            "วงเงินงบประมาณต้องมากกว่า 0",
+            "warning"
+        );
+
+        return;
+    }
+
+
+    showLoader(
+        projectId
+            ? "กำลังแก้ไขโครงการ..."
+            : "กำลังสร้างโครงการ..."
+    );
+
+
+    try {
+
+        let data;
+
+
+        if (projectId) {
+
+            data =
+                await callRpc(
+                    "custom_update_project",
+                    {
+
+                        p_session_token:
+                            state.sessionToken,
+
+                        p_project_id:
+                            projectId,
+
+                        p_project_code:
+                            projectCode,
+
+                        p_project_name:
+                            projectName,
+
+                        p_project_type:
+                            projectType,
+
+                        p_budget_amount:
+                            budget
+
+                    }
+                );
+
+        } else {
+
+            data =
+                await callRpc(
+                    "custom_create_project",
+                    {
+
+                        p_session_token:
+                            state.sessionToken,
+
+                        p_project_code:
+                            projectCode,
+
+                        p_project_name:
+                            projectName,
+
+                        p_project_type:
+                            projectType,
+
+                        p_budget_amount:
+                            budget
+
+                    }
+                );
+        }
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "บันทึกข้อมูลไม่สำเร็จ"
+            );
+        }
+
+
+        closeModalById(
+            "projectModal"
+        );
+
+
+        toast(
+            projectId
+                ? "แก้ไขโครงการสำเร็จ"
+                : "สร้างโครงการสำเร็จ",
+            "success"
+        );
+
+
+        await refreshProjects();
+
+        await refreshDashboard();
+
+    } catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    } finally {
+
+        hideLoader();
+    }
+}
+
+
+/* ============================================================
+   15. DELETE PROJECT
+   ============================================================ */
+
+function confirmDeleteProject(
+    projectId
+) {
+
+    showConfirm(
+        "ลบโครงการ",
+        "ยืนยันการลบโครงการนี้หรือไม่? ข้อมูลที่เชื่อมโยงอาจได้รับผลกระทบ",
+        async () => {
+
+            showLoader(
+                "กำลังลบโครงการ..."
+            );
+
+            try {
+
+                const data =
+                    await callRpc(
+                        "custom_delete_project",
+                        {
+
+                            p_session_token:
+                                state.sessionToken,
+
+                            p_project_id:
+                                projectId
+
+                        }
+                    );
+
+
+                if (!data?.success) {
+
+                    throw new Error(
+                        data?.message ||
+                        "ลบโครงการไม่สำเร็จ"
+                    );
+                }
+
+
+                toast(
+                    "ลบโครงการสำเร็จ",
+                    "success"
+                );
+
+
+                await refreshProjects();
+
+                await refreshDashboard();
+
+            } catch (error) {
+
+                toast(
+                    error.message,
+                    "error"
+                );
+
+            } finally {
+
+                hideLoader();
+            }
+        }
+    );
+}
+
+
+/* ============================================================
+   16. PROJECT DETAIL
+   ============================================================ */
+
+function openProject(
+    projectId
+) {
+
+    const project =
+        state.projects.find(
+            p =>
+                p.id ===
+                projectId
+        );
+
+
+    if (!project) {
+
+        toast(
+            "ไม่พบข้อมูลโครงการ",
+            "error"
+        );
+
+        return;
+    }
+
+
+    state.selectedProject =
+        project;
+
+
+    state.currentPage =
+        "projectDetail";
+
+
+    render();
+}
+
+
+function projectDetailPage() {
+
+    const p =
+        state.selectedProject;
+
+
+    if (!p) {
+
+        return `
+            ${simpleEmpty(
+                "ไม่พบโครงการ"
+            )}
+        `;
+    }
+
+
+    return `
+
+        <div class="space-y-5">
+
+            <div
+                class="
+                    flex
+                    items-start
+                    justify-between
+                    gap-3
+                "
+            >
+
+                <div
+                    class="min-w-0"
+                >
+
+                    <button
+                        onclick="navigate('projects')"
+                        class="
+                            text-sm
+                            text-blue-600
+                            mb-3
+                        "
+                    >
+                        ← กลับรายการโครงการ
+                    </button>
+
+
+                    <div
+                        class="
+                            text-xs
+                            text-slate-400
+                        "
+                    >
+                        ${escapeHtml(
+                            p.project_code
+                        )}
+                    </div>
+
+
+                    <h1
+                        class="
+                            text-xl
+                            sm:text-2xl
+                            font-semibold
+                            mt-1
+                        "
+                    >
+                        ${escapeHtml(
+                            p.project_name
+                        )}
+                    </h1>
+
+
+                    <div
+                        class="mt-2"
+                    >
+                        ${statusBadge(
+                            p.status_name
+                        )}
+                    </div>
+
+                </div>
+
+
+                <button
+                    onclick="openEditProjectModal('${p.id}')"
+                    class="
+                        h-10
+                        px-3
+                        rounded-xl
+                        bg-blue-50
+                        text-blue-700
+                        text-sm
+                        shrink-0
+                    "
+                >
+                    แก้ไข
+                </button>
+
+            </div>
+
+
+            <div
+                class="
+                    grid
+                    grid-cols-2
+                    lg:grid-cols-4
+                    gap-3
+                "
+            >
+
+                ${detailCard(
+                    "ประเภท",
+                    p.project_type
+                )}
+
+                ${detailCard(
+                    "งบประมาณ",
+                    money(
+                        p.budget_amount
+                    )
+                )}
+
+                ${detailCard(
+                    "วิทยาลัย",
+                    p.institution_name
+                )}
+
+                ${detailCard(
+                    "จังหวัด",
+                    p.province
+                )}
+
+            </div>
+
+
+            <div
+                class="
+                    grid
+                    grid-cols-1
+                    xl:grid-cols-[1.35fr_.65fr]
+                    gap-5
+                "
+            >
+
+                <!-- Workflow -->
+
+                <div
+                    class="
+                        bg-white
+                        border
+                        border-slate-200
+                        rounded-2xl
+                        p-4
+                        sm:p-6
+                    "
+                >
+
+                    <div
+                        class="
+                            flex
+                            items-center
+                            justify-between
+                        "
+                    >
+
+                        <div>
+
+                            <h2
+                                class="
+                                    font-semibold
+                                "
+                            >
+                                Workflow โครงการ
+                            </h2>
+
+                            <p
+                                class="
+                                    text-xs
+                                    sm:text-sm
+                                    text-slate-400
+                                    mt-1
+                                "
+                            >
+                                สถานะปัจจุบันและการดำเนินการ
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        class="
+                            mt-6
+                            space-y-4
+                        "
+                    >
+
+                        ${workflowTimeline(
+                            p
+                        )}
+
+                    </div>
+
+                </div>
+
+
+                <!-- Shortcut -->
+
+                <div
+                    class="
+                        bg-white
+                        border
+                        border-slate-200
+                        rounded-2xl
+                        p-4
+                        sm:p-6
+                    "
+                >
+
+                    <h2
+                        class="
+                            font-semibold
+                        "
+                    >
+                        เมนูโครงการ
+                    </h2>
+
+
+                    <div
+                        class="
+                            mt-5
+                            grid
+                            grid-cols-2
+                            gap-3
+                        "
+                    >
+
+                        ${shortcutButton(
+                            "Workflow",
+                            "ติดตามขั้นตอน 1–8",
+                            "workflow",
+                            "navigateProjectModule('workflow')"
+                        )}
+
+                        ${shortcutButton(
+                            "อุทธรณ์",
+                            "จัดการผลอุทธรณ์",
+                            "appeal",
+                            "navigateProjectModule('appeal')"
+                        )}
+
+                        ${shortcutButton(
+                            "สัญญา",
+                            "ข้อมูลการลงนามสัญญา",
+                            "contract",
+                            "navigateProjectModule('contract')"
+                        )}
+
+                        ${shortcutButton(
+                            "งวดงาน",
+                            "รายละเอียดงวดงาน",
+                            "installments",
+                            "navigateProjectModule('installments')"
+                        )}
+
+                        ${shortcutButton(
+                            "เบิกจ่าย",
+                            "ติดตามการเบิกจ่าย",
+                            "payment",
+                            "navigateProjectModule('disbursement')"
+                        )}
+
+                        ${shortcutButton(
+                            "ความก้าวหน้า",
+                            "บริหารสัญญา",
+                            "progress",
+                            "navigateProjectModule('progress')"
+                        )}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+function detailCard(
+    label,
+    value
+) {
+
+    return `
+
+        <div
+            class="
+                bg-white
+                border
+                border-slate-200
+                rounded-2xl
+                p-4
+                min-w-0
+            "
+        >
+
+            <div
+                class="
+                    text-xs
+                    text-slate-400
+                "
+            >
+                ${escapeHtml(label)}
+            </div>
+
+            <div
+                class="
+                    mt-2
+                    font-medium
+                    text-sm
+                    sm:text-base
+                    break-words
+                "
+            >
+                ${escapeHtml(value || "-")}
+            </div>
+
+        </div>
+    `;
+}
+
+
+function workflowTimeline(
+    project
+) {
+
+    const steps = [
+
+        "ยังไม่ดำเนินการ",
+
+        "จัดทำร่าง TOR",
+
+        "เผยแพร่ร่าง TOR",
+
+        "ประกาศเชิญชวน",
+
+        "ประกาศผู้ชนะ",
+
+        "รอผลอุทธรณ์",
+
+        "ลงนามสัญญา",
+
+        "บริหารสัญญา"
+
+    ];
+
+
+    return steps.map(
+        (step, index) => {
+
+            const number =
+                index + 1;
+
+            const isDone =
+                project.current_status >
+                number;
+
+            const isCurrent =
+                project.current_status ===
+                number;
+
+
+            return `
+
+                <div
+                    class="
+                        flex
+                        items-start
+                        gap-3
+                    "
+                >
+
+                    <div
+                        class="
+                            w-8
+                            h-8
+                            rounded-full
+                            flex
+                            items-center
+                            justify-center
+                            text-xs
+                            shrink-0
+                            ${
+                                isDone
+                                ? "bg-emerald-100 text-emerald-700"
+                                : isCurrent
+                                ? "bg-blue-600 text-white"
+                                : "bg-slate-100 text-slate-400"
+                            }
+                        "
+                    >
+                        ${
+                            isDone
+                            ? "✓"
+                            : number
+                        }
+                    </div>
+
+
+                    <div
+                        class="
+                            flex-1
+                            min-w-0
+                            py-1
+                        "
+                    >
+
+                        <div
+                            class="
+                                text-sm
+                                ${
+                                    isCurrent
+                                    ? "font-semibold"
+                                    : ""
+                                }
+                            "
+                        >
+                            ${step}
+                        </div>
+
+
+                        ${
+                            isCurrent
+
+                            ? `
+                                <div
+                                    class="
+                                        text-xs
+                                        text-blue-600
+                                        mt-1
+                                    "
+                                >
+                                    สถานะปัจจุบัน
+                                </div>
+                            `
+
+                            : ""
+                        }
+
+                    </div>
+
+                </div>
+            `;
+
+        }
+    ).join("");
+}
+
+
+function shortcutButton(
+    title,
+    description,
+    icon,
+    action
+) {
+
+    return `
+
+        <button
+            onclick="${action}"
+            class="
+                text-left
+                rounded-2xl
+                bg-slate-50
+                border
+                border-slate-100
+                p-4
+                hover:bg-blue-50
+                transition
+            "
+        >
+
+            <div
+                class="
+                    w-10
+                    h-10
+                    rounded-xl
+                    bg-white
+                    shadow-sm
+                    flex
+                    items-center
+                    justify-center
+                    text-blue-600
+                    mb-3
+                "
+            >
+                ${icon === "contract" ? "▣" :
+                  icon === "payment" ? "฿" :
+                  icon === "progress" ? "◉" :
+                  icon === "appeal" ? "!" :
+                  icon === "installments" ? "▤" : "→"}
+            </div>
+
+
+            <div
+                class="
+                    text-sm
+                    font-medium
+                "
+            >
+                ${title}
+            </div>
+
+
+            <div
+                class="
+                    text-xs
+                    text-slate-400
+                    mt-1
+                    leading-5
+                "
+            >
+                ${description}
+            </div>
+
+        </button>
+    `;
+}
+
+
+/* ============================================================
+   17. MODULE PAGES
+============================================================ */
+
+/*
+   ดึงข้อมูล Workflow (สถานะปัจจุบัน + ประวัติ) ของโครงการ
+*/
+
+async function loadWorkflow(
+    projectId
+) {
+
+    try {
+
+        const data =
+            await callRpc(
+                "custom_get_workflow",
+                {
+
+                    p_session_token:
+                        state.sessionToken,
+
+                    p_project_id:
+                        projectId
+
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "โหลดข้อมูล Workflow ไม่สำเร็จ"
+            );
+        }
+
+
+        state.workflow =
+            data.data;
+
+
+        if (
+            state.currentPage ===
+            "workflow"
+        ) {
+
+            render();
+        }
+
+    } catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+    }
+}
+
+
+function workflowPage() {
+
+    const project =
+        state.selectedProject;
+
+
+    if (!project) {
+
+        return simpleEmpty(
+            "กรุณาเลือกโครงการก่อน"
+        );
+    }
+
+
+    const backButton = `
+
+        <button
+            onclick="navigate('projectDetail')"
+            class="
+                text-sm
+                text-blue-600
+                mb-3
+            "
+        >
+            ← กลับรายละเอียดโครงการ
+        </button>
+    `;
+
+
+    if (
+        !state.workflow ||
+        state.workflow.project_id !==
+        project.id
+    ) {
+
+        return `
+
+            <div class="space-y-5">
+
+                ${backButton}
+
+                <h1
+                    class="
+                        text-xl
+                        sm:text-2xl
+                        font-semibold
+                    "
+                >
+                    ติดตาม Workflow 8 สถานะ
+                </h1>
+
+                <div
+                    class="
+                        bg-white
+                        border
+                        border-slate-200
+                        rounded-2xl
+                        p-10
+                        text-center
+                        text-slate-400
+                    "
+                >
+                    กำลังโหลดข้อมูล...
+                </div>
+
+            </div>
+        `;
+    }
+
+
+    const wf =
+        state.workflow;
+
+
+    return `
+
+        <div class="space-y-5">
+
+            ${backButton}
+
+            <div>
+
+                <h1
+                    class="
+                        text-xl
+                        sm:text-2xl
+                        font-semibold
+                    "
+                >
+                    ติดตาม Workflow 8 สถานะ
+                </h1>
+
+                <p
+                    class="
+                        text-sm
+                        text-slate-500
+                        mt-1
+                    "
+                >
+                    ${escapeHtml(
+                        project.project_name
+                    )}
+                </p>
+
+            </div>
+
+
+            ${
+                wf.is_cancelled
+
+                ? `
+                    <div
+                        class="
+                            rounded-2xl
+                            bg-red-50
+                            border
+                            border-red-100
+                            p-4
+                            text-red-700
+                            text-sm
+                        "
+                    >
+                        โครงการนี้ถูกยกเลิกแล้ว
+                    </div>
+                `
+
+                : ""
+            }
+
+
+            <div
+                class="
+                    grid
+                    grid-cols-1
+                    xl:grid-cols-2
+                    gap-5
+                "
+            >
+
+                <div
+                    class="
+                        bg-white
+                        border
+                        border-slate-200
+                        rounded-2xl
+                        p-4
+                        sm:p-6
+                    "
+                >
+
+                    <h2
+                        class="
+                            font-semibold
+                        "
+                    >
+                        ลำดับขั้นตอน
+                    </h2>
+
+                    <div
+                        class="
+                            mt-5
+                            space-y-4
+                        "
+                    >
+
+                        ${workflowTimeline(
+                            {
+                                current_status:
+                                    wf.current_status
+                            }
+                        )}
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="
+                        bg-white
+                        border
+                        border-slate-200
+                        rounded-2xl
+                        p-4
+                        sm:p-6
+                    "
+                >
+
+                    ${workflowStepForm(
+                        wf
+                    )}
+
+                </div>
+
+            </div>
+
+
+            ${
+                wf.history.length > 0
+
+                ? `
+                    <div
+                        class="
+                            bg-white
+                            border
+                            border-slate-200
+                            rounded-2xl
+                            p-4
+                            sm:p-6
+                        "
+                    >
+
+                        <h2
+                            class="
+                                font-semibold
+                            "
+                        >
+                            ประวัติการบันทึก
+                        </h2>
+
+                        <div
+                            class="
+                                mt-4
+                                space-y-3
+                            "
+                        >
+
+                            ${wf.history
+                                .map(
+                                    workflowHistoryRow
+                                )
+                                .join("")}
+
+                        </div>
+
+                    </div>
+                `
+
+                : ""
+            }
+
+        </div>
+    `;
+}
+
+
+function workflowStepForm(
+    wf
+) {
+
+    if (wf.is_cancelled) {
+
+        return `
+            <h2 class="font-semibold">บันทึกขั้นตอน</h2>
+            <div class="mt-4 text-sm text-slate-400">
+                โครงการถูกยกเลิกแล้ว ไม่สามารถบันทึกขั้นตอนเพิ่มเติมได้
+            </div>
+        `;
+    }
+
+
+    if (wf.current_status >= 6) {
+
+        const nextModule =
+            {
+
+                6: {
+                    label: "อุทธรณ์",
+                    action:
+                        "navigateProjectModule('appeal')"
+                },
+
+                7: {
+                    label: "สัญญา",
+                    action:
+                        "navigateProjectModule('contract')"
+                },
+
+                8: {
+                    label: "ความก้าวหน้า",
+                    action:
+                        "navigateProjectModule('progress')"
+                }
+
+            }[
+                wf.current_status
+            ] || {
+
+                label: "โครงการ",
+                action:
+                    "navigate('projectDetail')"
+            };
+
+
+        return `
+
+            <h2 class="font-semibold">สถานะปัจจุบัน</h2>
+
+            <div
+                class="
+                    mt-4
+                    rounded-2xl
+                    bg-amber-50
+                    border
+                    border-amber-100
+                    p-4
+                "
+            >
+
+                <div
+                    class="
+                        font-medium
+                        text-amber-800
+                    "
+                >
+                    ขั้นตอนนี้จัดการที่เมนูอื่น
+                </div>
+
+                <div
+                    class="
+                        text-sm
+                        text-amber-700
+                        mt-1
+                        leading-6
+                    "
+                >
+                    โครงการอยู่ในสถานะ "${escapeHtml(
+                        wf.status_name
+                    )}" กรุณาไปที่เมนู
+                    "${nextModule.label}" เพื่อดำเนินการต่อ
+                </div>
+
+            </div>
+
+            <button
+                onclick="${nextModule.action}"
+                class="
+                    mt-4
+                    h-11
+                    px-5
+                    rounded-xl
+                    bg-blue-600
+                    text-white
+                "
+            >
+                ไปที่ ${nextModule.label}
+            </button>
+        `;
+    }
+
+
+    const fieldsByStatus =
+        {
+
+            1: [],
+
+            2: [
+                {
+                    name: "step_date",
+                    label: "วันที่เสร็จ",
+                    type: "date",
+                    required: true
+                }
+            ],
+
+            3: [
+                {
+                    name: "publish_date",
+                    label: "วันที่เผยแพร่",
+                    type: "date",
+                    required: true
+                },
+                {
+                    name: "end_date",
+                    label: "วันที่สิ้นสุด",
+                    type: "date",
+                    required: true
+                }
+            ],
+
+            4: [
+                {
+                    name: "step_date",
+                    label: "วันประกาศเชิญชวน",
+                    type: "date",
+                    required: true
+                }
+            ],
+
+            5: [
+                {
+                    name: "step_date",
+                    label: "วันประกาศผู้ชนะ",
+                    type: "date",
+                    required: true
+                },
+                {
+                    name: "winner_name",
+                    label: "ชื่อบริษัท/ร้านที่ชนะ",
+                    type: "text",
+                    required: true
+                }
+            ]
+
+        };
+
+
+    const fields =
+        fieldsByStatus[
+            wf.current_status
+        ] || [];
+
+
+    return `
+
+        <h2 class="font-semibold">
+            บันทึกขั้นตอน: ${escapeHtml(
+                wf.status_name
+            )}
+        </h2>
+
+        <form
+            id="workflowStepForm"
+            class="
+                mt-5
+                space-y-4
+            "
+        >
+
+            ${fields
+                .map(
+                    field => `
+
+                        <div>
+
+                            <label
+                                class="
+                                    block
+                                    text-sm
+                                    font-medium
+                                    mb-1.5
+                                "
+                            >
+                                ${field.label}
+                            </label>
+
+                            <input
+                                name="${field.name}"
+                                type="${field.type}"
+                                ${
+                                    field.required
+                                    ? "required"
+                                    : ""
+                                }
+                                class="
+                                    w-full
+                                    h-11
+                                    px-4
+                                    rounded-xl
+                                    border
+                                    border-slate-200
+                                    outline-none
+                                    focus:ring-4
+                                    focus:ring-blue-500/10
+                                    focus:border-blue-500
+                                "
+                            />
+
+                        </div>
+                    `
+                )
+                .join("")}
+
+
+            <div>
+
+                <label
+                    class="
+                        block
+                        text-sm
+                        font-medium
+                        mb-1.5
+                    "
+                >
+                    หมายเหตุ (ถ้ามี)
+                </label>
+
+                <textarea
+                    name="remarks"
+                    rows="3"
+                    class="
+                        w-full
+                        px-4
+                        py-2.5
+                        rounded-xl
+                        border
+                        border-slate-200
+                        outline-none
+                        focus:ring-4
+                        focus:ring-blue-500/10
+                        focus:border-blue-500
+                    "
+                ></textarea>
+
+            </div>
+
+
+            <button
+                type="submit"
+                class="
+                    w-full
+                    h-11
+                    rounded-xl
+                    bg-blue-600
+                    text-white
+                    font-medium
+                "
+            >
+                บันทึกรายงานขั้นตอน
+            </button>
+
+        </form>
+    `;
+}
+
+
+function workflowHistoryRow(
+    entry
+) {
+
+    return `
+
+        <div
+            class="
+                rounded-xl
+                bg-slate-50
+                p-4
+            "
+        >
+
+            <div
+                class="
+                    flex
+                    items-center
+                    justify-between
+                    gap-3
+                "
+            >
+
+                <div
+                    class="
+                        text-sm
+                        font-medium
+                    "
+                >
+                    ${escapeHtml(
+                        entry.status_name
+                    )}
+                </div>
+
+                <div
+                    class="
+                        text-xs
+                        text-slate-400
+                        shrink-0
+                    "
+                >
+                    ${formatDate(
+                        entry.completed_at
+                    )}
+                </div>
+
+            </div>
+
+
+            ${
+                entry.remarks
+
+                ? `
+                    <div
+                        class="
+                            text-sm
+                            text-slate-600
+                            mt-2
+                            leading-6
+                        "
+                    >
+                        ${escapeHtml(
+                            entry.remarks
+                        )}
+                    </div>
+                `
+
+                : ""
+            }
+
+        </div>
+    `;
+}
+
+
+async function saveWorkflowStep(
+    event
+) {
+
+    event.preventDefault();
+
+
+    const wf =
+        state.workflow;
+
+
+    if (!wf) {
+        return;
+    }
+
+
+    const fd =
+        new FormData(
+            event.target
+        );
+
+
+    const extraData = {};
+
+    let completedAt = null;
+
+
+    if (wf.current_status === 3) {
+
+        const publishDate =
+            fd.get("publish_date");
+
+        const endDate =
+            fd.get("end_date");
+
+
+        if (!publishDate || !endDate) {
+
+            toast(
+                "กรุณาระบุวันที่เผยแพร่และวันที่สิ้นสุด",
+                "warning"
+            );
+
+            return;
+        }
+
+
+        if (endDate < publishDate) {
+
+            toast(
+                "วันที่สิ้นสุดต้องไม่ก่อนวันที่เผยแพร่",
+                "warning"
+            );
+
+            return;
+        }
+
+
+        extraData.publish_date =
+            publishDate;
+
+        extraData.end_date =
+            endDate;
+
+        completedAt =
+            endDate;
+
+    } else if (
+        wf.current_status === 5
+    ) {
+
+        const stepDate =
+            fd.get("step_date");
+
+        const winnerName =
+            String(
+                fd.get("winner_name") || ""
+            ).trim();
+
+
+        if (!stepDate) {
+
+            toast(
+                "กรุณาระบุวันประกาศผู้ชนะ",
+                "warning"
+            );
+
+            return;
+        }
+
+
+        if (!winnerName) {
+
+            toast(
+                "กรุณาระบุชื่อบริษัท/ร้านที่ชนะ",
+                "warning"
+            );
+
+            return;
+        }
+
+
+        extraData.winner_name =
+            winnerName;
+
+        completedAt =
+            stepDate;
+
+    } else if (
+        wf.current_status === 2 ||
+        wf.current_status === 4
+    ) {
+
+        const stepDate =
+            fd.get("step_date");
+
+
+        if (!stepDate) {
+
+            toast(
+                "กรุณาระบุวันที่",
+                "warning"
+            );
+
+            return;
+        }
+
+
+        completedAt =
+            stepDate;
+
+    } else {
+
+        completedAt =
+            new Date()
+                .toISOString()
+                .slice(0, 10);
+    }
+
+
+    showLoader(
+        "กำลังบันทึกขั้นตอน..."
+    );
+
+
+    try {
+
+        const data =
+            await callRpc(
+                "custom_advance_workflow",
+                {
+
+                    p_session_token:
+                        state.sessionToken,
+
+                    p_project_id:
+                        wf.project_id,
+
+                    p_completed_at:
+                        completedAt,
+
+                    p_remarks:
+                        fd.get("remarks") ||
+                        null,
+
+                    p_extra_data:
+                        extraData
+
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "บันทึกขั้นตอนไม่สำเร็จ"
+            );
+        }
+
+
+        toast(
+            "บันทึกขั้นตอนสำเร็จ",
+            "success"
+        );
+
+
+        if (state.selectedProject) {
+
+            state.selectedProject.current_status =
+                data.new_status;
+        }
+
+
+        await loadWorkflow(
+            wf.project_id
+        );
+
+        await refreshProjects();
+
+        await refreshDashboard();
+
+    } catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    } finally {
+
+        hideLoader();
+    }
+}
+
+
+function appealPage() {
+
+    return modulePlaceholder(
+
+        "appeal",
+
+        "จัดการอุทธรณ์",
+
+        state.selectedProject,
+
+        [
+            "ไม่มีการอุทธรณ์",
+
+            "มีการอุทธรณ์ แล้วเห็นด้วย",
+
+            "ส่งกรมบัญชีกลางพิจารณา",
+
+            "รอผลอุทธรณ์ฟังขึ้น",
+
+            "ผลอุทธรณ์ไม่ขึ้น"
+
+        ]
+
+    );
+}
+
+
+function contractPage() {
+
+    return modulePlaceholder(
+
+        "contract",
+
+        "ลงนามสัญญา",
+
+        state.selectedProject,
+
+        [
+            "ราคาที่ลงนามสัญญา",
+
+            "เงินเหลือจ่าย",
+
+            "วันลงนามสัญญา",
+
+            "วันสิ้นสุดสัญญา",
+
+            "จำนวนงวดงาน",
+
+            "เอกสารสัญญา PDF"
+
+        ]
+
+    );
+}
+
+
+function installmentsPage() {
+
+    return modulePlaceholder(
+
+        "installments",
+
+        "กำหนดรายละเอียดงวดงาน",
+
+        state.selectedProject,
+
+        [
+            "งวดงาน",
+
+            "ราคางวดงาน",
+
+            "คิดเป็นร้อยละ",
+
+            "รวมทั้งหมด"
+
+        ]
+
+    );
+}
+
+
+function disbursementPage() {
+
+    return modulePlaceholder(
+
+        "disbursement",
+
+        "ติดตามการเบิกจ่าย",
+
+        state.selectedProject,
+
+        [
+            "งวดงาน",
+
+            "ราคางวดงาน",
+
+            "ยอดเบิกจ่ายแล้ว",
+
+            "คืนค่าเสาเข็ม / คืนค่างาน",
+
+            "วันที่เบิกจ่าย",
+
+            "รายละเอียดการเบิก"
+
+        ]
+
+    );
+}
+
+
+function progressPage() {
+
+    return modulePlaceholder(
+
+        "progress",
+
+        "บริหารสัญญา / ความก้าวหน้า",
+
+        state.selectedProject,
+
+        [
+            "รายละเอียดการบริหารสัญญา",
+
+            "ความก้าวหน้า",
+
+            "ปัญหา / อุปสรรค",
+
+            "หมายเหตุ"
+
+        ]
+
+    );
+}
+
+
+function modulePlaceholder(
+    moduleName,
+    title,
+    project,
+    fields
+) {
+
+    if (!project) {
+
+        return simpleEmpty(
+            "กรุณาเลือกโครงการก่อน"
+        );
+    }
+
+
+    return `
+
+        <div class="space-y-5">
+
+            <div>
+
+                <button
+                    onclick="navigate('projectDetail')"
+                    class="
+                        text-sm
+                        text-blue-600
+                        mb-3
+                    "
+                >
+                    ← กลับรายละเอียดโครงการ
+                </button>
+
+
+                <h1
+                    class="
+                        text-xl
+                        sm:text-2xl
+                        font-semibold
+                    "
+                >
+                    ${title}
+                </h1>
+
+
+                <p
+                    class="
+                        text-sm
+                        text-slate-500
+                        mt-1
+                    "
+                >
+                    ${escapeHtml(
+                        project.project_name
+                    )}
+                </p>
+
+            </div>
+
+
+            <div
+                class="
+                    bg-white
+                    border
+                    border-slate-200
+                    rounded-2xl
+                    p-5
+                    sm:p-6
+                "
+            >
+
+                <div
+                    class="
+                        rounded-2xl
+                        bg-amber-50
+                        border
+                        border-amber-100
+                        p-4
+                    "
+                >
+
+                    <div
+                        class="
+                            font-medium
+                            text-amber-800
+                        "
+                    >
+                        เตรียมเชื่อม Backend
+                    </div>
+
+                    <div
+                        class="
+                            text-sm
+                            text-amber-700
+                            mt-1
+                            leading-6
+                        "
+                    >
+                        หน้า Frontend นี้เตรียมโครงสร้างไว้แล้ว
+                        แต่การบันทึกข้อมูล ${
+                            escapeHtml(title)
+                        } ต้องใช้ Database Function
+                        ของ Backend เพิ่มเติม เพื่อให้
+                        Frontend และ Backend ใช้ Logic เดียวกัน
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="
+                        mt-6
+                        grid
+                        grid-cols-1
+                        sm:grid-cols-2
+                        gap-4
+                    "
+                >
+
+                    ${fields.map(
+                        field => `
+
+                            <div
+                                class="
+                                    rounded-xl
+                                    bg-slate-50
+                                    p-4
+                                "
+                            >
+
+                                <div
+                                    class="
+                                        text-sm
+                                        font-medium
+                                    "
+                                >
+                                    ${escapeHtml(field)}
+                                </div>
+
+                                <div
+                                    class="
+                                        mt-2
+                                        h-10
+                                        rounded-lg
+                                        bg-white
+                                        border
+                                        border-slate-200
+                                    "
+                                ></div>
+
+                            </div>
+
+                        `
+                    ).join("")}
+
+                </div>
+
+
+                <button
+                    onclick="toast('Backend Function สำหรับโมดูลนี้จะต้องเพิ่มใน SQL ก่อน', 'info')"
+                    class="
+                        mt-6
+                        h-11
+                        px-5
+                        rounded-xl
+                        bg-blue-600
+                        text-white
+                    "
+                >
+                    บันทึกรายงานขั้นตอน
+                </button>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* ============================================================
+   18. PROFILE
+============================================================ */
+
+function profilePage() {
+
+    return `
+
+        <div class="max-w-2xl space-y-5">
+
+            <div>
+
+                <h1
+                    class="
+                        text-xl
+                        sm:text-2xl
+                        font-semibold
+                    "
+                >
+                    ข้อมูลส่วนตัว
+                </h1>
+
+                <p
+                    class="
+                        text-sm
+                        text-slate-500
+                        mt-1
+                    "
+                >
+                    แก้ไขข้อมูลบัญชีของคุณ
+                </p>
+
+            </div>
+
+
+            <div
+                class="
+                    bg-white
+                    border
+                    border-slate-200
+                    rounded-2xl
+                    p-5
+                    sm:p-6
+                "
+            >
+
+                <form
+                    id="profileForm"
+                    class="space-y-4"
+                >
+
+                    <div>
+
+                        <label
+                            class="
+                                block
+                                text-sm
+                                font-medium
+                                mb-1.5
+                            "
+                        >
+                            Username
+                        </label>
+
+                        <input
+                            value="${escapeHtml(
+                                state.user.username
+                            )}"
+                            disabled
+                            class="
+                                w-full
+                                h-11
+                                px-4
+                                rounded-xl
+                                border
+                                border-slate-200
+                                bg-slate-100
+                                text-slate-500
+                            "
+                        />
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            class="
+                                block
+                                text-sm
+                                font-medium
+                                mb-1.5
+                            "
+                        >
+                            ชื่อ-นามสกุล
+                        </label>
+
+                        <input
+                            name="full_name"
+                            required
+                            value="${escapeHtml(
+                                state.user.full_name || ""
+                            )}"
+                            class="
+                                w-full
+                                h-11
+                                px-4
+                                rounded-xl
+                                border
+                                border-slate-200
+                            "
+                        />
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            class="
+                                block
+                                text-sm
+                                font-medium
+                                mb-1.5
+                            "
+                        >
+                            เบอร์โทรศัพท์
+                        </label>
+
+                        <input
+                            name="phone"
+                            value="${escapeHtml(
+                                state.user.phone || ""
+                            )}"
+                            class="
+                                w-full
+                                h-11
+                                px-4
+                                rounded-xl
+                                border
+                                border-slate-200
+                            "
+                        />
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            class="
+                                block
+                                text-sm
+                                font-medium
+                                mb-1.5
+                            "
+                        >
+                            Email
+                        </label>
+
+                        <input
+                            type="email"
+                            name="email"
+                            value="${escapeHtml(
+                                state.user.email || ""
+                            )}"
+                            class="
+                                w-full
+                                h-11
+                                px-4
+                                rounded-xl
+                                border
+                                border-slate-200
+                            "
+                        />
+
+                    </div>
+
+
+                    <button
+                        type="submit"
+                        class="
+                            w-full
+                            sm:w-auto
+                            h-11
+                            px-5
+                            rounded-xl
+                            bg-blue-600
+                            text-white
+                        "
+                    >
+                        บันทึกข้อมูล
+                    </button>
+
+                </form>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+async function saveProfile(
+    event
+) {
+
+    event.preventDefault();
+
+
+    const fd =
+        new FormData(
+            event.target
+        );
+
+
+    showLoader(
+        "กำลังบันทึกข้อมูล..."
+    );
+
+
+    try {
+
+        const data =
+            await callRpc(
+                "user_update_profile",
+                {
+
+                    p_session_token:
+                        state.sessionToken,
+
+                    p_full_name:
+                        fd.get(
+                            "full_name"
+                        ),
+
+                    p_phone:
+                        fd.get(
+                            "phone"
+                        ),
+
+                    p_email:
+                        fd.get(
+                            "email"
+                        )
+
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "บันทึกไม่สำเร็จ"
+            );
+        }
+
+
+        const session =
+            await callRpc(
+                "custom_me",
+                {
+                    p_session_token:
+                        state.sessionToken
+                }
+            );
+
+
+        if (session?.success) {
+
+            state.user =
+                session.user;
+
+
+            localStorage.setItem(
+                "stips_user",
+                JSON.stringify(
+                    state.user
+                )
+            );
+
+        }
+
+
+        toast(
+            "บันทึกข้อมูลสำเร็จ",
+            "success"
+        );
+
+
+        render();
+
+    } catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    } finally {
+
+        hideLoader();
+    }
+}
+
+
+/* ============================================================
+   19. USERS ADMIN
+============================================================ */
+
+async function refreshUsers() {
+
+    if (
+        state.user?.role !==
+        "admin"
+    ) {
+
+        return;
+    }
+
+
+    showLoader(
+        "กำลังโหลดผู้ใช้งาน..."
+    );
+
+
+    try {
+
+        const data =
+            await callRpc(
+                "admin_get_users",
+                {
+                    p_session_token:
+                        state.sessionToken
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "โหลดผู้ใช้งานไม่สำเร็จ"
+            );
+        }
+
+
+        state.users =
+            data.data || [];
+
+
+        render();
+
+    } catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    } finally {
+
+        hideLoader();
+    }
+}
+
+
+function usersPage() {
+
+    if (
+        state.user.role !==
+        "admin"
+    ) {
+
+        return forbiddenPage();
+    }
+
+
+    return `
+
+        <div class="space-y-5">
+
+            <section
+                class="
+                    flex
+                    flex-col
+                    sm:flex-row
+                    sm:items-center
+                    sm:justify-between
+                    gap-3
+                "
+            >
+
+                <div>
+
+                    <h1
+                        class="
+                            text-xl
+                            sm:text-2xl
+                            font-semibold
+                        "
+                    >
+                        จัดการผู้ใช้งาน
+                    </h1>
+
+                    <p
+                        class="
+                            text-sm
+                            text-slate-500
+                            mt-1
+                        "
+                    >
+                        Admin สามารถจัดการบัญชีทุกคน
+                    </p>
+
+                </div>
+
+
+                <button
+                    onclick="openUserModal()"
+                    class="
+                        h-11
+                        px-4
+                        rounded-xl
+                        bg-blue-600
+                        text-white
+                    "
+                >
+                    + เพิ่มผู้ใช้งาน
+                </button>
+
+            </section>
+
+
+            ${
+                state.users.length === 0
+
+                ? simpleEmpty(
+                    "ยังไม่มีผู้ใช้งาน"
+                )
+
+                : `
+
+                    <div
+                        class="
+                            lg:hidden
+                            space-y-3
+                        "
+                    >
+
+                        ${state.users
+                            .map(
+                                userCard
+                            )
+                            .join("")}
+
+                    </div>
+
+
+                    <div
+                        class="
+                            hidden
+                            lg:block
+                            bg-white
+                            rounded-2xl
+                            border
+                            border-slate-200
+                            overflow-hidden
+                        "
+                    >
+
+                        <div class="overflow-x-auto">
+
+                            <table
+                                class="
+                                    w-full
+                                    min-w-[900px]
+                                    text-sm
+                                "
+                            >
+
+                                <thead
+                                    class="
+                                        bg-slate-50
+                                        border-b
+                                    "
+                                >
+
+                                    <tr>
+
+                                        <th class="px-5 py-4 text-left">
+                                            Username
+                                        </th>
+
+                                        <th class="px-5 py-4 text-left">
+                                            ชื่อ
+                                        </th>
+
+                                        <th class="px-5 py-4 text-left">
+                                            สิทธิ์
+                                        </th>
+
+                                        <th class="px-5 py-4 text-left">
+                                            วิทยาลัย
+                                        </th>
+
+                                        <th class="px-5 py-4 text-left">
+                                            สถานะ
+                                        </th>
+
+                                        <th class="px-5 py-4 text-center">
+                                            จัดการ
+                                        </th>
+
+                                    </tr>
+
+                                </thead>
+
+
+                                <tbody>
+
+                                    ${state.users
+                                        .map(
+                                            userRow
+                                        )
+                                        .join("")}
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+                `
+            }
+
+        </div>
+    `;
+}
+
+
+function userCard(
+    user
+) {
+
+    return `
+
+        <div
+            class="
+                bg-white
+                rounded-2xl
+                border
+                border-slate-200
+                p-4
+            "
+        >
+
+            <div
+                class="
+                    flex
+                    items-start
+                    justify-between
+                    gap-3
+                "
+            >
+
+                <div
+                    class="
+                        min-w-0
+                    "
+                >
+
+                    <div
+                        class="
+                            font-medium
+                        "
+                    >
+                        ${escapeHtml(
+                            user.username
+                        )}
+                    </div>
+
+                    <div
+                        class="
+                            text-sm
+                            text-slate-500
+                            mt-1
+                        "
+                    >
+                        ${escapeHtml(
+                            user.full_name
+                        )}
+                    </div>
+
+                </div>
+
+
+                <span
+                    class="
+                        rounded-full
+                        px-2.5
+                        py-1
+                        text-[10px]
+                        bg-blue-50
+                        text-blue-700
+                        shrink-0
+                    "
+                >
+                    ${escapeHtml(
+                        user.role
+                    )}
+                </span>
+
+            </div>
+
+
+            <div
+                class="
+                    mt-4
+                    text-sm
+                    text-slate-500
+                "
+            >
+                ${escapeHtml(
+                    user.institution_name ||
+                    "ผู้ดูแลระบบ"
+                )}
+            </div>
+
+
+            <div
+                class="
+                    grid
+                    grid-cols-2
+                    gap-2
+                    mt-4
+                "
+            >
+
+                <button
+                    onclick="openEditUserModal('${user.id}')"
+                    class="
+                        h-10
+                        rounded-xl
+                        bg-blue-50
+                        text-blue-700
+                        text-sm
+                    "
+                >
+                    แก้ไข
+                </button>
+
+
+                <button
+                    onclick="confirmDeleteUser('${user.id}')"
+                    class="
+                        h-10
+                        rounded-xl
+                        bg-red-50
+                        text-red-600
+                        text-sm
+                    "
+                >
+                    ลบ
+                </button>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+function userRow(
+    user
+) {
+
+    return `
+
+        <tr
+            class="
+                border-b
+                border-slate-100
+                last:border-0
+            "
+        >
+
+            <td class="px-5 py-4">
+                ${escapeHtml(user.username)}
+            </td>
+
+            <td class="px-5 py-4">
+                ${escapeHtml(user.full_name)}
+            </td>
+
+            <td class="px-5 py-4">
+                ${escapeHtml(user.role)}
+            </td>
+
+            <td class="px-5 py-4">
+                ${escapeHtml(
+                    user.institution_name ||
+                    "Admin"
+                )}
+            </td>
+
+            <td class="px-5 py-4">
+
+                ${
+                    user.is_active
+
+                    ? `
+                        <span
+                            class="
+                                text-emerald-600
+                                text-xs
+                            "
+                        >
+                            ใช้งาน
+                        </span>
+                    `
+
+                    : `
+                        <span
+                            class="
+                                text-red-600
+                                text-xs
+                            "
+                        >
+                            ปิดใช้งาน
+                        </span>
+                    `
+                }
+
+            </td>
+
+            <td
+                class="
+                    px-5
+                    py-4
+                "
+            >
+
+                <div
+                    class="
+                        flex
+                        justify-center
+                        gap-2
+                    "
+                >
+
+                    <button
+                        onclick="openEditUserModal('${user.id}')"
+                        class="
+                            px-3
+                            py-2
+                            rounded-lg
+                            bg-blue-50
+                            text-blue-700
+                            text-xs
+                        "
+                    >
+                        แก้ไข
+                    </button>
+
+
+                    <button
+                        onclick="confirmDeleteUser('${user.id}')"
+                        class="
+                            px-3
+                            py-2
+                            rounded-lg
+                            bg-red-50
+                            text-red-600
+                            text-xs
+                        "
+                    >
+                        ลบ
+                    </button>
+
+                </div>
+
+            </td>
+
+        </tr>
+    `;
+}
+
+
+/* ============================================================
+   20. CREATE / EDIT USER
+============================================================ */
+
+function openUserModal() {
+
+    renderUserModal(
+        null
+    );
+}
+
+
+function openEditUserModal(
+    userId
+) {
+
+    const user =
+        state.users.find(
+            u =>
+                u.id === userId
+        );
+
+
+    if (!user) {
+
+        toast(
+            "ไม่พบผู้ใช้งาน",
+            "error"
+        );
+
+        return;
+    }
+
+
+    renderUserModal(
+        user
+    );
+}
+
+
+function renderUserModal(
+    user
+) {
+
+    const isEdit =
+        !!user;
+
+
+    const modal =
+        document.createElement("div");
+
+
+    modal.id =
+        "userModal";
+
+
+    modal.className =
+        `
+            fixed
+            inset-0
+            z-[90]
+            bg-slate-950/40
+            flex
+            items-end
+            sm:items-center
+            justify-center
+            p-0
+            sm:p-4
+        `;
+
+
+    modal.innerHTML = `
+
+        <div
+            class="
+                bg-white
+                w-full
+                sm:max-w-xl
+                rounded-t-3xl
+                sm:rounded-2xl
+                max-h-[92vh]
+                overflow-y-auto
+                p-5
+                sm:p-6
+            "
+        >
+
+            <div
+                class="
+                    flex
+                    items-center
+                    justify-between
+                "
+            >
+
+                <div
+                    class="
+                        text-lg
+                        font-semibold
+                    "
+                >
+                    ${
+                        isEdit
+                        ? "แก้ไขผู้ใช้งาน"
+                        : "เพิ่มผู้ใช้งาน"
+                    }
+                </div>
+
+
+                <button
+                    onclick="closeModalById('userModal')"
+                    class="
+                        w-9
+                        h-9
+                        rounded-full
+                        bg-slate-100
+                    "
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <form
+                id="userForm"
+                class="
+                    mt-5
+                    space-y-4
+                "
+            >
+
+                <div>
+
+                    <label class="block text-sm font-medium mb-1.5">
+                        Username
+                    </label>
+
+                    <input
+                        name="username"
+                        required
+                        value="${escapeHtml(
+                            user?.username || ""
+                        )}"
+                        class="
+                            w-full
+                            h-11
+                            px-4
+                            rounded-xl
+                            border
+                        "
+                    />
+
+                </div>
+
+
+                ${
+                    !isEdit
+
+                    ? `
+
+                        <div>
+
+                            <label class="block text-sm font-medium mb-1.5">
+                                รหัสผ่าน
+                            </label>
+
+                            <input
+                                name="password"
+                                type="password"
+                                required
+                                minlength="6"
+                                class="
+                                    w-full
+                                    h-11
+                                    px-4
+                                    rounded-xl
+                                    border
+                                "
+                            />
+
+                            <div class="text-xs text-slate-400 mt-1">
+                                อย่างน้อย 6 ตัวอักษร
+                            </div>
+
+                        </div>
+
+                    `
+
+                    : ""
+                }
+
+
+                <div>
+
+                    <label class="block text-sm font-medium mb-1.5">
+                        สิทธิ์
+                    </label>
+
+                    <select
+                        name="role"
+                        class="
+                            w-full
+                            h-11
+                            px-4
+                            rounded-xl
+                            border
+                            bg-white
+                        "
+                    >
+
+                        <option
+                            value="user"
+                            ${
+                                user?.role === "user"
+                                ? "selected"
+                                : ""
+                            }
+                        >
+                            User
+                        </option>
+
+                        <option
+                            value="admin"
+                            ${
+                                user?.role === "admin"
+                                ? "selected"
+                                : ""
+                            }
+                        >
+                            Admin
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div>
+
+                    <label class="block text-sm font-medium mb-1.5">
+                        Institution UUID
+                    </label>
+
+                    <input
+                        name="institution_id"
+                        value="${escapeHtml(
+                            user?.institution_id || ""
+                        )}"
+                        placeholder="UUID ของวิทยาลัย"
+                        class="
+                            w-full
+                            h-11
+                            px-4
+                            rounded-xl
+                            border
+                        "
+                    />
+
+                    <div
+                        class="
+                            text-xs
+                            text-slate-400
+                            mt-1
+                        "
+                    >
+                        User ต้องผูกกับวิทยาลัย
+                    </div>
+
+                </div>
+
+
+                <div>
+
+                    <label class="block text-sm font-medium mb-1.5">
+                        ชื่อ-นามสกุล
+                    </label>
+
+                    <input
+                        name="full_name"
+                        required
+                        value="${escapeHtml(
+                            user?.full_name || ""
+                        )}"
+                        class="
+                            w-full
+                            h-11
+                            px-4
+                            rounded-xl
+                            border
+                        "
+                    />
+
+                </div>
+
+
+                <div
+                    class="
+                        grid
+                        grid-cols-1
+                        sm:grid-cols-2
+                        gap-4
+                    "
+                >
+
+                    <div>
+
+                        <label class="block text-sm font-medium mb-1.5">
+                            เบอร์โทร
+                        </label>
+
+                        <input
+                            name="phone"
+                            value="${escapeHtml(
+                                user?.phone || ""
+                            )}"
+                            class="
+                                w-full
+                                h-11
+                                px-4
+                                rounded-xl
+                                border
+                            "
+                        />
+
+                    </div>
+
+
+                    <div>
+
+                        <label class="block text-sm font-medium mb-1.5">
+                            Email
+                        </label>
+
+                        <input
+                            name="email"
+                            type="email"
+                            value="${escapeHtml(
+                                user?.email || ""
+                            )}"
+                            class="
+                                w-full
+                                h-11
+                                px-4
+                                rounded-xl
+                                border
+                            "
+                        />
+
+                    </div>
+
+                </div>
+
+
+                ${
+                    isEdit
+
+                    ? `
+
+                        <label
+                            class="
+                                flex
+                                items-center
+                                gap-3
+                                text-sm
+                            "
+                        >
+
+                            <input
+                                type="checkbox"
+                                name="is_active"
+                                ${
+                                    user.is_active
+                                    ? "checked"
+                                    : ""
+                                }
+                                class="w-4 h-4"
+                            />
+
+                            เปิดใช้งานบัญชี
+
+                        </label>
+
+                    `
+
+                    : ""
+                }
+
+
+                <button
+                    type="submit"
+                    class="
+                        w-full
+                        h-11
+                        rounded-xl
+                        bg-blue-600
+                        text-white
+                    "
+                >
+                    ${
+                        isEdit
+                        ? "บันทึกการแก้ไข"
+                        : "สร้างบัญชี"
+                    }
+                </button>
+
+            </form>
+
+
+            ${
+                isEdit
+
+                ? `
+
+                    <button
+                        onclick="resetUserPassword('${user.id}')"
+                        class="
+                            w-full
+                            h-11
+                            rounded-xl
+                            bg-amber-50
+                            text-amber-700
+                            mt-3
+                        "
+                    >
+                        เปลี่ยนรหัสผ่าน
+                    </button>
+
+                `
+
+                : ""
+            }
+
+        </div>
+    `;
+
+
+    document.body.appendChild(
+        modal
+    );
+
+
+    document
+        .getElementById("userForm")
+        .addEventListener(
+            "submit",
+            event =>
+                saveUser(
+                    event,
+                    isEdit
+                        ? user.id
+                        : null
+                )
+        );
+}
+
+
+async function saveUser(
+    event,
+    userId = null
+) {
+
+    event.preventDefault();
+
+
+    const fd =
+        new FormData(
+            event.target
+        );
+
+
+    showLoader(
+        userId
+            ? "กำลังแก้ไขผู้ใช้งาน..."
+            : "กำลังสร้างผู้ใช้งาน..."
+    );
+
+
+    try {
+
+        let data;
+
+
+        if (userId) {
+
+            data =
+                await callRpc(
+                    "admin_update_user",
+                    {
+
+                        p_session_token:
+                            state.sessionToken,
+
+                        p_user_id:
+                            userId,
+
+                        p_username:
+                            fd.get(
+                                "username"
+                            ),
+
+                        p_role:
+                            fd.get(
+                                "role"
+                            ),
+
+                        p_institution_id:
+                            fd.get(
+                                "institution_id"
+                            ) || null,
+
+                        p_full_name:
+                            fd.get(
+                                "full_name"
+                            ),
+
+                        p_phone:
+                            fd.get(
+                                "phone"
+                            ),
+
+                        p_email:
+                            fd.get(
+                                "email"
+                            ),
+
+                        p_is_active:
+                            fd.get(
+                                "is_active"
+                            ) === "on"
+
+                    }
+                );
+
+        } else {
+
+            data =
+                await callRpc(
+                    "admin_create_user",
+                    {
+
+                        p_session_token:
+                            state.sessionToken,
+
+                        p_username:
+                            fd.get(
+                                "username"
+                            ),
+
+                        p_password:
+                            fd.get(
+                                "password"
+                            ),
+
+                        p_role:
+                            fd.get(
+                                "role"
+                            ),
+
+                        p_institution_id:
+                            fd.get(
+                                "institution_id"
+                            ) || null,
+
+                        p_full_name:
+                            fd.get(
+                                "full_name"
+                            ),
+
+                        p_phone:
+                            fd.get(
+                                "phone"
+                            ),
+
+                        p_email:
+                            fd.get(
+                                "email"
+                            )
+
+                    }
+                );
+
+        }
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "บันทึกข้อมูลไม่สำเร็จ"
+            );
+        }
+
+
+        closeModalById(
+            "userModal"
+        );
+
+
+        toast(
+            userId
+                ? "แก้ไขผู้ใช้งานสำเร็จ"
+                : "สร้างผู้ใช้งานสำเร็จ",
+            "success"
+        );
+
+
+        await refreshUsers();
+
+    } catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    } finally {
+
+        hideLoader();
+    }
+}
+
+
+/* ============================================================
+   21. RESET PASSWORD
+============================================================ */
+
+function resetUserPassword(
+    userId
+) {
+
+    const password =
+        prompt(
+            "กำหนดรหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)"
+        );
+
+
+    if (password === null) {
+        return;
+    }
+
+
+    if (
+        password.length < 6
+    ) {
+
+        toast(
+            "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
+            "warning"
+        );
+
+        return;
+    }
+
+
+    showLoader(
+        "กำลังเปลี่ยนรหัสผ่าน..."
+    );
+
+
+    callRpc(
+        "admin_reset_password",
+        {
+
+            p_session_token:
+                state.sessionToken,
+
+            p_user_id:
+                userId,
+
+            p_new_password:
+                password
+
+        }
+
+    )
+    .then(
+        data => {
+
+            if (!data?.success) {
+
+                throw new Error(
+                    data?.message ||
+                    "เปลี่ยนรหัสผ่านไม่สำเร็จ"
+                );
+            }
+
+
+            toast(
+                "เปลี่ยนรหัสผ่านสำเร็จ",
+                "success"
+            );
+        }
+    )
+    .catch(
+        error => {
+
+            toast(
+                error.message,
+                "error"
+            );
+        }
+    )
+    .finally(
+        hideLoader
+    );
+}
+
+
+/* ============================================================
+   22. DELETE USER
+============================================================ */
+
+function confirmDeleteUser(
+    userId
+) {
+
+    showConfirm(
+        "ลบผู้ใช้งาน",
+        "ยืนยันการลบบัญชีนี้หรือไม่?",
+        async () => {
+
+            showLoader(
+                "กำลังลบผู้ใช้งาน..."
+            );
+
+
+            try {
+
+                const data =
+                    await callRpc(
+                        "admin_delete_user",
+                        {
+
+                            p_session_token:
+                                state.sessionToken,
+
+                            p_user_id:
+                                userId
+
+                        }
+                    );
+
+
+                if (!data?.success) {
+
+                    throw new Error(
+                        data?.message ||
+                        "ลบผู้ใช้งานไม่สำเร็จ"
+                    );
+                }
+
+
+                toast(
+                    "ลบผู้ใช้งานสำเร็จ",
+                    "success"
+                );
+
+
+                await refreshUsers();
+
+            } catch (error) {
+
+                toast(
+                    error.message,
+                    "error"
+                );
+
+            } finally {
+
+                hideLoader();
+            }
+        }
+    );
+}
+
+
+/* ============================================================
+   23. REPORTS
+============================================================ */
+
+function reportsPage() {
+
+    return `
+
+        <div class="space-y-5">
+
+            <div>
+
+                <h1
+                    class="
+                        text-xl
+                        sm:text-2xl
+                        font-semibold
+                    "
+                >
+                    รายงาน
+                </h1>
+
+                <p
+                    class="
+                        text-sm
+                        text-slate-500
+                        mt-1
+                    "
+                >
+                    ดาวน์โหลดข้อมูลตามสิทธิ์ของคุณ
+                </p>
+
+            </div>
+
+
+            <div
+                class="
+                    grid
+                    grid-cols-1
+                    sm:grid-cols-2
+                    xl:grid-cols-3
+                    gap-4
+                "
+            >
+
+                ${reportCard(
+                    "รายงานโครงการ",
+                    "ดาวน์โหลดรายการโครงการที่คุณมีสิทธิ์",
+                    "downloadProjectReport()"
+                )}
+
+
+                ${reportCard(
+                    "Dashboard CSV",
+                    "ดาวน์โหลดตัวเลขสรุป Dashboard",
+                    "downloadDashboardReport()"
+                )}
+
+
+                ${
+                    state.user.role === "admin"
+
+                    ? reportCard(
+                        "ผู้ใช้งาน",
+                        "ดาวน์โหลดรายการบัญชีผู้ใช้งาน",
+                        "downloadUserReport()"
+                    )
+
+                    : ""
+                }
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+function reportCard(
+    title,
+    description,
+    action
+) {
+
+    return `
+
+        <div
+            class="
+                bg-white
+                border
+                border-slate-200
+                rounded-2xl
+                p-5
+            "
+        >
+
+            <div
+                class="
+                    w-11
+                    h-11
+                    rounded-xl
+                    bg-blue-50
+                    text-blue-600
+                    flex
+                    items-center
+                    justify-center
+                    text-lg
+                "
+            >
+                ▥
+            </div>
+
+
+            <div
+                class="
+                    font-medium
+                    mt-4
+                "
+            >
+                ${title}
+            </div>
+
+
+            <div
+                class="
+                    text-sm
+                    text-slate-500
+                    mt-1
+                    leading-6
+                "
+            >
+                ${description}
+            </div>
+
+
+            <button
+                onclick="${action}"
+                class="
+                    mt-5
+                    w-full
+                    h-10
+                    rounded-xl
+                    bg-slate-900
+                    text-white
+                    text-sm
+                "
+            >
+                ดาวน์โหลด
+            </button>
+
+        </div>
+    `;
+}
+
+
+function downloadCSV(
+    filename,
+    rows
+) {
+
+    const csv =
+        rows
+            .map(
+                row =>
+                    row
+                        .map(
+                            cell =>
+                                `"${String(
+                                    cell ?? ""
+                                ).replaceAll(
+                                    '"',
+                                    '""'
+                                )}"`
+                        )
+                        .join(",")
+            )
+            .join("\n");
+
+
+    const blob =
+        new Blob(
+            [
+                "\uFEFF" +
+                csv
+            ],
+            {
+                type:
+                    "text/csv;charset=utf-8"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(blob);
+
+
+    const a =
+        document.createElement("a");
+
+
+    a.href =
+        url;
+
+
+    a.download =
+        filename;
+
+
+    document.body.appendChild(a);
+
+    a.click();
+
+    a.remove();
+
+
+    setTimeout(
+        () =>
+            URL.revokeObjectURL(url),
+        500
+    );
+}
+
+
+async function downloadProjectReport() {
+
+    if (
+        state.projects.length === 0
+    ) {
+
+        await refreshProjects();
+    }
+
+
+    const rows = [
+
+        [
+            "รหัสโครงการ",
+            "ชื่อโครงการ",
+            "ประเภท",
+            "งบประมาณ",
+            "สถานะ",
+            "วิทยาลัย"
+        ],
+
+        ...state.projects.map(
+            p => [
+
+                p.project_code,
+
+                p.project_name,
+
+                p.project_type,
+
+                p.budget_amount,
+
+                p.status_name,
+
+                p.institution_name || ""
+
+            ]
+        )
+
+    ];
+
+
+    downloadCSV(
+        "stips-projects.csv",
+        rows
+    );
+
+
+    toast(
+        "ดาวน์โหลดรายงานแล้ว",
+        "success"
+    );
+}
+
+
+async function downloadDashboardReport() {
+
+    if (
+        !state.dashboard
+    ) {
+
+        await refreshDashboard();
+    }
+
+
+    const d =
+        state.dashboard || {};
+
+
+    downloadCSV(
+        "stips-dashboard.csv",
+        [
+
+            [
+                "รายการ",
+                "ค่า"
+            ],
+
+            [
+                "จำนวนโครงการ",
+                d.total_projects || 0
+            ],
+
+            [
+                "งบประมาณรวม",
+                d.total_budget || 0
+            ],
+
+            [
+                "งบครุภัณฑ์",
+                d.equipment_budget || 0
+            ],
+
+            [
+                "ที่ดิน/สิ่งก่อสร้าง",
+                d.construction_budget || 0
+            ]
+
+        ]
+    );
+
+
+    toast(
+        "ดาวน์โหลดรายงานแล้ว",
+        "success"
+    );
+}
+
+
+async function downloadUserReport() {
+
+    if (
+        state.user.role !==
+        "admin"
+    ) {
+        return;
+    }
+
+
+    if (
+        state.users.length === 0
+    ) {
+
+        await refreshUsers();
+    }
+
+
+    downloadCSV(
+        "stips-users.csv",
+        [
+
+            [
+                "Username",
+                "ชื่อ",
+                "สิทธิ์",
+                "วิทยาลัย",
+                "สถานะ"
+            ],
+
+            ...state.users.map(
+                user => [
+
+                    user.username,
+
+                    user.full_name,
+
+                    user.role,
+
+                    user.institution_name || "",
+
+                    user.is_active
+                        ? "ใช้งาน"
+                        : "ปิดใช้งาน"
+
+                ]
+            )
+
+        ]
+    );
+
+
+    toast(
+        "ดาวน์โหลดรายงานแล้ว",
+        "success"
+    );
+}
+
+
+/* ============================================================
+   24. NAVIGATION
+============================================================ */
+
+async function navigate(
+    page
+) {
+
+    state.previousPage =
+        state.currentPage;
+
+    state.currentPage =
+        page;
+
+    state.adminPanelOpen =
+        false;
+
+    render();
+
+
+    if (page === "dashboard") {
+
+        await refreshDashboard();
+    }
+
+
+    if (page === "projects") {
+
+        await refreshProjects();
+    }
+
+
+    if (page === "users") {
+
+        await refreshUsers();
+    }
+}
+
+
+function navigateProjectModule(
+    module
+) {
+
+    const map = {
+
+        workflow:
+            "workflow",
+
+        contract:
+            "contract",
+
+        installments:
+            "installments",
+
+        disbursement:
+            "disbursement",
+
+        progress:
+            "contractManagement",
+
+        appeal:
+            "appeal"
+
+    };
+
+
+    if (
+        !state.selectedProject
+    ) {
+
+        toast(
+            "กรุณาเลือกโครงการ",
+            "warning"
+        );
+
+        return;
+    }
+
+
+    state.currentPage =
+        map[module] ||
+        "projectDetail";
+
+
+    if (
+        state.currentPage ===
+        "workflow"
+    ) {
+
+        state.workflow =
+            null;
+    }
+
+
+    render();
+
+
+    if (
+        state.currentPage ===
+        "workflow"
+    ) {
+
+        loadWorkflow(
+            state.selectedProject.id
+        );
+    }
+}
+
+
+function adminNavigate(
+    page
+) {
+
+    state.adminPanelOpen =
+        false;
+
+    navigate(page);
+}
+
+
+function toggleAdminPanel() {
+
+    state.adminPanelOpen =
+        !state.adminPanelOpen;
+
+    render();
+}
+
+
+function closeAdminPanel(
+    event
+) {
+
+    if (
+        event.target ===
+        event.currentTarget
+    ) {
+
+        state.adminPanelOpen =
+            false;
+
+        render();
+    }
+}
+
+
+/* ============================================================
+   25. COMMON MODALS
+============================================================ */
+
+function closeModalById(
+    id
+) {
+
+    document
+        .getElementById(id)
+        ?.remove();
+}
+
+
+function showConfirm(
+    title,
+    message,
+    onConfirm
+) {
+
+    const modal =
+        document.createElement("div");
+
+
+    modal.id =
+        "confirmModal";
+
+
+    modal.className =
+        `
+            fixed
+            inset-0
+            z-[100]
+            bg-slate-950/40
+            flex
+            items-center
+            justify-center
+            p-4
+        `;
+
+
+    modal.innerHTML = `
+
+        <div
+            class="
+                w-full
+                max-w-md
+                bg-white
+                rounded-2xl
+                p-5
+                sm:p-6
+                shadow-2xl
+            "
+        >
+
+            <div
+                class="
+                    text-lg
+                    font-semibold
+                "
+            >
+                ${escapeHtml(title)}
+            </div>
+
+
+            <div
+                class="
+                    text-sm
+                    text-slate-500
+                    mt-2
+                    leading-6
+                "
+            >
+                ${escapeHtml(message)}
+            </div>
+
+
+            <div
+                class="
+                    grid
+                    grid-cols-2
+                    gap-3
+                    mt-6
+                "
+            >
+
+                <button
+                    onclick="closeModalById('confirmModal')"
+                    class="
+                        h-11
+                        rounded-xl
+                        bg-slate-100
+                    "
+                >
+                    ยกเลิก
+                </button>
+
+
+                <button
+                    id="confirmActionBtn"
+                    class="
+                        h-11
+                        rounded-xl
+                        bg-red-600
+                        text-white
+                    "
+                >
+                    ยืนยัน
+                </button>
+
+            </div>
+
+        </div>
+    `;
+
+
+    document.body.appendChild(
+        modal
+    );
+
+
+    document
+        .getElementById(
+            "confirmActionBtn"
+        )
+        .onclick =
+        async () => {
+
+            closeModalById(
+                "confirmModal"
+            );
+
+            await onConfirm();
+        };
+}
+
+
+function confirmLogout() {
+
+    showConfirm(
+        "ออกจากระบบ",
+        "คุณต้องการออกจากระบบหรือไม่?",
+        logout
+    );
+}
+
+
+/* ============================================================
+   26. GENERIC STATES
+============================================================ */
+
+function simpleEmpty(
+    message
+) {
+
+    return `
+
+        <div
+            class="
+                bg-white
+                border
+                border-dashed
+                border-slate-300
+                rounded-2xl
+                p-10
+                text-center
+            "
+        >
+
+            <div
+                class="
+                    text-4xl
+                    text-slate-300
+                "
+            >
+                ○
+            </div>
+
+
+            <div
+                class="
+                    mt-3
+                    font-medium
+                "
+            >
+                ${escapeHtml(message)}
+            </div>
+
+        </div>
+    `;
+}
+
+
+function comingSoonPage(
+    title
+) {
+
+    return `
+
+        <div class="space-y-5">
+
+            <h1
+                class="
+                    text-xl
+                    sm:text-2xl
+                    font-semibold
+                "
+            >
+                ${escapeHtml(title)}
+            </h1>
+
+
+            ${simpleEmpty(
+                "ฟีเจอร์นี้ยังไม่พร้อมใช้งาน กำลังพัฒนา"
+            )}
+
+        </div>
+    `;
+}
+
+
+function forbiddenPage() {
+
+    return `
+
+        <div
+            class="
+                min-h-[50vh]
+                flex
+                items-center
+                justify-center
+            "
+        >
+
+            <div
+                class="
+                    text-center
+                "
+            >
+
+                <div
+                    class="
+                        text-5xl
+                    "
+                >
+                    🔒
+                </div>
+
+
+                <div
+                    class="
+                        mt-4
+                        font-semibold
+                    "
+                >
+                    ไม่มีสิทธิ์เข้าถึง
+                </div>
+
+
+                <div
+                    class="
+                        mt-1
+                        text-sm
+                        text-slate-500
+                    "
+                >
+                    หน้านี้สำหรับ Admin เท่านั้น
+                </div>
+
+            </div>
+
+        </div>
+    `;
+}
+
+
+/* ============================================================
+   27. RENDER
+============================================================ */
+
+function render() {
+
+    const root =
+        document.getElementById(
+            "app"
+        );
+
+
+    if (!root) {
+        return;
+    }
+
+
+    /*
+       Guest
+    */
+
+    if (!state.user) {
+
+        root.innerHTML =
+            renderLogin();
+
+
+        const form =
+            document.getElementById(
+                "loginForm"
+            );
+
+
+        if (form) {
+
+            form.addEventListener(
+                "submit",
+                event => {
+
+                    event.preventDefault();
+
+
+                    login(
+
+                        document
+                            .getElementById(
+                                "loginUsername"
+                            )
+                            .value
+                            .trim(),
+
+                        document
+                            .getElementById(
+                                "loginPassword"
+                            )
+                            .value
+
+                    );
+
+                }
+            );
+        }
+
+
+        return;
+    }
+
+
+    let content = "";
+
+
+    switch (
+        state.currentPage
+    ) {
+
+        case "dashboard":
+
+            content =
+                dashboardPage();
+
+            break;
+
+
+        case "projects":
+
+            content =
+                projectsPage();
+
+            break;
+
+
+        case "projectDetail":
+
+            content =
+                projectDetailPage();
+
+            break;
+
+
+        case "workflow":
+
+            content =
+                workflowPage();
+
+            break;
+
+
+        case "contract":
+
+            content =
+                contractPage();
+
+            break;
+
+
+        case "installments":
+
+            content =
+                installmentsPage();
+
+            break;
+
+
+        case "disbursement":
+
+            content =
+                disbursementPage();
+
+            break;
+
+
+        case "contractManagement":
+
+            content =
+                progressPage();
+
+            break;
+
+
+        case "reports":
+
+            content =
+                reportsPage();
+
+            break;
+
+
+        case "users":
+
+            content =
+                usersPage();
+
+            break;
+
+
+        case "profile":
+
+            content =
+                profilePage();
+
+            break;
+
+
+        case "appeal":
+
+            content =
+                appealPage();
+
+            break;
+
+
+        case "institutions":
+
+            content =
+                comingSoonPage(
+                    "วิทยาลัย"
+                );
+
+            break;
+
+
+        case "audit":
+
+            content =
+                comingSoonPage(
+                    "Audit Log"
+                );
+
+            break;
+
+
+        default:
+
+            content =
+                dashboardPage();
+
+    }
+
+
+    root.innerHTML =
+        renderShell(
+            content
+        );
+
+
+    /*
+       Profile Form
+    */
+
+    const profileForm =
+        document.getElementById(
+            "profileForm"
+        );
+
+
+    if (profileForm) {
+
+        profileForm.addEventListener(
+            "submit",
+            saveProfile
+        );
+    }
+
+
+    /*
+       Workflow Step Form
+    */
+
+    const workflowStepFormEl =
+        document.getElementById(
+            "workflowStepForm"
+        );
+
+
+    if (workflowStepFormEl) {
+
+        workflowStepFormEl.addEventListener(
+            "submit",
+            saveWorkflowStep
+        );
+    }
+}
+
+
+/* ============================================================
+   28. INITIALIZE
+============================================================ */
+
+async function initializeApp() {
+
+    render();
+
+
+    if (!state.sessionToken) {
+
+        return;
+    }
+
+
+    showLoader(
+        "กำลังตรวจสอบ Session..."
+    );
+
+
+    try {
+
+        const valid =
+            await validateSession();
+
+
+        if (!valid) {
+
+            render();
+
+            return;
+        }
+
+
+        render();
+
+
+        await refreshDashboard();
+
+    } catch (error) {
+
+        console.error(
+            error
+        );
+
+        clearSession();
+
+        render();
+
+    } finally {
+
+        hideLoader();
+    }
+}
+
+
+/* ============================================================
+   START
+============================================================ */
+
+initializeApp();
+
+</script>
+
+</body>
+</html>
