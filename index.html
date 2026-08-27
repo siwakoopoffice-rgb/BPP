@@ -4864,5 +4864,522 @@ init();
 
 </script>
 
+/* ======================================================
+   WORKFLOW MODULE (8 ขั้นตอน)
+   นำโค้ดส่วนนี้ไปวางในส่วนของ PAGES หรือก่อนส่วน EVENT HANDLERS
+====================================================== */
+
+function workflowPage(projectId) {
+    const p = state.selectedProject;
+    if(!p) return `<div class="p-6 text-center text-red-500">กรุณาเลือกโครงการก่อน</div>`;
+
+    let html = `
+        <div class="mb-6">
+            <button onclick="navigate('projects')" class="text-sm text-blue-600 hover:underline mb-2 flex items-center gap-1">← กลับหน้ารายการ</button>
+            <h2 class="text-2xl font-bold text-slate-800">ติดตามขั้นตอนโครงการ</h2>
+            <p class="text-slate-500 mt-1">${esc(p.project_code)} : ${esc(p.project_name)}</p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6">
+            <div class="flex items-center justify-between mb-6 border-b pb-4">
+                <h3 class="font-bold text-lg">Timeline 8 สถานะ</h3>
+                <span class="px-3 py-1 text-xs rounded-full border ${utils.getStatusColor(p.current_status)} font-bold">
+                    ปัจจุบัน: สถานะ ${p.current_status}
+                </span>
+            </div>
+            
+            <div class="space-y-4">
+    `;
+
+    // Render 8 Steps
+    for(let i = 1; i <= 8; i++) {
+        const isCompleted = p.current_status > i;
+        const isCurrent = p.current_status === i;
+        const isWaiting = p.current_status < i;
+        
+        let iconBg = isCompleted ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : isCurrent ? 'bg-blue-600 text-white border-blue-600 ring-4 ring-blue-100' : 'bg-slate-100 text-slate-400 border-slate-200';
+        let icon = isCompleted ? '✓' : (isCurrent ? '●' : '○');
+
+        html += `
+            <div class="flex gap-4 ${isWaiting ? 'opacity-40 grayscale pointer-events-none' : ''}">
+                <div class="flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm z-10 shrink-0 ${iconBg}">
+                        ${icon}
+                    </div>
+                    ${i < 8 ? `<div class="w-0.5 h-full min-h-[40px] bg-slate-200 my-1 ${isCompleted ? 'bg-emerald-400' : ''}"></div>` : ''}
+                </div>
+                <div class="flex-1 pb-6 w-full min-w-0">
+                    <div class="${isCurrent ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'} border rounded-xl p-4 sm:p-5 transition-all">
+                        <h4 class="font-bold ${isCurrent ? 'text-blue-800' : 'text-slate-800'}">${i}. ${utils.getStatusName(i)}</h4>
+                        ${isCurrent ? renderStepForm(i, p) : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    html += `</div></div>`;
+    document.getElementById('page-container').innerHTML = html;
+}
+
+// ==========================================
+// ฟอร์มย่อยของแต่ละสถานะ (Dynamic Forms)
+// ==========================================
+function renderStepForm(step, project) {
+    let formHtml = `<div class="mt-4 pt-4 border-t border-blue-100/50">`;
+
+    switch(step) {
+        case 1:
+            formHtml += `
+                <p class="text-sm text-slate-500 mb-4">คลิกบันทึกรายงานขั้นตอนเพื่อเริ่มจัดทำร่าง TOR</p>
+                <button onclick="workflowHandlers.saveSimpleStep(1)" class="w-full sm:w-auto bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition">บันทึกรายงานขั้นตอน</button>
+            `;
+            break;
+        case 2:
+            formHtml += `
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">เสร็จวันที่ <span class="text-red-500">*</span></label>
+                    <input type="date" id="step2_date" class="w-full sm:w-64 px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button onclick="workflowHandlers.saveStep(2, ['step2_date'])" class="w-full sm:w-auto bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>
+            `;
+            break;
+        case 3:
+            formHtml += `
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">เผยแพร่วันที่ <span class="text-red-500">*</span></label>
+                        <input type="date" id="step3_start" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">สิ้นสุดวันที่ <span class="text-red-500">*</span></label>
+                        <input type="date" id="step3_end" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <button onclick="workflowHandlers.saveStep3()" class="w-full sm:w-auto bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>
+            `;
+            break;
+        case 4:
+            formHtml += `
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">วันประกาศเชิญชวน <span class="text-red-500">*</span></label>
+                    <input type="date" id="step4_date" class="w-full sm:w-64 px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button onclick="workflowHandlers.saveStep(4, ['step4_date'])" class="w-full sm:w-auto bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>
+            `;
+            break;
+        case 5:
+            formHtml += `
+                <div class="grid grid-cols-1 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">วันประกาศผู้ชนะ <span class="text-red-500">*</span></label>
+                        <input type="date" id="step5_date" class="w-full sm:w-64 px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">ชื่อบริษัท/ร้าน ที่ชนะการจัดซื้อจัดจ้าง <span class="text-red-500">*</span></label>
+                        <input type="text" id="step5_company" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="ระบุชื่อบริษัท...">
+                    </div>
+                </div>
+                <button onclick="workflowHandlers.saveStep(5, ['step5_date', 'step5_company'])" class="w-full sm:w-auto bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>
+            `;
+            break;
+        case 6: // รอผลอุทธรณ์ (ซับซ้อนสุด)
+            formHtml += `
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">ผลการอุทธรณ์ <span class="text-red-500">*</span></label>
+                    <select id="appeal_option" onchange="workflowHandlers.toggleAppealForm()" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="">-- เลือกสถานะการอุทธรณ์ --</option>
+                        <option value="1">1. ไม่มีการอุทธรณ์</option>
+                        <option value="2">2. มีการอุทธรณ์ แล้วเห็นด้วย (ยกเลิก/แก้ไขใหม่)</option>
+                        <option value="3">3. ไม่เห็นด้วย/เห็นด้วยบางส่วน (ส่งกรมบัญชีกลาง)</option>
+                        <option value="4">4. รอผลอุทธรณ์ฟังขึ้น (สั่งยกเลิก/ทำใหม่)</option>
+                        <option value="5">5. ผลอุทธรณ์ไม่ขึ้น (ดำเนินการต่อ)</option>
+                    </select>
+                </div>
+                
+                <!-- ส่วนขยายสำหรับตัวเลือกที่ 3 -->
+                <div id="appeal_extra_form" class="hidden bg-white p-4 rounded-xl border border-slate-200 mb-4 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">แนบหลักฐานการส่งเรื่อง (PDF)</label>
+                        <input type="file" id="appeal_file" accept=".pdf" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">ผลการพิจารณาจากกรมบัญชีกลาง</label>
+                        <select id="appeal_sub_option" onchange="workflowHandlers.toggleSubAppealBtn()" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <option value="">-- ยังไม่มีผลพิจารณา (ค้างสถานะ) --</option>
+                            <option value="3.1">รอผลอุทธรณ์ฟังขึ้น (ยกเลิก)</option>
+                            <option value="3.2">ผลอุทธรณ์ไม่ขึ้น (ดำเนินการต่อ)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="appeal_action_area" class="mt-4">
+                    <!-- ปุ่มจะเปลี่ยนไปตามตัวเลือกแบบ Dynamic -->
+                </div>
+            `;
+            break;
+        case 7: // ลงนามสัญญา
+            formHtml += `
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">วงเงินงบประมาณโครงการ</label>
+                        <input type="text" value="${utils.formatMoney(project.budget_amount)}" disabled class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">ราคาที่ลงนามสัญญา (บาท) <span class="text-red-500">*</span></label>
+                        <input type="number" id="contract_amount" oninput="workflowHandlers.calcRemaining(${project.budget_amount})" min="0" step="0.01" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-700">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">เงินเหลือจ่าย (บาท)</label>
+                        <input type="text" id="remaining_budget" readonly class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-xl font-bold text-emerald-600">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">จำนวนงวดงาน <span class="text-red-500">*</span></label>
+                        <select id="installment_count" onchange="workflowHandlers.generateInstallmentTable()" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <option value="0">-- เลือกจำนวนงวด --</option>
+                            ${Array.from({length: 16}, (_, i) => `<option value="${i+1}">${i+1} งวด</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">วันลงนามสัญญา <span class="text-red-500">*</span></label>
+                        <input type="date" id="contract_start" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">วันสิ้นสุดสัญญา <span class="text-red-500">*</span></label>
+                        <input type="date" id="contract_end" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">แนบเอกสารลงนามสัญญา (PDF) <span class="text-red-500">*</span></label>
+                    <input type="file" id="contract_file" accept=".pdf" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
+                </div>
+
+                <!-- ตารางงวดงาน -->
+                <div id="installment_area" class="mb-4 overflow-x-auto hidden">
+                    <table class="w-full text-sm text-left border border-slate-200 rounded-lg overflow-hidden">
+                        <thead class="bg-slate-100 text-slate-700">
+                            <tr>
+                                <th class="px-4 py-2 border-b">งวดงาน</th>
+                                <th class="px-4 py-2 border-b">ราคางวดงาน (บาท)</th>
+                                <th class="px-4 py-2 border-b text-right">คิดเป็นร้อยละ (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="installment_tbody" class="divide-y divide-slate-100"></tbody>
+                        <tfoot class="bg-slate-50 font-bold">
+                            <tr>
+                                <td class="px-4 py-3">สรุปรวม</td>
+                                <td class="px-4 py-3 text-blue-700" id="total_installment_amount">0.00</td>
+                                <td class="px-4 py-3 text-right text-emerald-600" id="total_installment_percent">0.00%</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <p id="installment_error" class="text-xs text-red-500 mt-2 hidden">ผลรวมราคางวดงาน ต้องเท่ากับ ราคาที่ลงนามสัญญา</p>
+                </div>
+
+                <button id="btn_save_contract" onclick="workflowHandlers.saveContract()" class="w-full sm:w-auto bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition" disabled>บันทึกรายงานขั้นตอน (ลงนามสัญญา)</button>
+            `;
+            break;
+        case 8: // บริหารสัญญา
+            formHtml += `
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 mb-4 text-sm text-blue-800">
+                    <p><b>คำแนะนำ:</b> นี่คือสถานะสุดท้าย คุณสามารถอัปเดตการเบิกจ่ายในแต่ละงวด และบันทึกความก้าวหน้า/ปัญหาอุปสรรคได้ตลอดเวลา</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button onclick="ui.toast('เชื่อมต่อกับตารางเบิกจ่ายในระบบหลัก', 'info')" class="bg-white border border-slate-300 px-4 py-3 rounded-xl hover:bg-slate-50 font-medium flex items-center justify-between">
+                        <span>💰 จัดการการเบิกจ่ายตามงวดงาน</span>
+                        <span>→</span>
+                    </button>
+                    <button onclick="ui.toast('เชื่อมต่อกับระบบรายงานความก้าวหน้า', 'info')" class="bg-white border border-slate-300 px-4 py-3 rounded-xl hover:bg-slate-50 font-medium flex items-center justify-between">
+                        <span>📝 บันทึกความก้าวหน้า / ปัญหา</span>
+                        <span>→</span>
+                    </button>
+                </div>
+            `;
+            break;
+    }
+
+    formHtml += `</div>`;
+    return formHtml;
+}
+
+// ==========================================
+// Handlers สำหรับจัดการ Event ใน Workflow
+// ==========================================
+const workflowHandlers = {
+    // ------------------ Step 1-5 ------------------
+    saveSimpleStep: async (step) => {
+        ui.showLoader();
+        try {
+            await workflowHandlers.updateStatusDB(step + 1, "ดำเนินการเรียบร้อย");
+            ui.toast('บันทึกขั้นตอนสำเร็จ');
+            app.navigate('workflow', state.selectedProject.id); // Reload
+        } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
+    },
+    saveStep: async (step, requiredFields) => {
+        let valid = true;
+        let data = {};
+        requiredFields.forEach(f => {
+            const val = document.getElementById(f).value;
+            if(!val) valid = false;
+            data[f] = val;
+        });
+        if(!valid) return ui.toast('กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
+        
+        ui.showLoader();
+        try {
+            await workflowHandlers.updateStatusDB(step + 1, JSON.stringify(data));
+            ui.toast('บันทึกขั้นตอนสำเร็จ');
+            app.navigate('workflow', state.selectedProject.id);
+        } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
+    },
+    saveStep3: async () => {
+        const start = document.getElementById('step3_start').value;
+        const end = document.getElementById('step3_end').value;
+        if(!start || !end) return ui.toast('กรุณากรอกวันที่ให้ครบ', 'warning');
+        if(new Date(end) < new Date(start)) return ui.toast('วันที่สิ้นสุดต้องไม่ก่อนวันที่เผยแพร่', 'error');
+        
+        ui.showLoader();
+        try {
+            await workflowHandlers.updateStatusDB(4, `เริ่ม: ${start}, สิ้นสุด: ${end}`);
+            ui.toast('บันทึกขั้นตอนสำเร็จ');
+            app.navigate('workflow', state.selectedProject.id);
+        } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
+    },
+
+    // ------------------ Step 6 Logic ------------------
+    toggleAppealForm: () => {
+        const opt = document.getElementById('appeal_option').value;
+        const extraForm = document.getElementById('appeal_extra_form');
+        const actionArea = document.getElementById('appeal_action_area');
+        
+        extraForm.classList.add('hidden');
+        actionArea.innerHTML = ''; // Clear buttons
+        
+        const btnSave = `<button onclick="workflowHandlers.processAppeal('save')" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700">บันทึกรายงานขั้นตอน (ไปสถานะที่ 7)</button>`;
+        const btnCancel = `<button onclick="workflowHandlers.processAppeal('cancel')" class="w-full bg-red-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-red-700">ยกเลิกโครงการ</button>`;
+        const btnHold = `<button onclick="workflowHandlers.processAppeal('hold')" class="w-full bg-orange-500 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-orange-600">บันทึกรายการ (รอผลพิจารณา)</button>`;
+
+        if(opt === '1' || opt === '5') actionArea.innerHTML = btnSave;
+        else if(opt === '2' || opt === '4') actionArea.innerHTML = btnCancel;
+        else if(opt === '3') {
+            extraForm.classList.remove('hidden');
+            actionArea.innerHTML = btnHold; // Default for option 3 is Hold
+            workflowHandlers.toggleSubAppealBtn(); // Check sub-option
+        }
+    },
+    toggleSubAppealBtn: () => {
+        const subOpt = document.getElementById('appeal_sub_option')?.value;
+        const actionArea = document.getElementById('appeal_action_area');
+        if(subOpt === '3.1') actionArea.innerHTML = `<button onclick="workflowHandlers.processAppeal('cancel')" class="w-full bg-red-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-red-700">ยกเลิกโครงการ</button>`;
+        else if(subOpt === '3.2') actionArea.innerHTML = `<button onclick="workflowHandlers.processAppeal('save')" class="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700">บันทึกรายงานขั้นตอน (ไปสถานะที่ 7)</button>`;
+        else actionArea.innerHTML = `<button onclick="workflowHandlers.processAppeal('hold')" class="w-full bg-orange-500 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-orange-600">บันทึกรายการ (รอผลพิจารณา)</button>`;
+    },
+    processAppeal: async (actionType) => {
+        ui.openConfirm(
+            actionType === 'cancel' ? 'ยืนยันการยกเลิกโครงการ' : 'ยืนยันการบันทึกผลอุทธรณ์',
+            actionType === 'cancel' ? 'โครงการจะหยุดที่สถานะนี้และไม่สามารถไปต่อได้' : 'ข้อมูลจะถูกบันทึกเข้าระบบ',
+            async () => {
+                ui.showLoader();
+                try {
+                    const appealOpt = document.getElementById('appeal_option').value;
+                    let fileUrl = null;
+                    
+                    // Upload File If Exist
+                    const fileInput = document.getElementById('appeal_file');
+                    if(fileInput && fileInput.files.length > 0) {
+                        const file = fileInput.files[0];
+                        if(file.type !== 'application/pdf') throw new Error("รองรับเฉพาะไฟล์ PDF เท่านั้น");
+                        
+                        const path = `appeals/${state.selectedProject.id}/${Date.now()}_${file.name}`;
+                        const { data: uploadData, error: uploadError } = await supabaseClient.storage.from('stips').upload(path, file);
+                        if(uploadError) throw new Error("อัปโหลดไฟล์ล้มเหลว");
+                        fileUrl = uploadData.path;
+                    }
+
+                    // Save Appeal Record
+                    await supabaseClient.from('appeals').insert([{
+                        project_id: state.selectedProject.id,
+                        appeal_option: appealOpt,
+                        central_audit_document_path: fileUrl,
+                        created_by: state.user.id
+                    }]);
+
+                    if(actionType === 'cancel') {
+                        await supabaseClient.from('projects').update({ is_cancelled: true, cancellation_reason: 'ยกเลิกจากผลอุทธรณ์' }).eq('id', state.selectedProject.id);
+                        ui.toast('ยกเลิกโครงการเรียบร้อยแล้ว', 'warning');
+                    } else if(actionType === 'save') {
+                        await workflowHandlers.updateStatusDB(7, "ผลอุทธรณ์ผ่าน ไปสู่การลงนามสัญญา");
+                        ui.toast('บันทึกผลอุทธรณ์สำเร็จ', 'success');
+                    } else {
+                        // Hold (อัปเดตข้อมูลเฉยๆ ไม่เปลี่ยนสถานะ)
+                        ui.toast('บันทึกข้อมูลหลักฐานเรียบร้อย (รอผลพิจารณา)', 'info');
+                    }
+                    
+                    // Update state and UI
+                    const {data} = await supabaseClient.from('projects').select('*').eq('id', state.selectedProject.id).single();
+                    state.selectedProject = data;
+                    app.navigate('workflow', state.selectedProject.id);
+                } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
+            }
+        );
+    },
+
+    // ------------------ Step 7 Logic ------------------
+    calcRemaining: (budget) => {
+        const signed = parseFloat(document.getElementById('contract_amount').value) || 0;
+        const remaining = budget - signed;
+        const remainingEl = document.getElementById('remaining_budget');
+        remainingEl.value = utils.formatMoney(remaining);
+        
+        if(signed > budget || signed < 0) {
+            remainingEl.classList.add('text-red-600');
+            remainingEl.classList.remove('text-emerald-600');
+        } else {
+            remainingEl.classList.remove('text-red-600');
+            remainingEl.classList.add('text-emerald-600');
+        }
+        workflowHandlers.recalculateInstallments();
+    },
+    generateInstallmentTable: () => {
+        const count = parseInt(document.getElementById('installment_count').value) || 0;
+        const area = document.getElementById('installment_area');
+        const tbody = document.getElementById('installment_tbody');
+        const btnSave = document.getElementById('btn_save_contract');
+        
+        if(count === 0) {
+            area.classList.add('hidden');
+            btnSave.disabled = true;
+            return;
+        }
+
+        area.classList.remove('hidden');
+        let rows = '';
+        for(let i=1; i<=count; i++) {
+            rows += `
+                <tr>
+                    <td class="px-4 py-2 font-medium">งวดที่ ${i}</td>
+                    <td class="px-4 py-2"><input type="number" min="0" step="0.01" class="installment-input w-full px-2 py-1 border rounded outline-none focus:ring-1 focus:ring-blue-500" oninput="workflowHandlers.recalculateInstallments()"></td>
+                    <td class="px-4 py-2 text-right"><span class="installment-percent text-slate-500">0.00%</span></td>
+                </tr>
+            `;
+        }
+        tbody.innerHTML = rows;
+        workflowHandlers.recalculateInstallments();
+    },
+    recalculateInstallments: () => {
+        const signedAmount = parseFloat(document.getElementById('contract_amount').value) || 0;
+        const inputs = document.querySelectorAll('.installment-input');
+        const percents = document.querySelectorAll('.installment-percent');
+        
+        let totalAmount = 0;
+        inputs.forEach((input, index) => {
+            const val = parseFloat(input.value) || 0;
+            totalAmount += val;
+            const pct = signedAmount > 0 ? ((val / signedAmount) * 100) : 0;
+            percents[index].innerText = pct.toFixed(2) + '%';
+        });
+
+        const totalPct = signedAmount > 0 ? ((totalAmount / signedAmount) * 100) : 0;
+        
+        document.getElementById('total_installment_amount').innerText = utils.formatMoney(totalAmount);
+        const pctEl = document.getElementById('total_installment_percent');
+        pctEl.innerText = totalPct.toFixed(2) + '%';
+
+        const btnSave = document.getElementById('btn_save_contract');
+        const errorMsg = document.getElementById('installment_error');
+        
+        // Validation: ผลรวมต้องเท่ากับราคาสัญญาเป๊ะๆ (ปัดเศษเผื่อทศนิยม)
+        if(Math.abs(totalAmount - signedAmount) < 0.01 && signedAmount > 0 && totalAmount > 0) {
+            pctEl.classList.remove('text-red-600');
+            pctEl.classList.add('text-emerald-600');
+            btnSave.disabled = false;
+            errorMsg.classList.add('hidden');
+        } else {
+            pctEl.classList.remove('text-emerald-600');
+            pctEl.classList.add('text-red-600');
+            btnSave.disabled = true;
+            errorMsg.classList.remove('hidden');
+        }
+    },
+    saveContract: async () => {
+        // Collect Data
+        const signed_amount = parseFloat(document.getElementById('contract_amount').value);
+        const remaining_budget = parseFloat(document.getElementById('remaining_budget').value.replace(/,/g, ''));
+        const contract_start = document.getElementById('contract_start').value;
+        const contract_end = document.getElementById('contract_end').value;
+        const installment_count = parseInt(document.getElementById('installment_count').value);
+        const fileInput = document.getElementById('contract_file');
+
+        if(!signed_amount || !contract_start || !contract_end || !fileInput.files.length) {
+            return ui.toast('กรุณากรอกข้อมูลและแนบไฟล์ PDF ให้ครบถ้วน', 'warning');
+        }
+        if(fileInput.files[0].type !== 'application/pdf') {
+            return ui.toast('รองรับเฉพาะไฟล์ PDF เท่านั้น', 'error');
+        }
+
+        ui.showLoader('กำลังบันทึกสัญญาและงวดงาน...');
+        try {
+            // 1. Upload File
+            const file = fileInput.files[0];
+            const path = `contracts/${state.selectedProject.id}/${Date.now()}_${file.name}`;
+            const { data: uploadData, error: uploadError } = await supabaseClient.storage.from('stips').upload(path, file);
+            if(uploadError) throw new Error("อัปโหลดไฟล์ PDF ไม่สำเร็จ");
+
+            // 2. Insert Contract
+            const { data: contractData, error: contractError } = await supabaseClient.from('contracts').insert([{
+                project_id: state.selectedProject.id,
+                signed_amount: signed_amount,
+                remaining_budget: remaining_budget,
+                contract_signed_date: contract_start,
+                contract_end_date: contract_end,
+                installment_count: installment_count,
+                contract_document_path: uploadData.path,
+                created_by: state.user.id
+            }]).select();
+            if(contractError) throw contractError;
+
+            // 3. Insert Installments
+            const inputs = document.querySelectorAll('.installment-input');
+            const installmentsToInsert = [];
+            inputs.forEach((input, index) => {
+                const val = parseFloat(input.value) || 0;
+                installmentsToInsert.push({
+                    contract_id: contractData[0].id,
+                    installment_no: index + 1,
+                    installment_amount: val,
+                    percentage: (val / signed_amount) * 100
+                });
+            });
+            await supabaseClient.from('contract_installments').insert(installmentsToInsert);
+
+            // 4. Update Status to 8
+            await workflowHandlers.updateStatusDB(8, "ลงนามสัญญาเรียบร้อย เริ่มบริหารสัญญา");
+            
+            ui.toast('ลงนามสัญญาและสร้างงวดงานสำเร็จ', 'success');
+            const {data} = await supabaseClient.from('projects').select('*').eq('id', state.selectedProject.id).single();
+            state.selectedProject = data;
+            app.navigate('workflow', state.selectedProject.id);
+
+        } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
+    },
+
+    // ------------------ Helper ------------------
+    updateStatusDB: async (newStatus, remarks) => {
+        const pid = state.selectedProject.id;
+        await supabaseClient.from('projects').update({ current_status: newStatus }).eq('id', pid);
+        await supabaseClient.from('project_workflows').insert([{
+            project_id: pid,
+            status_no: newStatus,
+            status_name: utils.getStatusName(newStatus),
+            remarks: remarks,
+            created_by: state.user.id
+        }]);
+    }
+};
+
 </body>
 </html>
