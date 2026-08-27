@@ -4,50 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>STIPS - ระบบติดตามงบประมาณลงทุนวิทยาลัย</title>
-
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Google Fonts: Kanit -->
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     fontFamily: { kanit: ['Kanit', 'sans-serif'] },
                     colors: {
-                        primary: '#1d4ed8', // blue-700
-                        success: '#15803d', // green-700
-                        danger: '#b91c1c',  // red-700
-                        warning: '#b45309', // amber-700
+                        primary: '#1d4ed8', success: '#15803d',
+                        danger: '#b91c1c', warning: '#b45309',
                     }
                 }
             }
         }
     </script>
-
     <style>
-        body {
-            font-family: 'Kanit', sans-serif;
-            background-color: #f8fafc;
-            color: #0f172a;
-            -webkit-tap-highlight-color: transparent;
-        }
+        body { font-family: 'Kanit', sans-serif; background-color: #f8fafc; color: #0f172a; -webkit-tap-highlight-color: transparent; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="antialiased h-screen flex flex-col overflow-hidden">
 
-    <!-- ==========================================
-         UI CONTAINERS
-    ========================================== -->
+    <!-- UI CONTAINERS -->
     <div id="app-root" class="w-full h-full flex flex-col md:flex-row hidden">
-        <!-- Sidebar -->
         <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 flex flex-col">
             <div class="p-4 border-b border-slate-200 flex items-center justify-between">
                 <h1 class="text-2xl font-bold text-primary">STIPS</h1>
@@ -68,7 +50,6 @@
         </aside>
         <div id="sidebar-overlay" onclick="ui.closeSidebar()" class="fixed inset-0 bg-slate-900/50 z-40 hidden md:hidden"></div>
 
-        <!-- Main Content -->
         <main class="flex-1 flex flex-col h-full overflow-hidden w-full relative">
             <header class="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shrink-0">
                 <h1 class="text-xl font-bold text-primary">STIPS</h1>
@@ -99,7 +80,7 @@
         </div>
     </div>
 
-    <!-- Global UI Components -->
+    <!-- Global Components -->
     <div id="global-loader" class="fixed inset-0 bg-slate-900/60 z-[9999] hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4">
             <div class="w-6 h-6 border-4 border-slate-200 border-t-primary rounded-full animate-spin"></div>
@@ -107,20 +88,18 @@
         </div>
     </div>
     <div id="toast-container" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 w-full max-w-sm pointer-events-none"></div>
-
     <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 z-[9998] hidden items-center justify-center p-4 backdrop-blur-sm">
         <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl scale-95 transition-transform" id="confirm-modal-box">
             <div class="p-5 sm:p-6 text-center">
                 <h3 id="confirm-title" class="text-lg font-bold text-slate-900 mb-2">ยืนยัน</h3>
                 <p id="confirm-message" class="text-sm text-slate-500 mb-6"></p>
                 <div class="grid grid-cols-2 gap-3">
-                    <button onclick="ui.closeConfirm()" class="w-full py-2.5 rounded-xl font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors">ยกเลิก</button>
-                    <button id="confirm-action-btn" class="w-full py-2.5 rounded-xl font-medium text-white bg-danger hover:bg-red-800 transition-colors shadow-sm">ยืนยัน</button>
+                    <button onclick="ui.closeConfirm()" class="w-full py-2.5 rounded-xl font-medium text-slate-700 bg-slate-100 hover:bg-slate-200">ยกเลิก</button>
+                    <button id="confirm-action-btn" class="w-full py-2.5 rounded-xl font-medium text-white bg-danger hover:bg-red-800 shadow-sm">ยืนยัน</button>
                 </div>
             </div>
         </div>
     </div>
-
     <div id="general-modal" class="fixed inset-0 bg-slate-900/60 z-[9000] hidden items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
         <div class="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] flex flex-col shadow-2xl transition-transform transform translate-y-full sm:translate-y-0" id="general-modal-box">
             <div class="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
@@ -131,27 +110,17 @@
         </div>
     </div>
 
-    <!-- ==========================================
-         JAVASCRIPT LOGIC
-    ========================================== -->
+    <!-- SCRIPT LOGIC -->
     <script>
-        // 1. CONFIG & SETUP
         const SUPABASE_URL = "https://jfkqxwkukotmjaeuttcs.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_hEoWELY_mQr3E-5ldGB4og_82jI5BY_";
-        
-        // ห้ามตั้งชื่อว่า supabase เด็ดขาด
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const state = {
             sessionToken: localStorage.getItem("stips_session_token"),
-            user: null,
-            currentRoute: 'dashboard',
-            projects: [],
-            users: [],
-            selectedProject: null
+            user: null, currentRoute: 'dashboard', projects: [], users: [], selectedProject: null
         };
 
-        // 2. UTILS & UI HELPERS
         const utils = {
             esc: (str) => String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]),
             formatMoney: (num) => Number(num || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -170,27 +139,19 @@
                 document.getElementById('toast-container').appendChild(el);
                 setTimeout(() => el.remove(), 3000);
             },
-            openConfirm: (title, message, onConfirmCallback) => {
-                document.getElementById('confirm-title').innerText = title;
-                document.getElementById('confirm-message').innerText = message;
-                const modal = document.getElementById('confirm-modal');
-                const box = document.getElementById('confirm-modal-box');
-                modal.classList.remove('hidden'); modal.classList.add('flex');
-                setTimeout(() => box.classList.remove('scale-95'), 10);
-                document.getElementById('confirm-action-btn').onclick = async () => {
-                    ui.closeConfirm();
-                    if(onConfirmCallback) await onConfirmCallback();
-                };
+            openConfirm: (title, message, onCb) => {
+                document.getElementById('confirm-title').innerText = title; document.getElementById('confirm-message').innerText = message;
+                const m = document.getElementById('confirm-modal'); const b = document.getElementById('confirm-modal-box');
+                m.classList.remove('hidden'); m.classList.add('flex'); setTimeout(() => b.classList.remove('scale-95'), 10);
+                document.getElementById('confirm-action-btn').onclick = async () => { ui.closeConfirm(); if(onCb) await onCb(); };
             },
             closeConfirm: () => {
                 document.getElementById('confirm-modal-box').classList.add('scale-95');
                 setTimeout(() => { document.getElementById('confirm-modal').classList.add('hidden'); document.getElementById('confirm-modal').classList.remove('flex'); }, 150);
             },
             openModal: (title, html) => {
-                document.getElementById('modal-title').innerText = title;
-                document.getElementById('modal-content').innerHTML = html;
-                const m = document.getElementById('general-modal');
-                m.classList.remove('hidden'); m.classList.add('flex');
+                document.getElementById('modal-title').innerText = title; document.getElementById('modal-content').innerHTML = html;
+                const m = document.getElementById('general-modal'); m.classList.remove('hidden'); m.classList.add('flex');
                 setTimeout(() => document.getElementById('general-modal-box').classList.remove('translate-y-full'), 10);
             },
             closeModal: () => {
@@ -202,94 +163,54 @@
         };
 
         async function rpc(fn, params = {}) {
-            try {
-                const { data, error } = await supabaseClient.rpc(fn, params);
-                if (error) throw new Error(error.message);
-                return data;
-            } catch (e) { console.error(fn, e); throw e; }
+            try { const { data, error } = await supabaseClient.rpc(fn, params); if (error) throw new Error(error.message); return data; } 
+            catch (e) { console.error(fn, e); throw e; }
         }
 
-        // ==========================================
-        // 3. AUTH LOGIC
-        // ==========================================
         const auth = {
             login: async (e) => {
-                e.preventDefault();
-                ui.showLoader('เข้าสู่ระบบ...');
+                e.preventDefault(); ui.showLoader('เข้าสู่ระบบ...');
                 try {
-                    const data = await rpc("custom_login", {
-                        p_username: document.getElementById('login-username').value,
-                        p_password: document.getElementById('login-password').value
-                    });
+                    const data = await rpc("custom_login", { p_username: document.getElementById('login-username').value, p_password: document.getElementById('login-password').value });
                     if (!data?.success) throw new Error(data?.message || 'รหัสไม่ถูกต้อง');
-                    state.sessionToken = data.session_token;
-                    state.user = data.user;
-                    localStorage.setItem("stips_session_token", state.sessionToken);
-                    ui.toast('เข้าสู่ระบบสำเร็จ');
-                    app.initUserUI();
-                    app.navigate('dashboard');
+                    state.sessionToken = data.session_token; state.user = data.user;
+                    localStorage.setItem("stips_session_token", state.sessionToken); ui.toast('เข้าสู่ระบบสำเร็จ');
+                    app.initUserUI(); app.navigate('dashboard');
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
             logout: async () => {
                 ui.openConfirm('ออกจากระบบ', 'ยืนยันการออกจากระบบใช่หรือไม่?', async () => {
                     ui.showLoader();
                     try { if(state.sessionToken) await rpc("custom_logout", { p_session_token: state.sessionToken }); } catch(e){}
-                    localStorage.removeItem("stips_session_token");
-                    state.sessionToken = null; state.user = null;
-                    document.getElementById('app-root').classList.add('hidden');
-                    document.getElementById('login-root').classList.remove('hidden');
-                    ui.hideLoader();
-                    ui.toast('ออกจากระบบแล้ว');
+                    localStorage.removeItem("stips_session_token"); state.sessionToken = null; state.user = null;
+                    document.getElementById('app-root').classList.add('hidden'); document.getElementById('login-root').classList.remove('hidden');
+                    ui.hideLoader(); ui.toast('ออกจากระบบแล้ว');
                 });
             },
             validate: async () => {
                 if(!state.sessionToken) return false;
-                try {
-                    const data = await rpc("custom_me", { p_session_token: state.sessionToken });
-                    if(data?.success) { state.user = data.user; return true; }
-                } catch(e) {}
+                try { const data = await rpc("custom_me", { p_session_token: state.sessionToken }); if(data?.success) { state.user = data.user; return true; } } catch(e) {}
                 localStorage.removeItem("stips_session_token"); return false;
             }
         };
 
-        // ==========================================
-        // 4. PAGES (Dashboard, Projects, Workflow, Users)
-        // ==========================================
         const pages = {
             dashboard: async () => {
                 ui.showLoader();
                 try {
-                    const data = await rpc("custom_dashboard", { p_session_token: state.sessionToken });
-                    const d = data.data;
+                    const d = (await rpc("custom_dashboard", { p_session_token: state.sessionToken })).data;
                     document.getElementById('page-container').innerHTML = `
                         <h2 class="text-2xl font-bold mb-6 text-slate-800">แดชบอร์ดภาพรวม</h2>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                            <div class="bg-white p-4 rounded-xl border border-slate-200">
-                                <p class="text-xs text-slate-500">โครงการทั้งหมด</p>
-                                <h3 class="text-2xl font-bold text-primary">${d.total_projects}</h3>
-                            </div>
-                            <div class="bg-white p-4 rounded-xl border border-slate-200">
-                                <p class="text-xs text-slate-500">งบประมาณรวม</p>
-                                <h3 class="text-xl font-bold text-success truncate">฿${utils.formatMoney(d.total_budget)}</h3>
-                            </div>
-                            <div class="bg-white p-4 rounded-xl border border-slate-200">
-                                <p class="text-xs text-slate-500">งบก่อสร้าง</p>
-                                <h3 class="text-lg font-bold truncate">฿${utils.formatMoney(d.construction_budget)}</h3>
-                            </div>
-                            <div class="bg-white p-4 rounded-xl border border-slate-200">
-                                <p class="text-xs text-slate-500">งบครุภัณฑ์</p>
-                                <h3 class="text-lg font-bold truncate">฿${utils.formatMoney(d.equipment_budget)}</h3>
-                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-slate-200"><p class="text-xs text-slate-500">โครงการทั้งหมด</p><h3 class="text-2xl font-bold text-primary">${d.total_projects}</h3></div>
+                            <div class="bg-white p-4 rounded-xl border border-slate-200"><p class="text-xs text-slate-500">งบประมาณรวม</p><h3 class="text-xl font-bold text-success truncate">฿${utils.formatMoney(d.total_budget)}</h3></div>
+                            <div class="bg-white p-4 rounded-xl border border-slate-200"><p class="text-xs text-slate-500">งบก่อสร้าง</p><h3 class="text-lg font-bold truncate">฿${utils.formatMoney(d.construction_budget)}</h3></div>
+                            <div class="bg-white p-4 rounded-xl border border-slate-200"><p class="text-xs text-slate-500">งบครุภัณฑ์</p><h3 class="text-lg font-bold truncate">฿${utils.formatMoney(d.equipment_budget)}</h3></div>
                         </div>
                         <div class="bg-white p-5 rounded-xl border border-slate-200">
                             <h3 class="font-bold mb-4">จำนวนโครงการตามสถานะ (1-8)</h3>
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                ${[1,2,3,4,5,6,7,8].map(i => `
-                                    <div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                        <span class="text-xs text-slate-600">${i}. ${utils.getStatusName(i)}</span>
-                                        <span class="font-bold w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-800">${d[`status_${i}`]}</span>
-                                    </div>
-                                `).join('')}
+                                ${[1,2,3,4,5,6,7,8].map(i => `<div class="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100"><span class="text-xs text-slate-600">${i}. ${utils.getStatusName(i)}</span><span class="font-bold w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-sm">${d[`status_${i}`]}</span></div>`).join('')}
                             </div>
                         </div>
                     `;
@@ -300,41 +221,16 @@
                 try {
                     const data = await rpc("custom_get_projects", { p_session_token: state.sessionToken });
                     state.projects = data.data || [];
-                    
-                    let html = `
-                        <div class="flex justify-between items-center mb-6">
-                            <h2 class="text-2xl font-bold text-slate-800">รายการโครงการ</h2>
-                            <button onclick="handlers.openCreateModal()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-800 transition">+ สร้างโครงการ</button>
-                        </div>
-                    `;
-
-                    if(state.projects.length === 0) {
-                        html += `<div class="p-10 text-center bg-white border border-dashed border-slate-300 rounded-xl text-slate-400">ยังไม่มีข้อมูลโครงการ</div>`;
-                    } else {
-                        html += `<div class="space-y-4">`;
-                        state.projects.forEach(p => {
-                            html += `
-                                <div class="bg-white border rounded-xl p-4 flex flex-col md:flex-row justify-between md:items-center gap-4 hover:shadow-sm">
-                                    <div>
-                                        <span class="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-500 font-mono">${p.project_code}</span>
-                                        <h3 class="font-bold text-lg mt-1">${utils.esc(p.project_name)}</h3>
-                                        <div class="flex gap-4 mt-2 text-sm">
-                                            <span class="text-slate-500">งบ: <b class="text-blue-600">฿${utils.formatMoney(p.budget_amount)}</b></span>
-                                            <span class="text-slate-500">ประเภท: <b>${p.project_type}</b></span>
-                                        </div>
-                                    </div>
-                                    <div class="flex flex-col md:items-end gap-2">
-                                        <span class="px-3 py-1 text-xs rounded-full border font-bold ${utils.getStatusColor(p.current_status)}">
-                                            ${p.current_status}. ${utils.getStatusName(p.current_status)}
-                                        </span>
-                                        <button onclick="app.navigate('workflow', '${p.id}')" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-medium w-full md:w-auto hover:bg-slate-700 transition">
-                                            อัปเดต Workflow →
-                                        </button>
-                                    </div>
-                                </div>
-                            `;
-                        });
-                        html += `</div>`;
+                    let html = `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold text-slate-800">รายการโครงการ</h2><button onclick="handlers.openCreateModal()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium">+ สร้างโครงการ</button></div>`;
+                    if(state.projects.length === 0) html += `<div class="p-10 text-center bg-white border border-dashed rounded-xl text-slate-400">ยังไม่มีข้อมูลโครงการ</div>`;
+                    else {
+                        html += `<div class="space-y-4">${state.projects.map(p => `
+                            <div class="bg-white border rounded-xl p-4 flex flex-col md:flex-row justify-between md:items-center gap-4">
+                                <div><span class="text-xs bg-slate-100 px-2 py-0.5 rounded">${p.project_code}</span><h3 class="font-bold text-lg mt-1">${utils.esc(p.project_name)}</h3>
+                                <div class="text-sm mt-1 text-slate-500">งบ: <b>฿${utils.formatMoney(p.budget_amount)}</b> | ${p.project_type}</div></div>
+                                <div class="flex flex-col md:items-end gap-2"><span class="px-3 py-1 text-xs rounded-full border font-bold ${utils.getStatusColor(p.current_status)}">${p.current_status}. ${utils.getStatusName(p.current_status)}</span>
+                                <button onclick="app.navigate('workflow', '${p.id}')" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs w-full md:w-auto">จัดการ Workflow →</button></div>
+                            </div>`).join('')}</div>`;
                     }
                     document.getElementById('page-container').innerHTML = html;
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
@@ -343,124 +239,153 @@
                 const p = state.projects.find(x => x.id === projectId);
                 if(!p) return app.navigate('projects');
                 state.selectedProject = p;
-
                 let html = `
-                    <div class="mb-6">
-                        <button onclick="app.navigate('projects')" class="text-sm text-blue-600 hover:underline mb-2 flex items-center gap-1">← กลับหน้ารายการ</button>
-                        <h2 class="text-2xl font-bold text-slate-800 leading-tight">ติดตามขั้นตอนโครงการ</h2>
-                        <p class="text-slate-500 mt-1 text-sm font-mono">${utils.esc(p.project_code)} : ${utils.esc(p.project_name)}</p>
-                    </div>
-
-                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 mb-6">
-                        <div class="flex items-center justify-between mb-6 border-b pb-4">
-                            <h3 class="font-bold text-lg">Timeline 8 สถานะ</h3>
-                            <span class="px-3 py-1 text-xs rounded-full border ${utils.getStatusColor(p.current_status)} font-bold">
-                                ปัจจุบัน: สถานะ ${p.current_status}
-                            </span>
-                        </div>
+                    <div class="mb-6"><button onclick="app.navigate('projects')" class="text-sm text-blue-600 mb-2">← กลับหน้ารายการ</button><h2 class="text-2xl font-bold">ติดตามขั้นตอนโครงการ</h2><p class="text-slate-500 mt-1">${utils.esc(p.project_code)} : ${utils.esc(p.project_name)}</p></div>
+                    <div class="bg-white rounded-2xl border p-4 sm:p-6 mb-6">
+                        <div class="flex justify-between mb-6 border-b pb-4"><h3 class="font-bold">Timeline 8 สถานะ</h3><span class="px-3 py-1 text-xs rounded-full border ${utils.getStatusColor(p.current_status)} font-bold">ปัจจุบัน: สถานะ ${p.current_status}</span></div>
                         <div class="space-y-4">
                 `;
-
                 for(let i=1; i<=8; i++) {
-                    const isDone = p.current_status > i;
-                    const isCur = p.current_status === i;
-                    const isWait = p.current_status < i;
-                    const iconBg = isDone ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : isCur ? 'bg-blue-600 text-white border-blue-600 ring-4 ring-blue-100' : 'bg-slate-100 text-slate-400 border-slate-200';
-                    const icon = isDone ? '✓' : (isCur ? '●' : '○');
-
+                    const isDone = p.current_status > i; const isCur = p.current_status === i; const isWait = p.current_status < i;
+                    const iconBg = isDone ? 'bg-emerald-100 text-emerald-700' : isCur ? 'bg-blue-600 text-white ring-4 ring-blue-100' : 'bg-slate-100 text-slate-400';
                     html += `
-                        <div class="flex gap-4 ${isWait ? 'opacity-40 grayscale pointer-events-none' : ''}">
-                            <div class="flex flex-col items-center">
-                                <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm z-10 shrink-0 ${iconBg}">${icon}</div>
-                                ${i<8 ? `<div class="w-0.5 h-full min-h-[40px] bg-slate-200 my-1 ${isDone ? 'bg-emerald-400' : ''}"></div>` : ''}
-                            </div>
-                            <div class="flex-1 pb-6 w-full min-w-0">
-                                <div class="border rounded-xl p-4 sm:p-5 transition-all ${isCur ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'}">
-                                    <h4 class="font-bold ${isCur ? 'text-blue-800' : 'text-slate-800'}">${i}. ${utils.getStatusName(i)}</h4>
-                                    ${isCur ? handlers.renderStepForm(i, p) : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
+                        <div class="flex gap-4 ${isWait ? 'opacity-40 pointer-events-none' : ''}">
+                            <div class="flex flex-col items-center"><div class="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm z-10 shrink-0 ${iconBg}">${isDone ? '✓' : (isCur?'●':'○')}</div>
+                            ${i<8 ? `<div class="w-0.5 h-full min-h-[40px] bg-slate-200 my-1 ${isDone?'bg-emerald-400':''}"></div>` : ''}</div>
+                            <div class="flex-1 pb-6 w-full min-w-0"><div class="${isCur?'bg-blue-50 border-blue-200':'bg-slate-50 border-slate-200'} border rounded-xl p-4 transition-all">
+                                <h4 class="font-bold ${isCur?'text-blue-800':'text-slate-800'}">${i}. ${utils.getStatusName(i)}</h4>
+                                ${isCur ? handlers.renderStepForm(i, p) : ''}
+                            </div></div>
+                        </div>`;
                 }
                 document.getElementById('page-container').innerHTML = html + `</div></div>`;
             },
             users: async () => {
-                if(state.user.role !== 'admin') {
-                    document.getElementById('page-container').innerHTML = `<div class="p-10 text-center text-red-500 font-bold text-2xl mt-10">🔒 ไม่มีสิทธิ์เข้าถึงหน้านี้</div>`;
-                    return;
-                }
-                
-                ui.showLoader('กำลังโหลดข้อมูลผู้ใช้งาน...');
+                if(state.user.role !== 'admin') { document.getElementById('page-container').innerHTML = `<div class="p-10 text-center text-red-500 font-bold text-xl mt-10">🔒 ไม่มีสิทธิ์เข้าถึง</div>`; return; }
+                ui.showLoader('โหลดข้อมูล...');
                 try {
                     const data = await rpc("admin_get_users", { p_session_token: state.sessionToken });
                     state.users = data.data || [];
+                    let html = `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold">จัดการผู้ใช้งาน</h2><button onclick="handlers.openUserModal()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm">+ เพิ่มผู้ใช้งาน</button></div>`;
+                    if(state.users.length === 0) html += `<div class="p-10 text-center border rounded-xl">ไม่มีข้อมูล</div>`;
+                    else {
+                        html += `<div class="bg-white border rounded-xl overflow-x-auto"><table class="w-full text-left text-sm whitespace-nowrap"><thead class="bg-slate-50 border-b"><tr><th class="px-6 py-4">Username</th><th class="px-6 py-4">ชื่อ</th><th class="px-6 py-4">วิทยาลัย</th><th class="px-6 py-4 text-center">จัดการ</th></tr></thead><tbody class="divide-y divide-slate-100">`;
+                        state.users.forEach(u => {
+                            html += `<tr><td class="px-6 py-4 font-medium">${utils.esc(u.username)} <span class="ml-2 text-[10px] px-2 py-0.5 rounded-full ${u.role==='admin'?'bg-purple-100 text-purple-700':'bg-blue-100 text-blue-700'}">${u.role}</span></td><td class="px-6 py-4">${utils.esc(u.full_name)}</td><td class="px-6 py-4 text-slate-500">${utils.esc(u.institution_name||'-')}</td><td class="px-6 py-4 text-center"><button onclick="handlers.confirmDeleteUser('${u.id}', '${utils.esc(u.username)}')" class="text-red-600 hover:bg-red-50 px-3 py-1 rounded">ลบ</button></td></tr>`;
+                        });
+                        html += `</tbody></table></div>`;
+                    }
+                    document.getElementById('page-container').innerHTML = html;
+                } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
+            },
+            management: async (projectId) => {
+                ui.showLoader();
+                try {
+                    const p = state.projects.find(x => x.id === projectId);
+                    if(!p) return app.navigate('projects');
                     
-                    let html = `
-                        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-                            <div>
-                                <h2 class="text-2xl font-bold text-slate-800">จัดการผู้ใช้งาน</h2>
-                                <p class="text-sm text-slate-500 mt-1">Admin สามารถจัดการบัญชีผู้ใช้งานในระบบทั้งหมด</p>
-                            </div>
-                            <button onclick="handlers.openUserModal()" class="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-800 transition shadow-sm">+ เพิ่มผู้ใช้งาน</button>
-                        </div>
-                    `;
+                    const res = await rpc('custom_get_contract_details', { p_session_token: state.sessionToken, p_project_id: projectId });
+                    if(!res.success) throw new Error(res.message);
+                    
+                    const insts = res.installments || [];
+                    const progs = res.progress || [];
+                    
+                    let totalAmt = 0, totalPaid = 0, totalPile = 0;
+                    let instRows = insts.map(i => {
+                        const d = i.disbursement || {};
+                        const pAmt = Number(d.paid_amount || 0);
+                        const pPile = Number(d.pile_return_amount || 0);
+                        totalAmt += Number(i.installment_amount);
+                        totalPaid += pAmt;
+                        totalPile += pPile;
 
-                    if(state.users.length === 0) {
-                        html += `<div class="p-10 text-center bg-white border border-dashed border-slate-300 rounded-xl text-slate-400">ยังไม่มีข้อมูลผู้ใช้งาน</div>`;
-                    } else {
-                        html += `
-                            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                                <div class="overflow-x-auto">
-                                    <table class="w-full text-left text-sm whitespace-nowrap">
-                                        <thead class="bg-slate-50 border-b border-slate-200 text-slate-600">
-                                            <tr>
-                                                <th class="px-6 py-4 font-semibold">Username</th>
-                                                <th class="px-6 py-4 font-semibold">ชื่อ-นามสกุล</th>
-                                                <th class="px-6 py-4 font-semibold">สิทธิ์</th>
-                                                <th class="px-6 py-4 font-semibold">สถานะ</th>
-                                                <th class="px-6 py-4 font-semibold text-center">จัดการ</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y divide-slate-100">
-                                            ${state.users.map(u => `
-                                                <tr class="hover:bg-slate-50 transition-colors">
-                                                    <td class="px-6 py-4 font-medium text-slate-900">${utils.esc(u.username)}</td>
-                                                    <td class="px-6 py-4 text-slate-700">
-                                                        <div>${utils.esc(u.full_name)}</div>
-                                                        <div class="text-xs text-slate-400 mt-0.5">${utils.esc(u.institution_name || '-')}</div>
-                                                    </td>
-                                                    <td class="px-6 py-4">
-                                                        <span class="px-2.5 py-1 text-xs rounded-full border font-medium ${u.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}">
-                                                            ${u.role}
-                                                        </span>
-                                                    </td>
-                                                    <td class="px-6 py-4">
-                                                        <span class="px-2.5 py-1 text-xs rounded-full border font-medium ${u.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}">
-                                                            ${u.is_active ? 'ใช้งาน' : 'ระงับ'}
-                                                        </span>
-                                                    </td>
-                                                    <td class="px-6 py-4 text-center">
-                                                        <button onclick="handlers.confirmDeleteUser('${u.id}', '${utils.esc(u.username)}')" class="text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors font-medium text-xs border border-transparent hover:border-red-100">
-                                                            ลบ
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
+                        return `
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-3 py-3 border-b text-center text-xs font-bold text-slate-500">งวด ${i.installment_no}</td>
+                            <td class="px-3 py-3 border-b text-right text-xs font-medium text-blue-700">${utils.formatMoney(i.installment_amount)}</td>
+                            <td class="px-3 py-3 border-b">
+                                <input type="number" id="paid_${i.id}" value="${d.paid_amount || ''}" max="${i.installment_amount}" oninput="handlers.calcDisburseRow('${i.id}', ${i.installment_amount})" class="w-full min-w-[80px] border border-slate-300 p-1.5 rounded outline-none text-right text-sm focus:ring-1 focus:ring-primary" placeholder="0.00">
+                            </td>
+                            <td class="px-3 py-3 border-b text-right text-xs font-bold text-orange-600" id="pile_${i.id}">${utils.formatMoney(pPile)}</td>
+                            <td class="px-3 py-3 border-b">
+                                <input type="date" id="date_${i.id}" value="${d.payment_date || ''}" class="w-full border border-slate-300 p-1.5 rounded outline-none text-sm focus:ring-1 focus:ring-primary">
+                            </td>
+                            <td class="px-3 py-3 border-b">
+                                <input type="text" id="det_${i.id}" value="${utils.esc(d.payment_detail || '')}" placeholder="รายละเอียด" class="w-full min-w-[120px] border border-slate-300 p-1.5 rounded outline-none text-sm focus:ring-1 focus:ring-primary">
+                            </td>
+                            <td class="px-3 py-3 border-b text-center">
+                                <button onclick="handlers.saveDisburse('${i.id}')" class="bg-primary text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-800 shadow-sm transition">บันทึก</button>
+                            </td>
+                        </tr>
+                        `;
+                    }).join('');
+
+                    let html = `
+                        <button onclick="app.navigate('workflow', '${projectId}')" class="text-blue-600 text-sm mb-4">← กลับไปหน้า Workflow</button>
+                        <div class="bg-white border rounded-2xl p-5 mb-6 shadow-sm">
+                            <h2 class="text-xl font-bold text-slate-800">บริหารสัญญาและการเบิกจ่าย</h2>
+                            <p class="text-slate-500 text-sm mt-1">${utils.esc(p.project_code)} : ${utils.esc(p.project_name)}</p>
+                        </div>
+                        
+                        <div class="bg-white border rounded-2xl shadow-sm overflow-hidden mb-6">
+                            <div class="p-4 border-b bg-slate-50"><h3 class="font-bold text-slate-800">1. ตารางติดตามการเบิกจ่ายจริงตามงวดงาน</h3></div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left whitespace-nowrap">
+                                    <thead class="bg-slate-100 text-slate-600 text-xs">
+                                        <tr>
+                                            <th class="px-3 py-2 text-center">งวดงาน</th>
+                                            <th class="px-3 py-2 text-right">ราคางวดงาน</th>
+                                            <th class="px-3 py-2">ยอดเบิกจ่ายแล้ว (บาท)</th>
+                                            <th class="px-3 py-2 text-right">คืนค่าเสาเข็ม/ค่างาน</th>
+                                            <th class="px-3 py-2">วันที่เบิกจ่าย</th>
+                                            <th class="px-3 py-2">รายละเอียด</th>
+                                            <th class="px-3 py-2 text-center">จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${instRows}</tbody>
+                                    <tfoot class="bg-slate-50 font-bold text-sm">
+                                        <tr>
+                                            <td class="px-3 py-3 text-center">สรุปรวม</td>
+                                            <td class="px-3 py-3 text-right text-blue-700">${utils.formatMoney(totalAmt)}</td>
+                                            <td class="px-3 py-3 text-right text-emerald-600" id="total_paid">${utils.formatMoney(totalPaid)}</td>
+                                            <td class="px-3 py-3 text-right text-orange-600" id="total_pile">${utils.formatMoney(totalPile)}</td>
+                                            <td colspan="3"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="bg-white border rounded-2xl shadow-sm p-5 h-fit">
+                                <h3 class="font-bold text-slate-800 mb-4 pb-2 border-b">2. บันทึกความก้าวหน้า / ปัญหาอุปสรรค</h3>
+                                <div class="space-y-3">
+                                    <div><label class="block text-xs font-medium mb-1">รายละเอียดความก้าวหน้า <span class="text-red-500">*</span></label><textarea id="prog_detail" rows="3" class="w-full border rounded-lg p-2 outline-none text-sm"></textarea></div>
+                                    <div><label class="block text-xs font-medium mb-1">ปัญหา / อุปสรรค</label><textarea id="prog_prob" rows="2" class="w-full border rounded-lg p-2 outline-none text-sm"></textarea></div>
+                                    <div><label class="block text-xs font-medium mb-1">หมายเหตุ</label><input type="text" id="prog_rem" class="w-full border rounded-lg p-2 outline-none text-sm"></div>
+                                    <button onclick="handlers.saveProgress('${res.contract.id}')" class="w-full bg-slate-900 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-slate-800 mt-2">บันทึกรายงานความก้าวหน้า</button>
                                 </div>
                             </div>
-                        `;
-                    }
+                            
+                            <div class="bg-white border rounded-2xl shadow-sm p-5 h-fit">
+                                <h3 class="font-bold text-slate-800 mb-4 pb-2 border-b">ประวัติรายงาน</h3>
+                                <div class="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                                    ${progs.length === 0 ? '<p class="text-sm text-slate-400 text-center py-4">ยังไม่มีประวัติ</p>' : progs.map(pr => `
+                                        <div class="border-l-2 border-blue-500 pl-4 py-1">
+                                            <p class="text-[10px] text-slate-400 mb-1">${utils.formatDate(pr.created_at)} | โดย ${utils.esc(pr.creator_name)}</p>
+                                            <p class="text-sm font-medium text-slate-800">${utils.esc(pr.progress_detail)}</p>
+                                            ${pr.problem_detail ? `<p class="text-xs text-red-600 mt-1"><b>ปัญหา:</b> ${utils.esc(pr.problem_detail)}</p>` : ''}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
                     document.getElementById('page-container').innerHTML = html;
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             }
         };
 
-        // ==========================================
-        // 5. HANDLERS FOR FORMS & WORKFLOW
-        // ==========================================
         const handlers = {
             // ----- Projects & Workflow -----
             openCreateModal: () => {
@@ -472,7 +397,7 @@
                             <option value="">เลือกประเภท...</option><option value="ที่ดิน/สิ่งก่อสร้าง">ที่ดิน/สิ่งก่อสร้าง</option><option value="ครุภัณฑ์">ครุภัณฑ์</option>
                         </select>
                         <input name="budget" type="number" min="0" step="0.01" required placeholder="วงเงินงบประมาณ (บาท)" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary">
-                        <button type="submit" class="w-full bg-primary text-white py-3 rounded-xl font-medium hover:bg-blue-800 transition">บันทึกและสร้างโครงการ (สถานะ 1)</button>
+                        <button type="submit" class="w-full bg-primary text-white py-3 rounded-xl font-medium hover:bg-blue-800">บันทึกและสร้างโครงการ (สถานะ 1)</button>
                     </form>
                 `);
             },
@@ -480,9 +405,7 @@
                 e.preventDefault(); ui.showLoader();
                 try {
                     const fd = new FormData(e.target);
-                    await rpc("custom_create_project", {
-                        p_session_token: state.sessionToken, p_project_code: fd.get('code'), p_project_name: fd.get('name'), p_project_type: fd.get('type'), p_budget_amount: Number(fd.get('budget'))
-                    });
+                    await rpc("custom_create_project", { p_session_token: state.sessionToken, p_project_code: fd.get('code'), p_project_name: fd.get('name'), p_project_type: fd.get('type'), p_budget_amount: Number(fd.get('budget')) });
                     ui.closeModal(); ui.toast('สร้างโครงการสำเร็จ'); app.navigate('projects');
                 } catch(err) { ui.toast(err.message, 'error'); } finally { ui.hideLoader(); }
             },
@@ -494,43 +417,12 @@
             },
             renderStepForm: (step, p) => {
                 let f = `<div class="mt-4 pt-4 border-t border-blue-100/50">`;
-                if(step === 1) f += `<button onclick="handlers.updateStatus(${step+1}, 'เริ่มจัดทำ TOR')" class="bg-primary text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700 transition">บันทึกรายงานขั้นตอน</button>`;
-                else if(step === 2) f += `
-                    <div class="mb-3"><label class="block text-sm mb-1">เสร็จวันที่ <span class="text-red-500">*</span></label><input type="date" id="s2_d" class="border border-slate-300 p-2 rounded-lg w-full sm:w-auto outline-none focus:ring-2 focus:ring-blue-500"></div>
-                    <button onclick="handlers.saveStep(${step}, ['s2_d'])" class="bg-primary text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>`;
-                else if(step === 3) f += `
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                        <div><label class="block text-sm mb-1">เผยแพร่วันที่ <span class="text-red-500">*</span></label><input type="date" id="s3_s" class="border border-slate-300 p-2 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500"></div>
-                        <div><label class="block text-sm mb-1">สิ้นสุดวันที่ <span class="text-red-500">*</span></label><input type="date" id="s3_e" class="border border-slate-300 p-2 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500"></div>
-                    </div>
-                    <button onclick="handlers.saveStep3()" class="bg-primary text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>`;
-                else if(step === 4) f += `
-                    <div class="mb-3"><label class="block text-sm mb-1">วันประกาศเชิญชวน <span class="text-red-500">*</span></label><input type="date" id="s4_d" class="border border-slate-300 p-2 rounded-lg w-full sm:w-auto outline-none focus:ring-2 focus:ring-blue-500"></div>
-                    <button onclick="handlers.saveStep(${step}, ['s4_d'])" class="bg-primary text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>`;
-                else if(step === 5) f += `
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                        <div><label class="block text-sm mb-1">วันประกาศผู้ชนะ <span class="text-red-500">*</span></label><input type="date" id="s5_d" class="border border-slate-300 p-2 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500"></div>
-                        <div><label class="block text-sm mb-1">ชื่อบริษัทที่ชนะ <span class="text-red-500">*</span></label><input type="text" id="s5_n" class="border border-slate-300 p-2 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500" placeholder="ระบุชื่อบริษัท..."></div>
-                    </div>
-                    <button onclick="handlers.saveStep(${step}, ['s5_d','s5_n'])" class="bg-primary text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>`;
-                else if(step === 6) f += `
-                    <div class="mb-3">
-                        <label class="block text-sm mb-1 font-bold">ผลการอุทธรณ์ <span class="text-red-500">*</span></label>
-                        <select id="appeal_opt" onchange="handlers.toggleAppeal()" class="border border-slate-300 p-2 rounded-lg w-full bg-white outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">-- เลือกสถานะอุทธรณ์ --</option>
-                            <option value="1">1. ไม่มีการอุทธรณ์ (ไปสถานะ 7)</option>
-                            <option value="2">2. มีการอุทธรณ์ แล้วเห็นด้วย (ยกเลิกโครงการ)</option>
-                            <option value="3">3. ไม่เห็นด้วย/เห็นด้วยบางส่วน (ส่งกรมบัญชีกลาง - ค้างสถานะ)</option>
-                            <option value="4">4. รอผลอุทธรณ์ฟังขึ้น (สั่งยกเลิกโครงการ)</option>
-                            <option value="5">5. ผลอุทธรณ์ไม่ขึ้น (ดำเนินการต่อ ไปสถานะ 7)</option>
-                        </select>
-                    </div>
-                    <div id="appeal_extra" class="hidden mb-3 p-3 bg-white rounded-lg border border-slate-200">
-                        <label class="block text-sm mb-1">แนบหลักฐาน (PDF)</label>
-                        <input type="file" id="appeal_file" accept=".pdf" class="text-sm w-full">
-                    </div>
-                    <div id="appeal_btn" class="mt-3"></div>
-                `;
+                if(step === 1) f += `<button onclick="handlers.updateStatus(${step+1}, 'เริ่มจัดทำ TOR')" class="bg-primary text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>`;
+                else if(step === 2) f += `<div class="mb-3"><label class="block text-sm mb-1">เสร็จวันที่ <span class="text-red-500">*</span></label><input type="date" id="s2_d" class="border border-slate-300 p-2 rounded-lg w-full sm:w-auto outline-none focus:ring-2 focus:ring-blue-500"></div><button onclick="handlers.saveStep(${step}, ['s2_d'])" class="bg-primary text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>`;
+                else if(step === 3) f += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3"><div><label class="block text-sm mb-1">เผยแพร่วันที่ <span class="text-red-500">*</span></label><input type="date" id="s3_s" class="border border-slate-300 p-2 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500"></div><div><label class="block text-sm mb-1">สิ้นสุดวันที่ <span class="text-red-500">*</span></label><input type="date" id="s3_e" class="border border-slate-300 p-2 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500"></div></div><button onclick="handlers.saveStep3()" class="bg-primary text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>`;
+                else if(step === 4) f += `<div class="mb-3"><label class="block text-sm mb-1">วันประกาศเชิญชวน <span class="text-red-500">*</span></label><input type="date" id="s4_d" class="border border-slate-300 p-2 rounded-lg w-full sm:w-auto outline-none focus:ring-2 focus:ring-blue-500"></div><button onclick="handlers.saveStep(${step}, ['s4_d'])" class="bg-primary text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>`;
+                else if(step === 5) f += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3"><div><label class="block text-sm mb-1">วันประกาศผู้ชนะ <span class="text-red-500">*</span></label><input type="date" id="s5_d" class="border border-slate-300 p-2 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500"></div><div><label class="block text-sm mb-1">ชื่อบริษัทที่ชนะ <span class="text-red-500">*</span></label><input type="text" id="s5_n" class="border border-slate-300 p-2 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500" placeholder="ระบุชื่อบริษัท..."></div></div><button onclick="handlers.saveStep(${step}, ['s5_d','s5_n'])" class="bg-primary text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700">บันทึกรายงานขั้นตอน</button>`;
+                else if(step === 6) f += `<div class="mb-3"><label class="block text-sm mb-1 font-bold">ผลการอุทธรณ์ <span class="text-red-500">*</span></label><select id="appeal_opt" onchange="handlers.toggleAppeal()" class="border border-slate-300 p-2 rounded-lg w-full bg-white outline-none focus:ring-2 focus:ring-blue-500"><option value="">-- เลือกสถานะอุทธรณ์ --</option><option value="1">1. ไม่มีการอุทธรณ์ (ไปสถานะ 7)</option><option value="2">2. มีการอุทธรณ์ แล้วเห็นด้วย (ยกเลิกโครงการ)</option><option value="3">3. ไม่เห็นด้วย/เห็นด้วยบางส่วน (ส่งกรมบัญชีกลาง - ค้างสถานะ)</option><option value="4">4. รอผลอุทธรณ์ฟังขึ้น (สั่งยกเลิกโครงการ)</option><option value="5">5. ผลอุทธรณ์ไม่ขึ้น (ดำเนินการต่อ ไปสถานะ 7)</option></select></div><div id="appeal_extra" class="hidden mb-3 p-3 bg-white rounded-lg border border-slate-200"><label class="block text-sm mb-1">แนบหลักฐาน (PDF)</label><input type="file" id="appeal_file" accept=".pdf" class="text-sm w-full"></div><div id="appeal_btn" class="mt-3"></div>`;
                 else if(step === 7) f += `
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                         <div><label class="text-xs">วงเงินงบประมาณ</label><input type="text" value="${utils.formatMoney(p.budget_amount)}" disabled class="w-full bg-slate-100 border p-2 rounded-lg text-slate-500"></div>
@@ -549,25 +441,18 @@
                     </div>
                     <button id="btn_save_c" onclick="handlers.saveContract()" disabled class="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium opacity-50 cursor-not-allowed w-full transition">บันทึกการลงนามสัญญา</button>
                 `;
-                else if(step === 8) f += `<button onclick="ui.toast('เชื่อมต่อระบบบริหารสัญญาและเบิกจ่ายในอนาคต', 'info')" class="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm w-full hover:bg-slate-800 transition">เข้าสู่ระบบบริหารสัญญาและการเบิกจ่าย →</button>`;
+                else if(step === 8) f += `<button onclick="app.navigate('management', '${p.id}')" class="bg-slate-900 text-white px-5 py-3 rounded-xl text-sm font-medium w-full hover:bg-slate-800 transition shadow-md">เข้าสู่หน้า บริหารสัญญาและการเบิกจ่าย →</button>`;
                 f += `</div>`; return f;
             },
             saveStep: async (step, fields) => {
                 let data = {};
-                for(let f of fields) {
-                    const val = document.getElementById(f).value;
-                    if(!val) return ui.toast('กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
-                    data[f] = val;
-                }
-                ui.showLoader();
-                try { await handlers.updateStatus(step+1, JSON.stringify(data)); ui.toast('บันทึกสำเร็จ'); } catch(e){ ui.toast(e.message,'error'); } finally { ui.hideLoader(); }
+                for(let f of fields) { const val = document.getElementById(f).value; if(!val) return ui.toast('กรุณากรอกข้อมูลให้ครบถ้วน', 'warning'); data[f] = val; }
+                ui.showLoader(); try { await handlers.updateStatus(step+1, JSON.stringify(data)); ui.toast('บันทึกสำเร็จ'); } catch(e){ ui.toast(e.message,'error'); } finally { ui.hideLoader(); }
             },
             saveStep3: async () => {
                 const s = document.getElementById('s3_s').value; const e = document.getElementById('s3_e').value;
-                if(!s || !e) return ui.toast('กรอกวันที่ให้ครบ', 'warning');
-                if(new Date(e) < new Date(s)) return ui.toast('วันสิ้นสุดต้องไม่ก่อนวันเผยแพร่', 'error');
-                ui.showLoader();
-                try { await handlers.updateStatus(4, `เริ่ม: ${s}, สิ้นสุด: ${e}`); ui.toast('บันทึกสำเร็จ'); } catch(err){ ui.toast(err.message,'error'); } finally { ui.hideLoader(); }
+                if(!s || !e) return ui.toast('กรอกวันที่ให้ครบ', 'warning'); if(new Date(e) < new Date(s)) return ui.toast('วันสิ้นสุดต้องไม่ก่อนวันเผยแพร่', 'error');
+                ui.showLoader(); try { await handlers.updateStatus(4, `เริ่ม: ${s}, สิ้นสุด: ${e}`); ui.toast('บันทึกสำเร็จ'); } catch(err){ ui.toast(err.message,'error'); } finally { ui.hideLoader(); }
             },
             toggleAppeal: () => {
                 const v = document.getElementById('appeal_opt').value;
@@ -582,8 +467,7 @@
                 ui.openConfirm(action === 'cancel' ? 'ยืนยันยกเลิกโครงการ' : 'ยืนยันบันทึกอุทธรณ์', action === 'cancel' ? 'โครงการจะหยุดที่สถานะนี้และดำเนินการต่อไม่ได้' : 'บันทึกข้อมูลการอุทธรณ์เข้าระบบ', async () => {
                     ui.showLoader('บันทึกอุทธรณ์...');
                     try {
-                        const pid = state.selectedProject.id;
-                        let path = null;
+                        const pid = state.selectedProject.id; let path = null;
                         if(action==='hold') {
                             const file = document.getElementById('appeal_file')?.files[0];
                             if(file) {
@@ -592,89 +476,98 @@
                             }
                         }
                         await supabaseClient.from('appeals').insert([{ project_id: pid, appeal_option: document.getElementById('appeal_opt').value, central_audit_document_path: path }]);
-                        
-                        if(action==='cancel') {
-                            await supabaseClient.from('projects').update({is_cancelled: true, cancellation_reason: 'ยกเลิกจากผลอุทธรณ์'}).eq('id', pid);
-                            ui.toast('ยกเลิกโครงการเรียบร้อยแล้ว', 'warning');
-                            app.navigate('projects');
-                        } else if(action==='save') {
-                            await handlers.updateStatus(7, "ผ่านอุทธรณ์");
-                            ui.toast('ไปสู่การลงนามสัญญา', 'success');
-                        } else {
-                            ui.toast('บันทึกข้อมูลเรียบร้อย (รอผลพิจารณา)', 'info');
-                            app.navigate('workflow', pid);
-                        }
+                        if(action==='cancel') { await supabaseClient.from('projects').update({is_cancelled: true, cancellation_reason: 'ยกเลิกจากผลอุทธรณ์'}).eq('id', pid); ui.toast('ยกเลิกโครงการเรียบร้อยแล้ว', 'warning'); app.navigate('projects'); }
+                        else if(action==='save') { await handlers.updateStatus(7, "ผ่านอุทธรณ์"); ui.toast('ไปสู่การลงนามสัญญา', 'success'); }
+                        else { ui.toast('บันทึกข้อมูลเรียบร้อย (รอผลพิจารณา)', 'info'); app.navigate('workflow', pid); }
                     } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
                 });
             },
             calcRemaining: (budget) => {
-                const amt = Number(document.getElementById('contract_amt').value||0);
-                document.getElementById('remain_amt').value = utils.formatMoney(budget - amt);
-                handlers.calcInst();
+                const amt = Number(document.getElementById('contract_amt').value||0); document.getElementById('remain_amt').value = utils.formatMoney(budget - amt); handlers.calcInst();
             },
             genInst: () => {
-                const c = Number(document.getElementById('inst_count').value);
-                const t = document.getElementById('inst_tbody');
+                const c = Number(document.getElementById('inst_count').value); const t = document.getElementById('inst_tbody');
                 if(c===0) { document.getElementById('inst_table').classList.add('hidden'); handlers.calcInst(); return; }
-                document.getElementById('inst_table').classList.remove('hidden');
-                let h = '';
+                document.getElementById('inst_table').classList.remove('hidden'); let h = '';
                 for(let i=1;i<=c;i++) h += `<tr><td class="p-2 border-b">งวด ${i}</td><td class="p-2 border-b"><input type="number" class="inst-inp w-full border border-slate-300 p-1.5 rounded outline-none focus:ring-1 focus:ring-primary" oninput="handlers.calcInst()"></td><td class="p-2 border-b text-right inst-pct text-slate-500">0.00%</td></tr>`;
                 h += `<tr><td class="p-2 bg-slate-50 font-bold">รวม</td><td class="p-2 bg-slate-50 font-bold" id="inst_sum">0.00</td><td class="p-2 bg-slate-50 font-bold text-right text-emerald-600" id="inst_pct_sum">0.00%</td></tr>`;
                 t.innerHTML = h; handlers.calcInst();
             },
             calcInst: () => {
-                const contAmt = Number(document.getElementById('contract_amt').value||0);
-                let sum = 0;
+                const contAmt = Number(document.getElementById('contract_amt').value||0); let sum = 0;
                 document.querySelectorAll('.inst-inp').forEach((inp, idx) => {
-                    const v = Number(inp.value||0); sum += v;
-                    document.querySelectorAll('.inst-pct')[idx].innerText = contAmt>0 ? ((v/contAmt)*100).toFixed(2)+'%' : '0.00%';
+                    const v = Number(inp.value||0); sum += v; document.querySelectorAll('.inst-pct')[idx].innerText = contAmt>0 ? ((v/contAmt)*100).toFixed(2)+'%' : '0.00%';
                 });
-                const count = Number(document.getElementById('inst_count')?.value||0);
-                const btn = document.getElementById('btn_save_c');
-                if(!btn) return;
-                
+                const btn = document.getElementById('btn_save_c'); if(!btn) return;
                 if(document.getElementById('inst_sum')) {
-                    document.getElementById('inst_sum').innerText = utils.formatMoney(sum);
-                    document.getElementById('inst_pct_sum').innerText = contAmt>0 ? ((sum/contAmt)*100).toFixed(2)+'%' : '0.00%';
+                    document.getElementById('inst_sum').innerText = utils.formatMoney(sum); document.getElementById('inst_pct_sum').innerText = contAmt>0 ? ((sum/contAmt)*100).toFixed(2)+'%' : '0.00%';
                     const valid = sum > 0 && Math.abs(sum - contAmt) < 0.01;
-                    
-                    btn.disabled = !valid;
-                    btn.className = valid ? "bg-primary text-white px-5 py-2.5 rounded-xl w-full text-sm font-medium shadow-sm transition" : "bg-primary text-white px-5 py-2.5 rounded-xl w-full text-sm font-medium opacity-50 cursor-not-allowed";
+                    btn.disabled = !valid; btn.className = valid ? "bg-primary text-white px-5 py-2.5 rounded-xl w-full text-sm font-medium shadow-sm transition" : "bg-primary text-white px-5 py-2.5 rounded-xl w-full text-sm font-medium opacity-50 cursor-not-allowed";
                     document.getElementById('inst_err').classList[valid?'add':'remove']('hidden');
-                } else {
-                    btn.disabled = true;
-                }
+                } else { btn.disabled = true; }
             },
             saveContract: async () => {
                 const f = document.getElementById('c_file')?.files[0];
-                if(!f) return ui.toast('กรุณาแนบไฟล์สัญญา PDF', 'warning');
-                if(f.type !== 'application/pdf') return ui.toast('รองรับไฟล์ PDF เท่านั้น', 'error');
-                
+                if(!f) return ui.toast('กรุณาแนบไฟล์สัญญา PDF', 'warning'); if(f.type !== 'application/pdf') return ui.toast('รองรับไฟล์ PDF เท่านั้น', 'error');
                 ui.showLoader('บันทึกสัญญาและงวดงาน...');
                 try {
                     const pid = state.selectedProject.id;
                     const {data:upData} = await supabaseClient.storage.from('stips').upload(`contracts/${pid}/${Date.now()}.pdf`, f);
-                    
                     const {data: cData, error} = await supabaseClient.from('contracts').insert([{
-                        project_id: pid, signed_amount: Number(document.getElementById('contract_amt').value),
-                        remaining_budget: Number(document.getElementById('remain_amt').value.replace(/,/g,'')),
-                        contract_signed_date: document.getElementById('c_start').value,
-                        contract_end_date: document.getElementById('c_end').value,
-                        installment_count: Number(document.getElementById('inst_count').value),
-                        contract_document_path: upData?.path
+                        project_id: pid, signed_amount: Number(document.getElementById('contract_amt').value), remaining_budget: Number(document.getElementById('remain_amt').value.replace(/,/g,'')),
+                        contract_signed_date: document.getElementById('c_start').value, contract_end_date: document.getElementById('c_end').value,
+                        installment_count: Number(document.getElementById('inst_count').value), contract_document_path: upData?.path
                     }]).select();
                     if(error) throw error;
-
-                    const instList = [];
-                    const contAmt = Number(document.getElementById('contract_amt').value);
-                    document.querySelectorAll('.inst-inp').forEach((inp, i) => {
-                        const v = Number(inp.value);
-                        instList.push({ contract_id: cData[0].id, installment_no: i+1, installment_amount: v, percentage: (v/contAmt)*100 });
-                    });
+                    const instList = []; const contAmt = Number(document.getElementById('contract_amt').value);
+                    document.querySelectorAll('.inst-inp').forEach((inp, i) => { const v = Number(inp.value); instList.push({ contract_id: cData[0].id, installment_no: i+1, installment_amount: v, percentage: (v/contAmt)*100 }); });
                     await supabaseClient.from('contract_installments').insert(instList);
                     await handlers.updateStatus(8, "ลงนามเรียบร้อย เริ่มบริหารสัญญา");
-                    
                     ui.toast('ลงนามสัญญาและสร้างงวดงานสำเร็จ', 'success'); app.navigate('workflow', pid);
+                } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
+            },
+
+            // ----- Step 8: Management Handlers -----
+            calcDisburseRow: (id, maxVal) => {
+                const inp = document.getElementById(`paid_${id}`);
+                let val = Number(inp.value || 0);
+                if (val > maxVal) { ui.toast('เบิกจ่ายห้ามเกินยอดงวดงาน!', 'warning'); val = maxVal; inp.value = maxVal; }
+                const pile = maxVal - val;
+                document.getElementById(`pile_${id}`).innerText = utils.formatMoney(pile);
+                
+                // Recalc Total Bottom
+                let tPaid = 0; let tPile = 0;
+                document.querySelectorAll('[id^="paid_"]').forEach(el => tPaid += Number(el.value || 0));
+                document.querySelectorAll('[id^="pile_"]').forEach(el => tPile += Number(el.innerText.replace(/,/g,'') || 0));
+                document.getElementById('total_paid').innerText = utils.formatMoney(tPaid);
+                document.getElementById('total_pile').innerText = utils.formatMoney(tPile);
+            },
+            saveDisburse: async (instId) => {
+                const paid = Number(document.getElementById(`paid_${instId}`).value);
+                const dt = document.getElementById(`date_${instId}`).value;
+                const det = document.getElementById(`det_${instId}`).value;
+                if(!dt) return ui.toast('กรุณาระบุวันที่เบิกจ่าย', 'warning');
+                
+                ui.showLoader('บันทึกเบิกจ่าย...');
+                try {
+                    await rpc('custom_save_disbursement', {
+                        p_session_token: state.sessionToken, p_installment_id: instId,
+                        p_paid_amount: paid, p_payment_date: dt, p_payment_detail: det
+                    });
+                    ui.toast('บันทึกการเบิกจ่ายสำเร็จ');
+                } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
+            },
+            saveProgress: async (contractId) => {
+                const det = document.getElementById('prog_detail').value;
+                if(!det) return ui.toast('กรุณาระบุรายละเอียดความก้าวหน้า', 'warning');
+                ui.showLoader('บันทึกความก้าวหน้า...');
+                try {
+                    await rpc('custom_save_progress', {
+                        p_session_token: state.sessionToken, p_contract_id: contractId,
+                        p_progress_detail: det, p_problem_detail: document.getElementById('prog_prob').value, p_remark: document.getElementById('prog_rem').value
+                    });
+                    ui.toast('บันทึกสำเร็จ');
+                    app.navigate('management', state.selectedProject.id); // Reload
                 } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
 
@@ -682,138 +575,62 @@
             openUserModal: () => {
                 ui.openModal('เพิ่มบัญชีผู้ใช้งาน', `
                     <form onsubmit="handlers.submitUser(event)" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Username (ใช้ตอน Login) <span class="text-red-500">*</span></label>
-                            <input type="text" name="username" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="เช่น ST003">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">รหัสผ่าน <span class="text-red-500">*</span></label>
-                            <input type="password" name="password" required minlength="6" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="อย่างน้อย 6 ตัวอักษร">
-                        </div>
+                        <div><label class="block text-sm font-medium mb-1">Username <span class="text-red-500">*</span></label><input type="text" name="username" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="เช่น ST003"></div>
+                        <div><label class="block text-sm font-medium mb-1">รหัสผ่าน <span class="text-red-500">*</span></label><input type="password" name="password" required minlength="6" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary"></div>
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium mb-1">สิทธิ์การใช้งาน <span class="text-red-500">*</span></label>
-                                <select name="role" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary bg-white">
-                                    <option value="user">User (ระดับวิทยาลัย)</option>
-                                    <option value="admin">Admin (ผู้ดูแลระบบ)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium mb-1">ชื่อวิทยาลัย</label>
-                                <input type="text" name="institution_name" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="ระบุชื่อวิทยาลัย">
-                                <p class="text-[10px] text-slate-400 mt-1">ถ้าระบบยังไม่มีชื่อนี้ จะสร้างให้ใหม่ทันที</p>
-                            </div>
+                            <div><label class="block text-sm font-medium mb-1">สิทธิ์การใช้งาน <span class="text-red-500">*</span></label><select name="role" required class="w-full px-4 py-2 border rounded-xl outline-none bg-white"><option value="user">User</option><option value="admin">Admin</option></select></div>
+                            <div><label class="block text-sm font-medium mb-1">ชื่อวิทยาลัย</label><input type="text" name="institution_name" class="w-full px-4 py-2 border rounded-xl outline-none" placeholder="ระบุชื่อวิทยาลัย"></div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">ชื่อ - นามสกุล <span class="text-red-500">*</span></label>
-                            <input type="text" name="full_name" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="ระบุชื่อ นามสกุล ผู้รับผิดชอบ">
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium mb-1">เบอร์โทรศัพท์</label>
-                                <input type="tel" name="phone" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="08X-XXX-XXXX">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium mb-1">อีเมล</label>
-                                <input type="email" name="email" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="example@email.com">
-                            </div>
-                        </div>
-                        <div class="pt-4 mt-2 border-t border-slate-200">
-                            <button type="submit" class="w-full bg-primary text-white font-medium py-3 rounded-xl hover:bg-blue-800 transition shadow-sm">สร้างบัญชีผู้ใช้งาน</button>
-                        </div>
+                        <div><label class="block text-sm font-medium mb-1">ชื่อ-นามสกุล <span class="text-red-500">*</span></label><input type="text" name="full_name" required class="w-full px-4 py-2 border rounded-xl outline-none"></div>
+                        <button type="submit" class="w-full bg-primary text-white font-medium py-3 rounded-xl hover:bg-blue-800 transition">สร้างบัญชีผู้ใช้งาน</button>
                     </form>
                 `);
             },
             submitUser: async (e) => {
-                e.preventDefault(); 
-                ui.showLoader('กำลังสร้างบัญชี...');
+                e.preventDefault(); ui.showLoader('กำลังสร้าง...');
                 try {
                     const fd = new FormData(e.target);
-                    await rpc("admin_create_user", {
-                        p_session_token: state.sessionToken,
-                        p_username: fd.get('username'),
-                        p_password: fd.get('password'),
-                        p_role: fd.get('role'),
-                        
-                        // แก้ไข 1 บรรทัดนี้: เปลี่ยนจาก p_institution_id เป็น p_institution_name
-                        p_institution_name: fd.get('institution_name') || '', 
-                        
-                        p_full_name: fd.get('full_name'),
-                        p_phone: fd.get('phone'),
-                        p_email: fd.get('email')
-                    });
-                    ui.closeModal(); 
-                    ui.toast('สร้างบัญชีผู้ใช้งานสำเร็จ', 'success'); 
-                    app.navigate('users');
+                    await rpc("admin_create_user", { p_session_token: state.sessionToken, p_username: fd.get('username'), p_password: fd.get('password'), p_role: fd.get('role'), p_institution_name: fd.get('institution_name') || '', p_full_name: fd.get('full_name'), p_phone: '', p_email: '' });
+                    ui.closeModal(); ui.toast('สำเร็จ'); app.navigate('users');
                 } catch(err) { ui.toast(err.message, 'error'); } finally { ui.hideLoader(); }
             },
             confirmDeleteUser: (userId, username) => {
-                ui.openConfirm(
-                    'ยืนยันลบผู้ใช้งาน', 
-                    `คุณต้องการลบบัญชี "${username}" ใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้`, 
-                    async () => {
-                        ui.showLoader('กำลังลบผู้ใช้งาน...');
-                        try {
-                            await rpc("admin_delete_user", { p_session_token: state.sessionToken, p_user_id: userId });
-                            ui.toast('ลบผู้ใช้งานสำเร็จ');
-                            app.navigate('users');
-                        } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
-                    }
-                );
+                ui.openConfirm('ยืนยันลบ', `ลบ "${username}" ใช่หรือไม่?`, async () => {
+                    ui.showLoader(); try { await rpc("admin_delete_user", { p_session_token: state.sessionToken, p_user_id: userId }); ui.toast('ลบสำเร็จ'); app.navigate('users'); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
+                });
             }
         };
 
-        // ==========================================
-        // 6. MAIN APP INITIALIZATION
-        // ==========================================
         const app = {
             initUserUI: () => {
                 document.getElementById('user-fullname').innerText = state.user.full_name;
                 document.getElementById('user-role-badge').innerText = state.user.role === 'admin' ? 'Administrator' : 'Institution User';
-                
-                const navUsersBtn = document.getElementById('nav-users');
-                if(state.user.role === 'admin' && navUsersBtn) {
-                    navUsersBtn.classList.remove('hidden');
-                    navUsersBtn.classList.add('flex');
-                }
-                
-                document.getElementById('login-root').classList.add('hidden');
-                document.getElementById('app-root').classList.remove('hidden');
+                const n = document.getElementById('nav-users'); if(state.user.role === 'admin' && n) { n.classList.remove('hidden'); n.classList.add('flex'); }
+                document.getElementById('login-root').classList.add('hidden'); document.getElementById('app-root').classList.remove('hidden');
             },
             navigate: (route, param = null) => {
                 state.currentRoute = route;
                 document.querySelectorAll('#main-nav button').forEach(b => {
                     b.classList.remove('bg-blue-50', 'text-primary');
-                    if(b.dataset.nav === route || (route==='workflow' && b.dataset.nav==='projects')) {
-                        b.classList.add('bg-blue-50', 'text-primary');
-                    }
+                    if(b.dataset.nav === route || (route==='workflow' && b.dataset.nav==='projects') || (route==='management' && b.dataset.nav==='projects')) { b.classList.add('bg-blue-50', 'text-primary'); }
                 });
-                ui.closeSidebar();
-                window.scrollTo(0,0);
-                
+                ui.closeSidebar(); window.scrollTo(0,0);
                 switch(route) {
                     case 'dashboard': pages.dashboard(); break;
                     case 'projects': pages.projects(); break;
                     case 'workflow': pages.workflow(param); break;
+                    case 'management': pages.management(param); break;
                     case 'users': pages.users(); break;
                     default: pages.dashboard();
                 }
             },
             init: async () => {
                 ui.showLoader('เชื่อมต่อระบบ...');
-                const isValid = await auth.validate();
+                if (await auth.validate()) { app.initUserUI(); app.navigate('dashboard'); } 
+                else { document.getElementById('app-root').classList.add('hidden'); document.getElementById('login-root').classList.remove('hidden'); }
                 ui.hideLoader();
-                if (isValid) {
-                    app.initUserUI();
-                    app.navigate('dashboard');
-                } else {
-                    document.getElementById('app-root').classList.add('hidden');
-                    document.getElementById('login-root').classList.remove('hidden');
-                }
             }
         };
-
-        // Start Application
         document.addEventListener('DOMContentLoaded', app.init);
     </script>
 </body>
