@@ -138,6 +138,8 @@
         // 1. CONFIG & SETUP
         const SUPABASE_URL = "https://jfkqxwkukotmjaeuttcs.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_hEoWELY_mQr3E-5ldGB4og_82jI5BY_";
+        
+        // ห้ามตั้งชื่อว่า supabase เด็ดขาด
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const state = {
@@ -207,7 +209,9 @@
             } catch (e) { console.error(fn, e); throw e; }
         }
 
+        // ==========================================
         // 3. AUTH LOGIC
+        // ==========================================
         const auth = {
             login: async (e) => {
                 e.preventDefault();
@@ -248,7 +252,9 @@
             }
         };
 
-        // 4. PAGES RENDERING
+        // ==========================================
+        // 4. PAGES (Dashboard, Projects, Workflow, Users)
+        // ==========================================
         const pages = {
             dashboard: async () => {
                 ui.showLoader();
@@ -422,7 +428,7 @@
                                                     <td class="px-6 py-4 font-medium text-slate-900">${utils.esc(u.username)}</td>
                                                     <td class="px-6 py-4 text-slate-700">
                                                         <div>${utils.esc(u.full_name)}</div>
-                                                        <div class="text-xs text-slate-400 mt-0.5">${utils.esc(u.email || '-')}</div>
+                                                        <div class="text-xs text-slate-400 mt-0.5">${utils.esc(u.institution_name || '-')}</div>
                                                     </td>
                                                     <td class="px-6 py-4">
                                                         <span class="px-2.5 py-1 text-xs rounded-full border font-medium ${u.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}">
@@ -453,7 +459,7 @@
         };
 
         // ==========================================
-        // 5. HANDLERS (Projects, Workflow, Users)
+        // 5. HANDLERS FOR FORMS & WORKFLOW
         // ==========================================
         const handlers = {
             // ----- Projects & Workflow -----
@@ -585,7 +591,7 @@
                                 if(!error) path = data.path;
                             }
                         }
-                        await supabaseClient.from('appeals').insert([{ project_id: pid, appeal_option: document.getElementById('appeal_opt').value, central_audit_document_path: path, created_by: state.user.id }]);
+                        await supabaseClient.from('appeals').insert([{ project_id: pid, appeal_option: document.getElementById('appeal_opt').value, central_audit_document_path: path }]);
                         
                         if(action==='cancel') {
                             await supabaseClient.from('projects').update({is_cancelled: true, cancellation_reason: 'ยกเลิกจากผลอุทธรณ์'}).eq('id', pid);
@@ -655,7 +661,7 @@
                         contract_signed_date: document.getElementById('c_start').value,
                         contract_end_date: document.getElementById('c_end').value,
                         installment_count: Number(document.getElementById('inst_count').value),
-                        contract_document_path: upData?.path, created_by: state.user.id
+                        contract_document_path: upData?.path
                     }]).select();
                     if(error) throw error;
 
@@ -677,7 +683,7 @@
                 ui.openModal('เพิ่มบัญชีผู้ใช้งาน', `
                     <form onsubmit="handlers.submitUser(event)" class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Username (รหัสเจ้าหน้าที่/สถานศึกษา) <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-medium mb-1">Username (ใช้ตอน Login) <span class="text-red-500">*</span></label>
                             <input type="text" name="username" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="เช่น ST003">
                         </div>
                         <div>
@@ -693,13 +699,14 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium mb-1">รหัสวิทยาลัย (UUID)</label>
-                                <input type="text" name="institution_id" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="เว้นว่างได้ถ้าเป็น Admin">
+                                <label class="block text-sm font-medium mb-1">ชื่อวิทยาลัย</label>
+                                <input type="text" name="institution_name" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="ระบุชื่อวิทยาลัย">
+                                <p class="text-[10px] text-slate-400 mt-1">ถ้าระบบยังไม่มีชื่อนี้ จะสร้างให้ใหม่ทันที</p>
                             </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">ชื่อ - นามสกุล <span class="text-red-500">*</span></label>
-                            <input type="text" name="full_name" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="ระบุชื่อ นามสกุล">
+                            <input type="text" name="full_name" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="ระบุชื่อ นามสกุล ผู้รับผิดชอบ">
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
@@ -712,14 +719,14 @@
                             </div>
                         </div>
                         <div class="pt-4 mt-2 border-t border-slate-200">
-                            <button type="submit" class="w-full bg-primary text-white font-medium py-3 rounded-xl hover:bg-blue-800 transition">สร้างบัญชีผู้ใช้งาน</button>
+                            <button type="submit" class="w-full bg-primary text-white font-medium py-3 rounded-xl hover:bg-blue-800 transition shadow-sm">สร้างบัญชีผู้ใช้งาน</button>
                         </div>
                     </form>
                 `);
             },
             submitUser: async (e) => {
                 e.preventDefault(); 
-                ui.showLoader('กำลังสร้างผู้ใช้งาน...');
+                ui.showLoader('กำลังสร้างบัญชี...');
                 try {
                     const fd = new FormData(e.target);
                     await rpc("admin_create_user", {
@@ -727,7 +734,7 @@
                         p_username: fd.get('username'),
                         p_password: fd.get('password'),
                         p_role: fd.get('role'),
-                        p_institution_id: fd.get('institution_id') || null,
+                        p_institution_name: fd.get('institution_name') || '',
                         p_full_name: fd.get('full_name'),
                         p_phone: fd.get('phone'),
                         p_email: fd.get('email')
