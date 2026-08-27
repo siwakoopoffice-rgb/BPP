@@ -1,1021 +1,4868 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>STIPS - ระบบติดตามงบประมาณลงทุนวิทยาลัย</title>
 
-    <!-- Tailwind CSS (CDN) -->
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
+    >
+
+    <title>STIPS - ระบบติดตามงบประมาณลงทุน</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Google Fonts: Kanit -->
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Supabase JS Client (CDN) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <!-- Tailwind Configuration -->
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     fontFamily: {
-                        kanit: ['Kanit', 'sans-serif']
-                    },
-                    colors: {
-                        primary: '#1d4ed8', // blue-700
-                        secondary: '#475569', // slate-600
-                        success: '#15803d', // green-700
-                        warning: '#b45309', // amber-700
-                        danger: '#b91c1c', // red-700
+                        kanit: ["Kanit", "sans-serif"]
                     }
                 }
             }
-        }
+        };
     </script>
 
-    <!-- Custom CSS Base -->
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+    >
+
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin
+    >
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+    ></script>
+
     <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
         body {
-            font-family: 'Kanit', sans-serif;
-            background-color: #f8fafc; /* slate-50 */
-            color: #0f172a; /* slate-900 */
-            -webkit-tap-highlight-color: transparent;
+            margin: 0;
+            padding: 0;
+            min-height: 100%;
         }
-        /* ซ่อน Scrollbar แต่อยู่ให้ Scroll ได้ */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
+
+        body {
+            font-family: "Kanit", sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
         }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+
+        button,
+        input,
+        select,
+        textarea {
+            font-family: inherit;
         }
+
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+
+        .glass {
+            backdrop-filter: blur(16px);
+            background: rgba(255,255,255,.88);
+        }
+
+        .mobile-card {
+            min-width: 0;
+        }
+
     </style>
+
 </head>
-<body class="antialiased h-screen flex flex-col overflow-hidden">
 
-    <!-- =========================
-         UI LAYOUT ROOT
-    ========================= -->
-    <div id="app-root" class="w-full h-full flex flex-col md:flex-row hidden">
-        
-        <!-- Sidebar (Desktop) / Drawer (Mobile) -->
-        <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col">
-            <div class="p-4 border-b border-slate-200 flex items-center justify-between">
-                <h1 class="text-2xl font-bold text-primary">STIPS</h1>
-                <button onclick="ui.closeSidebar()" class="md:hidden text-slate-500 hover:text-slate-800 text-2xl">&times;</button>
-            </div>
-            
-            <div class="p-4 border-b border-slate-100">
-                <p id="user-fullname" class="font-medium text-sm truncate"></p>
-                <p id="user-role-badge" class="text-xs mt-1 inline-block px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full"></p>
+
+<body>
+
+
+<!-- =====================================================
+     APP ROOT
+===================================================== -->
+
+<div id="app"></div>
+
+
+<!-- =====================================================
+     GLOBAL LOADER
+===================================================== -->
+
+<div
+    id="globalLoader"
+    class="hidden fixed inset-0 z-[9999] bg-black/30 items-center justify-center"
+>
+
+    <div
+        class="bg-white rounded-2xl px-6 py-5 shadow-xl flex items-center gap-3"
+    >
+
+        <div
+            class="w-6 h-6 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"
+        ></div>
+
+        <span id="globalLoaderText">
+            กำลังประมวลผล...
+        </span>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     JAVASCRIPT
+===================================================== -->
+
+<script>
+
+/* ======================================================
+   CONFIG
+====================================================== */
+
+const SUPABASE_URL = "https://jfkqxwkukotmjaeuttcs.supabase.co";
+
+const SUPABASE_ANON_KEY = "sb_publishable_hEoWELY_mQr3E-5ldGB4og_82jI5BY_";
+
+
+/*
+   สำคัญ:
+   ห้ามใช้ชื่อตัวแปรว่า supabase
+*/
+
+const supabaseClient =
+    window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY
+    );
+
+
+/* ======================================================
+   STATE
+====================================================== */
+
+const state = {
+
+    sessionToken:
+        localStorage.getItem(
+            "stips_session_token"
+        ),
+
+    user:
+        JSON.parse(
+            localStorage.getItem(
+                "stips_user"
+            ) || "null"
+        ),
+
+    currentPage: "dashboard",
+
+    projects: [],
+
+    users: [],
+
+    dashboard: null,
+
+    loading: false,
+
+    mobileAdminPanel: false
+
+};
+
+
+/* ======================================================
+   HELPERS
+====================================================== */
+
+function esc(value) {
+
+    if (value === null || value === undefined) {
+        return "";
+    }
+
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+
+function money(value) {
+
+    return Number(value || 0)
+        .toLocaleString("th-TH", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }) + " บาท";
+
+}
+
+
+function showLoader(text = "กำลังประมวลผล...") {
+
+    const el =
+        document.getElementById(
+            "globalLoader"
+        );
+
+    document
+        .getElementById(
+            "globalLoaderText"
+        )
+        .textContent = text;
+
+    el.classList.remove("hidden");
+
+    el.classList.add("flex");
+
+}
+
+
+function hideLoader() {
+
+    const el =
+        document.getElementById(
+            "globalLoader"
+        );
+
+    el.classList.add("hidden");
+
+    el.classList.remove("flex");
+
+}
+
+
+function toast(
+    message,
+    type = "success"
+) {
+
+    const colors = {
+
+        success:
+            "bg-emerald-600",
+
+        error:
+            "bg-red-600",
+
+        warning:
+            "bg-amber-500",
+
+        info:
+            "bg-blue-600"
+
+    };
+
+
+    const icon = {
+
+        success: "✓",
+
+        error: "✕",
+
+        warning: "!",
+
+        info: "i"
+
+    }[type];
+
+
+    const el =
+        document.createElement(
+            "div"
+        );
+
+
+    el.className =
+        `fixed z-[99999]
+         top-4 right-4
+         max-w-[calc(100vw-2rem)]
+         ${colors[type]}
+         text-white
+         rounded-xl
+         shadow-xl
+         px-4 py-3
+         flex items-start gap-3
+         text-sm sm:text-base
+         animate-[fadeIn_.2s_ease-out]`;
+
+
+    el.innerHTML = `
+
+        <div
+            class="w-6 h-6
+                   rounded-full
+                   bg-white/20
+                   flex items-center justify-center
+                   shrink-0"
+        >
+            ${icon}
+        </div>
+
+        <div>
+            ${esc(message)}
+        </div>
+
+    `;
+
+
+    document.body.appendChild(el);
+
+
+    setTimeout(() => {
+
+        el.remove();
+
+    }, 3500);
+
+}
+
+
+/* ======================================================
+   SUPABASE RPC
+====================================================== */
+
+async function rpc(
+    functionName,
+    params = {}
+) {
+
+    try {
+
+        const result =
+            await supabaseClient.rpc(
+                functionName,
+                params
+            );
+
+
+        if (result.error) {
+
+            console.error(
+                result.error
+            );
+
+            throw new Error(
+                result.error.message
+            );
+
+        }
+
+
+        return result.data;
+
+    }
+
+    catch (error) {
+
+        console.error(
+            functionName,
+            error
+        );
+
+        throw error;
+
+    }
+
+}
+
+
+/* ======================================================
+   AUTH
+====================================================== */
+
+async function login(
+    username,
+    password
+) {
+
+    showLoader(
+        "กำลังเข้าสู่ระบบ..."
+    );
+
+    try {
+
+        const data =
+            await rpc(
+                "custom_login",
+                {
+                    p_username: username,
+                    p_password: password,
+                    p_user_agent:
+                        navigator.userAgent
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "เข้าสู่ระบบไม่สำเร็จ"
+            );
+
+        }
+
+
+        state.sessionToken =
+            data.session_token;
+
+        state.user =
+            data.user;
+
+
+        localStorage.setItem(
+            "stips_session_token",
+            state.sessionToken
+        );
+
+
+        localStorage.setItem(
+            "stips_user",
+            JSON.stringify(
+                state.user
+            )
+        );
+
+
+        toast(
+            "เข้าสู่ระบบสำเร็จ",
+            "success"
+        );
+
+
+        state.currentPage =
+            "dashboard";
+
+
+        renderApp();
+
+
+        await loadDashboard();
+
+    }
+
+    catch (error) {
+
+        toast(
+            error.message ||
+            "ไม่สามารถเข้าสู่ระบบได้",
+            "error"
+        );
+
+    }
+
+    finally {
+
+        hideLoader();
+
+    }
+
+}
+
+
+async function validateSession() {
+
+    if (!state.sessionToken) {
+
+        state.user = null;
+
+        return false;
+
+    }
+
+
+    try {
+
+        const data =
+            await rpc(
+                "custom_me",
+                {
+                    p_session_token:
+                        state.sessionToken
+                }
+            );
+
+
+        if (!data?.success) {
+
+            logoutLocal();
+
+            return false;
+
+        }
+
+
+        state.user =
+            data.user;
+
+
+        localStorage.setItem(
+            "stips_user",
+            JSON.stringify(
+                state.user
+            )
+        );
+
+
+        return true;
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        logoutLocal();
+
+        return false;
+
+    }
+
+}
+
+
+function logoutLocal() {
+
+    state.sessionToken = null;
+
+    state.user = null;
+
+    state.projects = [];
+
+    state.users = [];
+
+    state.dashboard = null;
+
+
+    localStorage.removeItem(
+        "stips_session_token"
+    );
+
+    localStorage.removeItem(
+        "stips_user"
+    );
+
+}
+
+
+async function logout() {
+
+    if (!state.sessionToken) {
+
+        logoutLocal();
+
+        renderApp();
+
+        return;
+
+    }
+
+
+    showLoader(
+        "กำลังออกจากระบบ..."
+    );
+
+
+    try {
+
+        await rpc(
+            "custom_logout",
+            {
+                p_session_token:
+                    state.sessionToken
+            }
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+    }
+
+    finally {
+
+        logoutLocal();
+
+        hideLoader();
+
+        renderApp();
+
+        toast(
+            "ออกจากระบบแล้ว",
+            "success"
+        );
+
+    }
+
+}
+
+
+/* ======================================================
+   LOGIN PAGE
+====================================================== */
+
+function loginPage() {
+
+    return `
+
+        <div
+            class="min-h-screen
+                   bg-gradient-to-br
+                   from-slate-950
+                   via-slate-900
+                   to-blue-950
+                   flex
+                   items-center
+                   justify-center
+                   p-4"
+        >
+
+            <div
+                class="w-full
+                       max-w-md
+                       bg-white
+                       rounded-3xl
+                       shadow-2xl
+                       overflow-hidden"
+            >
+
+                <div
+                    class="p-6
+                           sm:p-8
+                           text-center"
+                >
+
+                    <div
+                        class="mx-auto
+                               w-16 h-16
+                               rounded-2xl
+                               bg-blue-600
+                               text-white
+                               flex items-center
+                               justify-center
+                               text-2xl
+                               font-bold
+                               shadow-lg"
+                    >
+                        S
+                    </div>
+
+
+                    <h1
+                        class="mt-5
+                               text-xl
+                               sm:text-2xl
+                               font-semibold"
+                    >
+                        STIPS
+                    </h1>
+
+
+                    <p
+                        class="text-slate-500
+                               text-sm
+                               mt-1"
+                    >
+                        ระบบติดตามงบประมาณลงทุน
+                    </p>
+
+                </div>
+
+
+                <form
+                    id="loginForm"
+                    class="px-6 pb-6 sm:px-8 sm:pb-8 space-y-4"
+                >
+
+                    <div>
+
+                        <label
+                            class="block
+                                   text-sm
+                                   font-medium
+                                   mb-1.5"
+                        >
+                            ชื่อผู้ใช้งาน
+                        </label>
+
+                        <input
+                            id="loginUsername"
+                            type="text"
+                            autocomplete="username"
+                            required
+                            class="w-full
+                                   h-11
+                                   px-4
+                                   rounded-xl
+                                   border
+                                   border-slate-200
+                                   bg-slate-50
+                                   outline-none
+                                   focus:ring-2
+                                   focus:ring-blue-500"
+                            placeholder="Username"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            class="block
+                                   text-sm
+                                   font-medium
+                                   mb-1.5"
+                        >
+                            รหัสผ่าน
+                        </label>
+
+                        <input
+                            id="loginPassword"
+                            type="password"
+                            autocomplete="current-password"
+                            required
+                            class="w-full
+                                   h-11
+                                   px-4
+                                   rounded-xl
+                                   border
+                                   border-slate-200
+                                   bg-slate-50
+                                   outline-none
+                                   focus:ring-2
+                                   focus:ring-blue-500"
+                            placeholder="Password"
+                        >
+
+                    </div>
+
+
+                    <button
+                        type="submit"
+                        class="w-full
+                               h-11
+                               rounded-xl
+                               bg-blue-600
+                               text-white
+                               font-medium
+                               hover:bg-blue-700
+                               active:scale-[.99]
+                               transition"
+                    >
+                        เข้าสู่ระบบ
+                    </button>
+
+                </form>
+
+
+                <div
+                    class="px-6
+                           pb-6
+                           text-center
+                           text-xs
+                           text-slate-400"
+                >
+                    ระบบจัดการงบประมาณลงทุน
+                </div>
+
             </div>
 
-            <nav class="flex-1 overflow-y-auto p-4 space-y-1">
-                <button onclick="app.navigate('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover:bg-slate-100 text-left text-slate-700 font-medium transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
-                    แดชบอร์ด
-                </button>
-                <button onclick="app.navigate('projects')" id="nav-projects" class="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover:bg-slate-100 text-left text-slate-700 font-medium transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                    โครงการงบประมาณ
-                </button>
-                <!-- Admin Only Nav -->
-                <button onclick="app.navigate('users')" id="nav-users" class="w-full items-center gap-3 px-3 py-2 text-sm rounded-lg hover:bg-slate-100 text-left text-slate-700 font-medium transition-colors hidden">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                    จัดการผู้ใช้งาน
-                </button>
+        </div>
+
+    `;
+
+}
+
+
+/* ======================================================
+   SIDEBAR
+====================================================== */
+
+function sidebar() {
+
+    if (!state.user) {
+        return "";
+    }
+
+
+    const isAdmin =
+        state.user.role === "admin";
+
+
+    const menu = [
+
+        {
+            id: "dashboard",
+            icon: "▣",
+            label: "Dashboard"
+        },
+
+        {
+            id: "projects",
+            icon: "▤",
+            label: "โครงการ"
+        },
+
+        {
+            id: "reports",
+            icon: "▥",
+            label: "รายงาน"
+        }
+
+    ];
+
+
+    if (isAdmin) {
+
+        menu.push(
+            {
+                id: "users",
+                icon: "♙",
+                label: "ผู้ใช้งาน"
+            }
+        );
+
+    }
+
+
+    return `
+
+        <aside
+            class="hidden
+                   lg:flex
+                   fixed
+                   inset-y-0
+                   left-0
+                   w-64
+                   bg-slate-950
+                   text-white
+                   flex-col
+                   z-50"
+        >
+
+            <div
+                class="h-20
+                       flex
+                       items-center
+                       px-6
+                       border-b
+                       border-white/10"
+            >
+
+                <div
+                    class="w-10
+                           h-10
+                           bg-blue-600
+                           rounded-xl
+                           flex
+                           items-center
+                           justify-center
+                           font-bold"
+                >
+                    S
+                </div>
+
+                <div
+                    class="ml-3"
+                >
+
+                    <div
+                        class="font-semibold"
+                    >
+                        STIPS
+                    </div>
+
+                    <div
+                        class="text-xs
+                               text-slate-400"
+                    >
+                        ระบบงบประมาณลงทุน
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <nav
+                class="p-4 space-y-1 flex-1"
+            >
+
+                ${menu.map(item => `
+
+                    <button
+                        onclick="navigate('${item.id}')"
+                        class="w-full
+                               flex
+                               items-center
+                               gap-3
+                               px-4
+                               py-3
+                               rounded-xl
+                               text-left
+                               transition
+                               ${
+                                   state.currentPage ===
+                                   item.id
+                                   ? "bg-blue-600"
+                                   : "hover:bg-white/10"
+                               }"
+                    >
+
+                        <span
+                            class="w-6
+                                   text-center"
+                        >
+                            ${item.icon}
+                        </span>
+
+                        <span>
+                            ${item.label}
+                        </span>
+
+                    </button>
+
+                `).join("")}
+
             </nav>
 
-            <div class="p-4 border-t border-slate-200">
-                <button onclick="auth.logout()" class="w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg hover:bg-red-50 text-red-600 text-left font-medium transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+
+            <div
+                class="p-4
+                       border-t
+                       border-white/10"
+            >
+
+                <div
+                    class="text-sm
+                           font-medium"
+                >
+                    ${esc(
+                        state.user.full_name
+                    )}
+                </div>
+
+                <div
+                    class="text-xs
+                           text-slate-400
+                           mt-1"
+                >
+                    ${
+                        isAdmin
+                        ? "ผู้ดูแลระบบ"
+                        : "ผู้ใช้งาน"
+                    }
+                </div>
+
+
+                <button
+                    onclick="confirmLogout()"
+                    class="w-full
+                           mt-3
+                           px-4
+                           py-2.5
+                           rounded-xl
+                           bg-white/10
+                           hover:bg-red-500/20
+                           text-sm"
+                >
                     ออกจากระบบ
                 </button>
+
             </div>
+
         </aside>
 
-        <!-- Mobile Sidebar Overlay -->
-        <div id="sidebar-overlay" onclick="ui.closeSidebar()" class="fixed inset-0 bg-slate-900/50 z-40 hidden md:hidden"></div>
+    `;
 
-        <!-- Main Content Area -->
-        <main class="flex-1 flex flex-col h-full overflow-hidden w-full relative">
-            <!-- Topbar (Mobile Only) -->
-            <header class="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shrink-0">
-                <h1 class="text-xl font-bold text-primary">STIPS</h1>
-                <button onclick="ui.openSidebar()" class="text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                </button>
-            </header>
+}
 
-            <!-- Dynamic Pages Container -->
-            <div id="page-container" class="flex-1 overflow-y-auto p-4 sm:p-6 pb-24">
-                <!-- เนื้อหาจะถูก Inject ตรงนี้ผ่าน JS -->
-            </div>
-        </main>
-    </div>
 
-    <!-- =========================
-         LOGIN SCREEN
-    ========================= -->
-    <div id="login-root" class="w-full h-full flex items-center justify-center bg-slate-100 p-4">
-        <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl w-full max-w-sm border border-slate-200">
-            <div class="text-center mb-6">
-                <h1 class="text-3xl font-bold text-primary mb-2">STIPS</h1>
-                <p class="text-sm text-slate-500">ระบบติดตามงบประมาณลงทุนวิทยาลัย</p>
-            </div>
-            <form onsubmit="auth.login(event)" class="space-y-4">
+/* ======================================================
+   TOPBAR
+====================================================== */
+
+function topbar() {
+
+    return `
+
+        <header
+            class="sticky
+                   top-0
+                   z-40
+                   h-16
+                   bg-white/90
+                   backdrop-blur
+                   border-b
+                   border-slate-200"
+        >
+
+            <div
+                class="h-full
+                       flex
+                       items-center
+                       justify-between
+                       px-4
+                       sm:px-6
+                       lg:px-8"
+            >
+
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">ชื่อผู้ใช้งาน (รหัสสถานศึกษา)</label>
-                    <input type="text" id="login-username" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">รหัสผ่าน</label>
-                    <input type="password" id="login-password" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
-                </div>
-                <button type="submit" class="w-full bg-primary text-white font-medium py-2.5 rounded-lg hover:bg-blue-800 transition-colors mt-2 shadow-md shadow-blue-500/30">
-                    เข้าสู่ระบบ
-                </button>
-            </form>
-        </div>
-    </div>
 
-    <!-- =========================
-         GLOBAL UI COMPONENTS
-    ========================= -->
-    
-    <!-- Loading Spinner Overlay -->
-    <div id="global-loader" class="fixed inset-0 bg-slate-900/60 z-[9999] hidden items-center justify-center backdrop-blur-sm">
-        <div class="bg-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4">
-            <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span id="loader-text" class="text-sm font-medium text-slate-700">กำลังประมวลผล...</span>
-        </div>
-    </div>
-
-    <!-- Toast Container -->
-    <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:right-4 z-[9999] flex flex-col gap-2 w-full max-w-[90vw] sm:max-w-sm pointer-events-none"></div>
-
-    <!-- Confirm Dialog Modal -->
-    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 z-[9998] hidden items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl scale-95 transition-transform" id="confirm-modal-box">
-            <div class="p-5 sm:p-6 text-center">
-                <div id="confirm-icon" class="w-12 h-12 rounded-full bg-red-100 text-danger flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                </div>
-                <h3 id="confirm-title" class="text-lg font-bold text-slate-900 mb-2">ยืนยันการดำเนินการ</h3>
-                <p id="confirm-message" class="text-sm text-slate-500 mb-6">การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
-                <div class="grid grid-cols-2 gap-3">
-                    <button onclick="ui.closeConfirm()" class="w-full py-2.5 rounded-xl font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors">ยกเลิก</button>
-                    <button id="confirm-action-btn" class="w-full py-2.5 rounded-xl font-medium text-white bg-danger hover:bg-red-800 transition-colors shadow-sm">ยืนยัน</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- General Modal (Used for Forms like Create Project) -->
-    <div id="general-modal" class="fixed inset-0 bg-slate-900/60 z-[9000] hidden items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] flex flex-col shadow-2xl transition-transform transform translate-y-full sm:translate-y-0" id="general-modal-box">
-            <div class="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
-                <h3 id="modal-title" class="text-lg font-bold text-slate-900">หัวข้อ Modal</h3>
-                <button onclick="ui.closeModal()" class="text-slate-400 hover:bg-slate-100 rounded-full p-1.5 transition-colors">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
-            <div id="modal-content" class="p-4 sm:p-6 overflow-y-auto no-scrollbar">
-                <!-- เนื้อหาฟอร์มจะถูก Inject ตรงนี้ -->
-            </div>
-        </div>
-    </div>
-
-
-    <!-- =========================
-         JAVASCRIPT LOGIC
-    ========================= -->
-    <script>
-        /* =========================
-           1. CONFIG & SUPABASE
-        ========================= */
-        const SUPABASE_URL = 'https://jfkqxwkukotmjaeuttcs.supabase.co'; // เปลี่ยนเป็นของคุณ
-        const SUPABASE_ANON_KEY = 'sb_publishable_hEoWELY_mQr3E-5ldGB4og_82jI5BY_'; // เปลี่ยนเป็นของคุณ
-
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        /* =========================
-           2. STATE MANAGEMENT
-        ========================= */
-        const state = {
-            user: null, // เก็บข้อมูล Profile
-            session: null, // เก็บ Auth Session
-            currentRoute: 'dashboard',
-            projects: [],
-            dashboardStats: null,
-            selectedProject: null // โครงการที่กำลังดู Workflow อยู่
-        };
-
-        /* =========================
-           3. UI & UTILS
-        ========================= */
-        const utils = {
-            formatMoney: (num) => Number(num).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-            formatDate: (dateString) => {
-                if (!dateString) return '-';
-                const date = new Date(dateString);
-                return date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-            },
-            getStatusColor: (statusNo) => {
-                const colors = {
-                    1: 'bg-slate-100 text-slate-700 border-slate-200',
-                    2: 'bg-blue-50 text-blue-700 border-blue-200',
-                    3: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-                    4: 'bg-purple-50 text-purple-700 border-purple-200',
-                    5: 'bg-amber-50 text-amber-700 border-amber-200',
-                    6: 'bg-orange-50 text-orange-700 border-orange-200',
-                    7: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                    8: 'bg-green-100 text-green-800 border-green-300'
-                };
-                return colors[statusNo] || colors[1];
-            },
-            getStatusName: (statusNo) => {
-                const names = {
-                    1: 'ยังไม่ดำเนินการ', 2: 'จัดทำร่าง TOR', 3: 'เผยแพร่ร่าง TOR',
-                    4: 'ประกาศเชิญชวน', 5: 'ประกาศผู้ชนะ', 6: 'รอผลอุทธรณ์',
-                    7: 'ลงนามสัญญา', 8: 'บริหารสัญญา'
-                };
-                return names[statusNo] || 'ไม่ทราบสถานะ';
-            }
-        };
-
-        const ui = {
-            showLoader: (text = 'กำลังประมวลผล...') => {
-                document.getElementById('loader-text').innerText = text;
-                document.getElementById('global-loader').classList.remove('hidden');
-                document.getElementById('global-loader').classList.add('flex');
-            },
-            hideLoader: () => {
-                document.getElementById('global-loader').classList.add('hidden');
-                document.getElementById('global-loader').classList.remove('flex');
-            },
-            toast: (message, type = 'success') => {
-                const container = document.getElementById('toast-container');
-                const toastEl = document.createElement('div');
-                
-                let bgColor = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : type === 'warning' ? 'bg-warning' : 'bg-primary';
-                let icon = type === 'success' ? '✓' : type === 'error' ? '✕' : '⚠';
-
-                toastEl.className = `${bgColor} text-white px-4 py-3 rounded-xl shadow-lg flex items-start gap-3 pointer-events-auto transform transition-all duration-300 translate-y-[-20px] opacity-0`;
-                toastEl.innerHTML = `
-                    <div class="font-bold shrink-0 mt-0.5">${icon}</div>
-                    <div class="text-sm font-medium leading-relaxed">${message}</div>
-                `;
-                
-                container.appendChild(toastEl);
-                
-                // Animate In
-                setTimeout(() => {
-                    toastEl.classList.remove('translate-y-[-20px]', 'opacity-0');
-                    toastEl.classList.add('translate-y-0', 'opacity-100');
-                }, 10);
-
-                // Remove after 3.5s
-                setTimeout(() => {
-                    toastEl.classList.remove('translate-y-0', 'opacity-100');
-                    toastEl.classList.add('translate-y-[-20px]', 'opacity-0');
-                    setTimeout(() => toastEl.remove(), 300);
-                }, 3500);
-            },
-            openConfirm: (title, message, onConfirmCallback) => {
-                document.getElementById('confirm-title').innerText = title;
-                document.getElementById('confirm-message').innerText = message;
-                const modal = document.getElementById('confirm-modal');
-                const box = document.getElementById('confirm-modal-box');
-                
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-                setTimeout(() => box.classList.remove('scale-95'), 10);
-
-                const btn = document.getElementById('confirm-action-btn');
-                btn.onclick = async () => {
-                    ui.closeConfirm();
-                    if(onConfirmCallback) await onConfirmCallback();
-                };
-            },
-            closeConfirm: () => {
-                document.getElementById('confirm-modal-box').classList.add('scale-95');
-                setTimeout(() => {
-                    document.getElementById('confirm-modal').classList.add('hidden');
-                    document.getElementById('confirm-modal').classList.remove('flex');
-                }, 150);
-            },
-            openModal: (title, htmlContent) => {
-                document.getElementById('modal-title').innerText = title;
-                document.getElementById('modal-content').innerHTML = htmlContent;
-                const modal = document.getElementById('general-modal');
-                const box = document.getElementById('general-modal-box');
-                
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-                setTimeout(() => {
-                    box.classList.remove('translate-y-full', 'sm:scale-95');
-                    box.classList.add('translate-y-0', 'sm:scale-100');
-                }, 10);
-            },
-            closeModal: () => {
-                const box = document.getElementById('general-modal-box');
-                box.classList.remove('translate-y-0', 'sm:scale-100');
-                box.classList.add('translate-y-full', 'sm:scale-95');
-                setTimeout(() => {
-                    document.getElementById('general-modal').classList.add('hidden');
-                    document.getElementById('general-modal').classList.remove('flex');
-                    document.getElementById('modal-content').innerHTML = '';
-                }, 300);
-            },
-            openSidebar: () => {
-                document.getElementById('sidebar').classList.remove('-translate-x-full');
-                document.getElementById('sidebar-overlay').classList.remove('hidden');
-            },
-            closeSidebar: () => {
-                document.getElementById('sidebar').classList.add('-translate-x-full');
-                document.getElementById('sidebar-overlay').classList.add('hidden');
-            },
-            emptyState: (message, buttonHtml = '') => {
-                return `
-                    <div class="flex flex-col items-center justify-center p-12 bg-white border border-slate-200 border-dashed rounded-2xl text-center">
-                        <div class="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-4">
-                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
-                        </div>
-                        <h3 class="text-lg font-medium text-slate-900">${message}</h3>
-                        ${buttonHtml ? `<div class="mt-6">${buttonHtml}</div>` : ''}
-                    </div>
-                `;
-            }
-        };
-
-        /* =========================
-           4. AUTHENTICATION
-        ========================= */
-        const auth = {
-            init: async () => {
-                ui.showLoader('กำลังเชื่อมต่อระบบ...');
-                try {
-                    // Get session from Supabase
-                    const { data: { session }, error } = await supabaseClient.auth.getSession();
-                    
-                    if (error) throw error;
-                    
-                    if (session) {
-                        state.session = session;
-                        await auth.loadProfile(session.user.id);
-                    } else {
-                        app.showLogin();
-                    }
-                } catch (error) {
-                    console.error("Auth Init Error:", error);
-                    ui.toast('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ', 'error');
-                    app.showLogin();
-                } finally {
-                    ui.hideLoader();
-                }
-
-                // Listen for Auth changes (Token Refresh, etc.)
-                supabaseClient.auth.onAuthStateChange(async (event, session) => {
-                    if (event === 'SIGNED_OUT') {
-                        state.user = null;
-                        state.session = null;
-                        app.showLogin();
-                    }
-                });
-            },
-            loadProfile: async (userId) => {
-                try {
-                    // เนื่องจากใช้ auth.users ต้องผูกกับ public.profiles
-                    const { data, error } = await supabaseClient
-                        .from('profiles')
-                        .select('*, institutions(institution_name)')
-                        .eq('id', userId)
-                        .single();
-                        
-                    if (error) throw error;
-                    
-                    if (!data.is_active) {
-                        await supabaseClient.auth.signOut();
-                        ui.toast('บัญชีของคุณถูกระงับการใช้งาน', 'error');
-                        return;
-                    }
-
-                    state.user = data;
-                    
-                    // Update UI Info
-                    document.getElementById('user-fullname').innerText = data.full_name;
-                    document.getElementById('user-role-badge').innerText = data.role === 'admin' ? 'Administrator' : (data.institutions?.institution_name || 'วิทยาลัย');
-                    
-                    // Show Admin Menu if Admin
-                    if(data.role === 'admin') {
-                        document.getElementById('nav-users').classList.remove('hidden');
-                        document.getElementById('nav-users').classList.add('flex');
-                    }
-
-                    app.showApp();
-                    app.navigate('dashboard');
-
-                } catch (error) {
-                    console.error("Load Profile Error:", error);
-                    ui.toast('ไม่สามารถโหลดข้อมูลผู้ใช้ได้', 'error');
-                    await supabaseClient.auth.signOut();
-                }
-            },
-            login: async (e) => {
-                e.preventDefault();
-                const emailOrUsername = document.getElementById('login-username').value;
-                const password = document.getElementById('login-password').value;
-
-                ui.showLoader('กำลังเข้าสู่ระบบ...');
-                try {
-                    // สมมติว่า Supabase ใช้ Email ในการล็อคอิน
-                    // หาก Requirement คือ รหัสสถานศึกษา (Username) คุณอาจต้องมี Edge Function ดึง Email จาก Username 
-                    // หรือตั้งค่าให้ Username เป็น Email Format ตอนสร้าง User เช่น INS-001@stips.local
-                    
-                    // * เพื่อความง่ายในการทำ Prototype ด้วย Supabase Auth มาตรฐาน จะถือว่ากรอก Email ตรงๆ ก่อน *
-                    let loginEmail = emailOrUsername;
-                    if(!loginEmail.includes('@')) {
-                         loginEmail = `${emailOrUsername}@stips.local`; // ทริคหลอก Supabase Auth
-                    }
-
-                    const { data, error } = await supabaseClient.auth.signInWithPassword({
-                        email: loginEmail,
-                        password: password,
-                    });
-
-                    if (error) throw error;
-                    
-                    ui.toast('เข้าสู่ระบบสำเร็จ');
-                    state.session = data.session;
-                    await auth.loadProfile(data.user.id);
-
-                } catch (error) {
-                    console.error(error);
-                    ui.toast('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง', 'error');
-                } finally {
-                    ui.hideLoader();
-                }
-            },
-            logout: async () => {
-                ui.openConfirm('ออกจากระบบ', 'คุณต้องการออกจากระบบใช่หรือไม่?', async () => {
-                    ui.showLoader('กำลังออกจากระบบ...');
-                    await supabaseClient.auth.signOut();
-                    ui.hideLoader();
-                });
-            }
-        };
-
-        /* =========================
-           5. SERVICES (API)
-        ========================= */
-        const api = {
-            getDashboardStats: async () => {
-                // ตัวอย่างการดึงข้อมูลและจำลองการนับ
-                let query = supabaseClient.from('projects').select('budget_amount, current_status, project_type');
-                
-                if (state.user.role !== 'admin') {
-                    query = query.eq('institution_id', state.user.institution_id);
-                }
-
-                const { data, error } = await query;
-                if (error) throw error;
-
-                const stats = {
-                    totalProjects: data.length,
-                    totalBudget: data.reduce((sum, p) => sum + Number(p.budget_amount), 0),
-                    equipBudget: data.filter(p => p.project_type === 'ครุภัณฑ์').reduce((sum, p) => sum + Number(p.budget_amount), 0),
-                    constBudget: data.filter(p => p.project_type === 'ที่ดิน/สิ่งก่อสร้าง').reduce((sum, p) => sum + Number(p.budget_amount), 0),
-                    statusCounts: {}
-                };
-
-                // นับสถานะ 1-8
-                for(let i=1; i<=8; i++) stats.statusCounts[i] = 0;
-                data.forEach(p => stats.statusCounts[p.current_status]++);
-
-                return stats;
-            },
-            getProjects: async () => {
-                let query = supabaseClient.from('projects').select(`
-                    id, project_code, project_name, project_type, budget_amount, current_status, created_at,
-                    institutions(institution_name)
-                `).order('created_at', { ascending: false });
-
-                if (state.user.role !== 'admin') {
-                    query = query.eq('institution_id', state.user.institution_id);
-                }
-
-                const { data, error } = await query;
-                if (error) throw error;
-                return data;
-            },
-            createProject: async (formData) => {
-                const { data, error } = await supabaseClient.from('projects').insert([{
-                    institution_id: state.user.role === 'admin' ? formData.get('institution_id') : state.user.institution_id,
-                    project_code: formData.get('project_code'),
-                    project_name: formData.get('project_name'),
-                    project_type: formData.get('project_type'),
-                    budget_amount: formData.get('budget_amount'),
-                    created_by: state.user.id
-                }]).select();
-
-                if (error) throw error;
-                
-                // สร้างประวัติสถานะแรกทันที
-                await supabaseClient.from('project_workflows').insert([{
-                    project_id: data[0].id,
-                    status_no: 1,
-                    status_name: 'ยังไม่ดำเนินการ',
-                    created_by: state.user.id
-                }]);
-
-                return data;
-            }
-        };
-
-        /* =========================
-           6. PAGES RENDERING
-        ========================= */
-        const pages = {
-            dashboard: async () => {
-                ui.showLoader();
-                try {
-                    const stats = await api.getDashboardStats();
-                    
-                    const html = `
-                        <div class="mb-6">
-                            <h2 class="text-2xl font-bold text-slate-800">แดชบอร์ด</h2>
-                            <p class="text-sm text-slate-500 mt-1">ภาพรวมงบประมาณและโครงการทั้งหมด</p>
-                        </div>
-
-                        <!-- Summary Cards -->
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                                <p class="text-sm font-medium text-slate-500 mb-1">โครงการทั้งหมด</p>
-                                <h3 class="text-3xl font-bold text-primary">${stats.totalProjects}</h3>
-                            </div>
-                            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                                <p class="text-sm font-medium text-slate-500 mb-1">งบประมาณรวม</p>
-                                <h3 class="text-2xl font-bold text-success truncate" title="${utils.formatMoney(stats.totalBudget)}">
-                                    ฿ ${utils.formatMoney(stats.totalBudget)}
-                                </h3>
-                            </div>
-                            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                                <p class="text-sm font-medium text-slate-500 mb-1">งบที่ดิน/สิ่งก่อสร้าง</p>
-                                <h3 class="text-xl font-bold text-slate-800 truncate">฿ ${utils.formatMoney(stats.constBudget)}</h3>
-                            </div>
-                            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                                <p class="text-sm font-medium text-slate-500 mb-1">งบครุภัณฑ์</p>
-                                <h3 class="text-xl font-bold text-slate-800 truncate">฿ ${utils.formatMoney(stats.equipBudget)}</h3>
-                            </div>
-                        </div>
-
-                        <!-- Workflow Status Count -->
-                        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                            <h3 class="text-lg font-bold text-slate-800 mb-4">จำนวนโครงการตามสถานะ</h3>
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                ${[1,2,3,4,5,6,7,8].map(i => `
-                                    <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                        <span class="text-xs text-slate-600">${i}. ${utils.getStatusName(i)}</span>
-                                        <span class="font-bold text-slate-800 bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm">${stats.statusCounts[i]}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                    document.getElementById('page-container').innerHTML = html;
-                } catch (error) {
-                    ui.toast('โหลดแดชบอร์ดไม่สำเร็จ', 'error');
-                    console.error(error);
-                } finally {
-                    ui.hideLoader();
-                }
-            },
-
-            projects: async () => {
-                ui.showLoader();
-                try {
-                    const projects = await api.getProjects();
-                    state.projects = projects;
-
-                    let html = `
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                            <div>
-                                <h2 class="text-2xl font-bold text-slate-800">โครงการงบประมาณ</h2>
-                                <p class="text-sm text-slate-500 mt-1">จัดการรายการโครงการและติดตามสถานะ</p>
-                            </div>
-                            <button onclick="handlers.openCreateProjectModal()" class="bg-primary text-white px-5 py-2.5 rounded-xl font-medium hover:bg-blue-800 transition shadow-sm flex items-center gap-2">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                                สร้างโครงการ
-                            </button>
-                        </div>
-                    `;
-
-                    if (projects.length === 0) {
-                        html += ui.emptyState('ยังไม่มีข้อมูลโครงการ', '<button onclick="handlers.openCreateProjectModal()" class="text-primary font-medium hover:underline">+ สร้างโครงการแรกของคุณ</button>');
-                    } else {
-                        // Desktop Table (Hidden on Mobile)
-                        html += `
-                            <div class="hidden md:block bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                                <div class="overflow-x-auto">
-                                    <table class="w-full text-left text-sm whitespace-nowrap">
-                                        <thead class="bg-slate-50 border-b border-slate-200 text-slate-600">
-                                            <tr>
-                                                <th class="px-6 py-4 font-semibold">รหัส</th>
-                                                <th class="px-6 py-4 font-semibold">โครงการ</th>
-                                                <th class="px-6 py-4 font-semibold">ประเภท</th>
-                                                <th class="px-6 py-4 font-semibold text-right">งบประมาณ</th>
-                                                <th class="px-6 py-4 font-semibold">สถานะปัจจุบัน</th>
-                                                <th class="px-6 py-4 font-semibold text-center">จัดการ</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y divide-slate-100">
-                                            ${projects.map(p => `
-                                                <tr class="hover:bg-slate-50 transition-colors">
-                                                    <td class="px-6 py-4 text-slate-500 font-mono">${p.project_code}</td>
-                                                    <td class="px-6 py-4 font-medium text-slate-900">
-                                                        <div class="truncate max-w-[250px] lg:max-w-[400px]" title="${p.project_name}">${p.project_name}</div>
-                                                        ${state.user.role === 'admin' ? `<div class="text-xs text-slate-400 mt-0.5">${p.institutions?.institution_name}</div>` : ''}
-                                                    </td>
-                                                    <td class="px-6 py-4">${p.project_type}</td>
-                                                    <td class="px-6 py-4 text-right font-medium text-slate-800">${utils.formatMoney(p.budget_amount)}</td>
-                                                    <td class="px-6 py-4">
-                                                        <span class="px-2.5 py-1 text-xs rounded-full border ${utils.getStatusColor(p.current_status)} font-medium">
-                                                            ${p.current_status}. ${utils.getStatusName(p.current_status)}
-                                                        </span>
-                                                    </td>
-                                                    <td class="px-6 py-4 text-center">
-                                                        <button onclick="handlers.openProjectWorkflow('${p.id}')" class="text-primary hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors font-medium text-xs border border-transparent hover:border-blue-100">
-                                                            อัปเดต Workflow
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        `;
-
-                        // Mobile Cards (Hidden on Desktop)
-                        html += `
-                            <div class="md:hidden flex flex-col gap-4">
-                                ${projects.map(p => `
-                                    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-                                        <div class="absolute top-0 left-0 w-1 h-full ${p.current_status === 8 ? 'bg-success' : 'bg-primary'}"></div>
-                                        <div class="flex justify-between items-start mb-2">
-                                            <span class="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">${p.project_code}</span>
-                                            <span class="px-2 py-0.5 text-[10px] rounded border ${utils.getStatusColor(p.current_status)} font-medium">
-                                                สถานะ ${p.current_status}
-                                            </span>
-                                        </div>
-                                        <h3 class="font-medium text-slate-900 mb-1 leading-snug line-clamp-2">${p.project_name}</h3>
-                                        ${state.user.role === 'admin' ? `<p class="text-xs text-slate-500 mb-3">${p.institutions?.institution_name}</p>` : ''}
-                                        
-                                        <div class="grid grid-cols-2 gap-2 mb-4 bg-slate-50 rounded-xl p-3 border border-slate-100">
-                                            <div>
-                                                <p class="text-[10px] text-slate-400">ประเภท</p>
-                                                <p class="text-xs font-medium text-slate-800">${p.project_type}</p>
-                                            </div>
-                                            <div class="text-right">
-                                                <p class="text-[10px] text-slate-400">งบประมาณ</p>
-                                                <p class="text-xs font-bold text-slate-800">฿${utils.formatMoney(p.budget_amount)}</p>
-                                            </div>
-                                        </div>
-                                        
-                                        <button onclick="handlers.openProjectWorkflow('${p.id}')" class="w-full bg-slate-900 text-white py-2 rounded-xl text-sm font-medium hover:bg-slate-800 transition">
-                                            อัปเดต Workflow
-                                        </button>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        `;
-                    }
-
-                    document.getElementById('page-container').innerHTML = html;
-                } catch (error) {
-                    ui.toast('โหลดโครงการไม่สำเร็จ', 'error');
-                    console.error(error);
-                } finally {
-                    ui.hideLoader();
-                }
-            },
-
-            workflow: async (projectId) => {
-                // หน้านี้จำลองการดู Workflow แบบ Stepper
-                const project = state.projects.find(p => p.id === projectId);
-                if(!project) {
-                    app.navigate('projects');
-                    return;
-                }
-
-                state.selectedProject = project;
-
-                let html = `
-                    <div class="mb-6">
-                        <button onclick="app.navigate('projects')" class="text-sm text-primary hover:underline mb-2 flex items-center gap-1">
-                            &larr; กลับหน้ารายการ
-                        </button>
-                        <h2 class="text-2xl font-bold text-slate-800 leading-tight">บริหาร Workflow โครงการ</h2>
-                        <p class="text-slate-500 mt-1 font-mono text-sm">${project.project_code} : ${project.project_name}</p>
+                    <div
+                        class="text-lg
+                               sm:text-xl
+                               font-semibold"
+                    >
+                        ${pageTitle()}
                     </div>
 
-                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 mb-6">
-                        <div class="flex items-center justify-between mb-6">
-                            <h3 class="font-bold text-lg">Timeline 8 สถานะ</h3>
-                            <span class="px-3 py-1 text-xs rounded-full border ${utils.getStatusColor(project.current_status)} font-bold">
-                                ปัจจุบัน: สถานะ ${project.current_status}
+                    <div
+                        class="text-xs
+                               text-slate-400
+                               hidden
+                               sm:block"
+                    >
+                        ระบบติดตามงบประมาณลงทุน
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="hidden
+                           sm:flex
+                           items-center
+                           gap-3"
+                >
+
+                    <div
+                        class="text-right"
+                    >
+
+                        <div
+                            class="text-sm
+                                   font-medium"
+                        >
+                            ${esc(
+                                state.user.full_name
+                            )}
+                        </div>
+
+                        <div
+                            class="text-xs
+                                   text-slate-400"
+                        >
+                            ${
+                                state.user.role ===
+                                "admin"
+                                ? "Admin"
+                                : "User"
+                            }
+                        </div>
+
+                    </div>
+
+
+                    <button
+                        onclick="confirmLogout()"
+                        class="w-9 h-9
+                               rounded-full
+                               bg-slate-100
+                               hover:bg-red-50
+                               flex
+                               items-center
+                               justify-center"
+                        aria-label="ออกจากระบบ"
+                    >
+                        ⇥
+                    </button>
+
+                </div>
+
+            </div>
+
+        </header>
+
+    `;
+
+}
+
+
+function pageTitle() {
+
+    const map = {
+
+        dashboard: "Dashboard",
+
+        projects:
+            "โครงการงบประมาณ",
+
+        reports:
+            "รายงาน",
+
+        users:
+            "จัดการผู้ใช้งาน"
+
+    };
+
+    return map[
+        state.currentPage
+    ] || "STIPS";
+
+}
+
+
+/* ======================================================
+   BOTTOM NAV
+====================================================== */
+
+function bottomNav() {
+
+    if (!state.user) {
+        return "";
+    }
+
+
+    const isAdmin =
+        state.user.role === "admin";
+
+
+    return `
+
+        <nav
+            class="lg:hidden
+                   fixed
+                   bottom-0
+                   inset-x-0
+                   z-50
+                   bg-white
+                   border-t
+                   border-slate-200
+                   safe-bottom"
+        >
+
+            <div
+                class="h-16
+                       grid
+                       ${
+                           isAdmin
+                           ? "grid-cols-4"
+                           : "grid-cols-3"
+                       }"
+            >
+
+                <button
+                    onclick="navigate('dashboard')"
+                    class="${
+                        state.currentPage ===
+                        "dashboard"
+                        ? "text-blue-600"
+                        : "text-slate-500"
+                    }
+                    flex flex-col
+                    items-center
+                    justify-center
+                    gap-0.5"
+                >
+
+                    <span class="text-lg">
+                        ▣
+                    </span>
+
+                    <span class="text-[10px]">
+                        หน้าแรก
+                    </span>
+
+                </button>
+
+
+                <button
+                    onclick="navigate('projects')"
+                    class="${
+                        state.currentPage ===
+                        "projects"
+                        ? "text-blue-600"
+                        : "text-slate-500"
+                    }
+                    flex flex-col
+                    items-center
+                    justify-center
+                    gap-0.5"
+                >
+
+                    <span class="text-lg">
+                        ▤
+                    </span>
+
+                    <span class="text-[10px]">
+                        โครงการ
+                    </span>
+
+                </button>
+
+
+                ${
+                    isAdmin
+                    ? `
+
+                        <button
+                            onclick="toggleAdminPanel()"
+                            class="flex
+                                   flex-col
+                                   items-center
+                                   justify-center
+                                   gap-0.5
+                                   text-blue-600"
+                        >
+
+                            <span
+                                class="w-10
+                                       h-10
+                                       -mt-6
+                                       rounded-full
+                                       bg-blue-600
+                                       text-white
+                                       shadow-lg
+                                       flex
+                                       items-center
+                                       justify-center
+                                       text-lg"
+                            >
+                                ☰
                             </span>
-                        </div>
-                        
-                        <div class="space-y-4">
-                `;
 
-                // Render 8 Steps
-                for(let i=1; i<=8; i++) {
-                    const isCompleted = project.current_status > i;
-                    const isCurrent = project.current_status === i;
-                    const isWaiting = project.current_status < i;
-                    
-                    let iconBg = isCompleted ? 'bg-success text-white border-success' : isCurrent ? 'bg-primary text-white border-primary ring-4 ring-blue-100' : 'bg-slate-100 text-slate-400 border-slate-200';
-                    let icon = isCompleted ? '✓' : i;
+                            <span class="text-[10px]">
+                                Admin
+                            </span>
 
-                    html += `
-                        <div class="flex gap-4 ${isWaiting ? 'opacity-50 grayscale' : ''}">
-                            <div class="flex flex-col items-center">
-                                <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm z-10 ${iconBg}">
-                                    ${icon}
-                                </div>
-                                ${i < 8 ? `<div class="w-0.5 h-full min-h-[30px] bg-slate-200 my-1 ${isCompleted ? 'bg-success' : ''}"></div>` : ''}
-                            </div>
-                            <div class="flex-1 pb-6">
-                                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                                    <h4 class="font-bold text-slate-800">${i}. ${utils.getStatusName(i)}</h4>
-                                    ${isCurrent ? `
-                                        <div class="mt-3 pt-3 border-t border-slate-200">
-                                            <p class="text-xs text-slate-500 mb-2">อัปเดตสถานะนี้ให้เสร็จสิ้นเพื่อไปยังขั้นตอนต่อไป</p>
-                                            <button onclick="handlers.showUpdateStatusForm(${i})" class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-800 transition">
-                                                บันทึกรายงานขั้นตอนที่ ${i}
-                                            </button>
-                                        </div>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-
-                html += `
-                        </div>
-                    </div>
-                `;
-
-                document.getElementById('page-container').innerHTML = html;
-            }
-        };
-
-        /* =========================
-           7. EVENT HANDLERS (Forms, Modals)
-        ========================= */
-        const handlers = {
-            openCreateProjectModal: () => {
-                let adminSelectHtml = '';
-                if(state.user.role === 'admin') {
-                    // ของจริงต้องไปดึง List วิทยาลัยมา Map ใส่ Option
-                    adminSelectHtml = `
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-slate-700 mb-1">รหัสวิทยาลัย (UUID) <span class="text-danger">*</span></label>
-                            <input type="text" name="institution_id" required class="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm" placeholder="e.g. 11111111-1111...">
-                            <p class="text-xs text-warning mt-1">Admin สร้างแทนวิทยาลัย ต้องระบุ UUID ให้ถูกต้อง</p>
-                        </div>
-                    `;
-                }
-
-                const html = `
-                    <form onsubmit="handlers.submitCreateProject(event)" class="space-y-4">
-                        ${adminSelectHtml}
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">รหัสโครงการ <span class="text-danger">*</span></label>
-                            <input type="text" name="project_code" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">ชื่อโครงการ <span class="text-danger">*</span></label>
-                            <textarea name="project_name" required rows="2" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none resize-none"></textarea>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">ประเภท <span class="text-danger">*</span></label>
-                                <select name="project_type" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
-                                    <option value="" disabled selected>เลือกประเภท</option>
-                                    <option value="ที่ดิน/สิ่งก่อสร้าง">ที่ดิน/สิ่งก่อสร้าง</option>
-                                    <option value="ครุภัณฑ์">ครุภัณฑ์</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-1">วงเงินงบประมาณ (บาท) <span class="text-danger">*</span></label>
-                                <input type="number" name="budget_amount" min="1" step="0.01" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
-                            </div>
-                        </div>
-                        <div class="pt-4 mt-2 border-t border-slate-200">
-                            <button type="submit" class="w-full bg-primary text-white font-medium py-3 rounded-xl hover:bg-blue-800 transition">
-                                บันทึกและสร้างโครงการ (สถานะ 1)
-                            </button>
-                        </div>
-                    </form>
-                `;
-                ui.openModal('สร้างโครงการใหม่', html);
-            },
-            submitCreateProject: async (e) => {
-                e.preventDefault();
-                ui.showLoader('กำลังสร้างโครงการ...');
-                try {
-                    const formData = new FormData(e.target);
-                    await api.createProject(formData);
-                    
-                    ui.closeModal();
-                    ui.toast('สร้างโครงการและเริ่มต้นสถานะ 1 สำเร็จ');
-                    app.navigate('projects'); // Reload projects
-                } catch (error) {
-                    console.error(error);
-                    // Check duplicate code constraint
-                    if(error.code === '23505') {
-                        ui.toast('รหัสโครงการนี้มีอยู่แล้วในวิทยาลัย', 'error');
-                    } else {
-                        ui.toast('เกิดข้อผิดพลาดในการสร้างโครงการ', 'error');
-                    }
-                } finally {
-                    ui.hideLoader();
-                }
-            },
-            openProjectWorkflow: (projectId) => {
-                app.navigate('workflow', projectId);
-            },
-            showUpdateStatusForm: (statusNo) => {
-                // โมดูลแสดง Form ย่อยเพื่อข้ามสถานะ (ตัวอย่างสำหรับ Prototype)
-                // ในของจริง ต้องมี Form ตรวจสอบการอัปโหลดไฟล์/วันที่/ผลอุทธรณ์ที่ละเอียดขึ้น
-                
-                const p = state.selectedProject;
-                
-                let formHtml = `
-                    <div class="mb-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                        <p class="text-sm text-blue-800">ยืนยันการบันทึกรายงาน <b>ขั้นตอนที่ ${statusNo}</b> และเปลี่ยนเป็นสถานะถัดไป</p>
-                    </div>
-                    <form onsubmit="handlers.submitUpdateStatus(event, ${statusNo})">
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-slate-700 mb-1">หมายเหตุ / รายละเอียดเพิ่มเติม</label>
-                            <textarea name="remarks" rows="3" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none" placeholder="กรอกข้อมูลสรุปขั้นตอน (ถ้ามี)"></textarea>
-                        </div>
-                        <button type="submit" class="w-full bg-success text-white font-medium py-2.5 rounded-xl hover:bg-green-800 transition">
-                            ยืนยันการทำรายการ
                         </button>
-                    </form>
-                `;
 
-                // ตัวอย่างถ้าเป็นสถานะ 6 (รอผลอุทธรณ์) ต้องมี Dropdown พิเศษ (ตาม Requirement ข้อ 6)
-                if(statusNo === 6) {
-                    formHtml = `
-                        <div class="mb-4 bg-orange-50 p-3 rounded-lg border border-orange-200">
-                            <p class="text-sm text-orange-800 font-bold">บันทึกผลอุทธรณ์</p>
+                    `
+                    : ""
+                }
+
+
+                <button
+                    onclick="${
+                        isAdmin
+                        ? "navigate('reports')"
+                        : "navigate('reports')"
+                    }"
+                    class="${
+                        state.currentPage ===
+                        "reports"
+                        ? "text-blue-600"
+                        : "text-slate-500"
+                    }
+                    flex flex-col
+                    items-center
+                    justify-center
+                    gap-0.5"
+                >
+
+                    <span class="text-lg">
+                        ▥
+                    </span>
+
+                    <span class="text-[10px]">
+                        รายงาน
+                    </span>
+
+                </button>
+
+            </div>
+
+        </nav>
+
+    `;
+
+}
+
+
+/* ======================================================
+   ADMIN PANEL
+====================================================== */
+
+function adminPanel() {
+
+    if (
+        !state.user ||
+        state.user.role !== "admin" ||
+        !state.mobileAdminPanel
+    ) {
+
+        return "";
+
+    }
+
+
+    const menu = [
+
+        {
+            id: "users",
+            icon: "♙",
+            label: "ผู้ใช้งาน"
+        },
+
+        {
+            id: "institutions",
+            icon: "⌂",
+            label: "วิทยาลัย"
+        },
+
+        {
+            id: "reports",
+            icon: "▥",
+            label: "รายงาน"
+        },
+
+        {
+            id: "audit",
+            icon: "◉",
+            label: "Audit Log"
+        },
+
+        {
+            id: "allProjects",
+            icon: "▤",
+            label: "โครงการทั้งหมด"
+        },
+
+        {
+            id: "settings",
+            icon: "⚙",
+            label: "ตั้งค่า"
+        }
+
+    ];
+
+
+    return `
+
+        <div
+            class="lg:hidden
+                   fixed
+                   inset-0
+                   z-[60]
+                   bg-black/30
+                   flex
+                   items-end"
+            onclick="closeAdminPanel(event)"
+        >
+
+            <div
+                class="w-full
+                       bg-white
+                       rounded-t-3xl
+                       max-h-[80vh]
+                       overflow-y-auto
+                       p-5
+                       safe-bottom"
+                onclick="event.stopPropagation()"
+            >
+
+                <div
+                    class="flex
+                           items-center
+                           justify-between
+                           mb-5"
+                >
+
+                    <div>
+
+                        <div
+                            class="font-semibold
+                                   text-lg"
+                        >
+                            Admin Menu
                         </div>
-                        <form onsubmit="handlers.submitUpdateStatus(event, ${statusNo})">
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium text-slate-700 mb-1">ผลอุทธรณ์ <span class="text-danger">*</span></label>
-                                <select name="appeal_option" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none">
-                                    <option value="" disabled selected>เลือกผลอุทธรณ์...</option>
-                                    <option value="1">ไม่มีการอุทธรณ์ (ไปสถานะ 7)</option>
-                                    <option value="5">ผลอุทธรณ์ไม่ขึ้น (ไปสถานะ 7)</option>
-                                    <option value="2">มีการอุทธรณ์ แล้วเห็นด้วย (สั่งยกเลิก)</option>
-                                </select>
+
+                        <div
+                            class="text-xs
+                                   text-slate-400"
+                        >
+                            จัดการระบบหลังบ้าน
+                        </div>
+
+                    </div>
+
+
+                    <button
+                        onclick="toggleAdminPanel()"
+                        class="w-9 h-9
+                               rounded-full
+                               bg-slate-100"
+                        aria-label="ปิดเมนู"
+                    >
+                        ×
+                    </button>
+
+                </div>
+
+
+                <div
+                    class="grid
+                           grid-cols-2
+                           sm:grid-cols-3
+                           gap-3"
+                >
+
+                    ${menu.map(item => `
+
+                        <button
+                            onclick="adminAction('${item.id}')"
+                            class="rounded-2xl
+                                   bg-slate-50
+                                   border
+                                   border-slate-100
+                                   p-4
+                                   text-left
+                                   hover:bg-blue-50
+                                   transition"
+                        >
+
+                            <div
+                                class="w-11
+                                       h-11
+                                       rounded-xl
+                                       bg-white
+                                       shadow-sm
+                                       flex
+                                       items-center
+                                       justify-center
+                                       text-xl
+                                       mb-3"
+                            >
+                                ${item.icon}
                             </div>
-                            <div class="mb-4">
-                                <label class="block text-sm font-medium text-slate-700 mb-1">หมายเหตุ</label>
-                                <textarea name="remarks" rows="2" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"></textarea>
+
+                            <div
+                                class="text-sm
+                                       font-medium"
+                            >
+                                ${item.label}
                             </div>
-                            <button type="submit" class="w-full bg-primary text-white font-medium py-2.5 rounded-xl hover:bg-blue-800 transition">
-                                ดำเนินการตามผลอุทธรณ์
-                            </button>
-                        </form>
-                    `;
+
+                        </button>
+
+                    `).join("")}
+
+                </div>
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+/* ======================================================
+   MAIN LAYOUT
+====================================================== */
+
+function shell(content) {
+
+    return `
+
+        ${sidebar()}
+
+        <div
+            class="lg:pl-64
+                   min-h-screen"
+        >
+
+            ${topbar()}
+
+            <main
+                class="p-4
+                       sm:p-6
+                       lg:p-8
+                       pb-24
+                       lg:pb-8"
+            >
+
+                ${content}
+
+            </main>
+
+        </div>
+
+        ${bottomNav()}
+
+        ${adminPanel()}
+
+    `;
+
+}
+
+
+/* ======================================================
+   DASHBOARD
+====================================================== */
+
+async function loadDashboard() {
+
+    if (!state.user) {
+        return;
+    }
+
+
+    try {
+
+        const data =
+            await rpc(
+                "custom_dashboard",
+                {
+                    p_session_token:
+                        state.sessionToken
                 }
+            );
 
-                ui.openModal(`อัปเดตสถานะ: ${utils.getStatusName(statusNo)}`, formHtml);
-            },
-            submitUpdateStatus: async (e, currentStatusNo) => {
-                e.preventDefault();
-                ui.showLoader('กำลังอัปเดตสถานะ...');
-                try {
-                    const formData = new FormData(e.target);
-                    const remarks = formData.get('remarks');
-                    
-                    let nextStatus = currentStatusNo + 1;
-                    let isCancelled = false;
 
-                    // Handle Appeal Logic (Status 6)
-                    if (currentStatusNo === 6) {
-                        const appealOpt = formData.get('appeal_option');
-                        if(appealOpt === '2') {
-                            isCancelled = true; // สั่งยกเลิก
-                            nextStatus = 6; // ค้างไว้ 6
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "โหลด Dashboard ไม่สำเร็จ"
+            );
+
+        }
+
+
+        state.dashboard =
+            data.data;
+
+
+        if (
+            state.currentPage ===
+            "dashboard"
+        ) {
+
+            renderApp();
+
+        }
+
+    }
+
+    catch (error) {
+
+        toast(
+            error.message ||
+            "ไม่สามารถโหลด Dashboard",
+            "error"
+        );
+
+    }
+
+}
+
+
+function dashboardPage() {
+
+    const d =
+        state.dashboard || {
+
+            total_projects: 0,
+
+            total_budget: 0,
+
+            equipment_budget: 0,
+
+            construction_budget: 0,
+
+            status_1: 0,
+
+            status_2: 0,
+
+            status_3: 0,
+
+            status_4: 0,
+
+            status_5: 0,
+
+            status_6: 0,
+
+            status_7: 0,
+
+            status_8: 0
+
+        };
+
+
+    const cards = [
+
+        [
+            "โครงการทั้งหมด",
+            d.total_projects,
+            "โครงการ"
+        ],
+
+        [
+            "งบประมาณรวม",
+            money(d.total_budget),
+            ""
+        ],
+
+        [
+            "งบครุภัณฑ์",
+            money(d.equipment_budget),
+            ""
+        ],
+
+        [
+            "ที่ดิน/สิ่งก่อสร้าง",
+            money(d.construction_budget),
+            ""
+        ]
+
+    ];
+
+
+    return `
+
+        <div
+            class="space-y-5"
+        >
+
+            <div
+                class="grid
+                       grid-cols-2
+                       lg:grid-cols-4
+                       gap-3
+                       sm:gap-4"
+            >
+
+                ${cards.map(card => `
+
+                    <div
+                        class="mobile-card
+                               bg-white
+                               rounded-2xl
+                               border
+                               border-slate-200
+                               p-4
+                               sm:p-5"
+                    >
+
+                        <div
+                            class="text-xs
+                                   sm:text-sm
+                                   text-slate-500"
+                        >
+                            ${card[0]}
+                        </div>
+
+                        <div
+                            class="mt-2
+                                   text-lg
+                                   sm:text-2xl
+                                   font-semibold
+                                   break-words"
+                        >
+                            ${card[1]}
+                        </div>
+
+                        ${
+                            card[2]
+                            ? `
+                                <div
+                                    class="text-xs
+                                           text-slate-400
+                                           mt-1"
+                                >
+                                    ${card[2]}
+                                </div>
+                            `
+                            : ""
                         }
-                        
-                        // บันทึกลงตาราง appeals ด้วย
-                        await supabaseClient.from('appeals').insert([{
-                            project_id: state.selectedProject.id,
-                            appeal_option: appealOpt,
-                            remarks: remarks,
-                            created_by: state.user.id
-                        }]);
-                    }
 
-                    if (isCancelled) {
-                        // อัปเดตตารางโปรเจคให้ยกเลิก
-                        await supabaseClient.from('projects').update({
-                            is_cancelled: true,
-                            cancellation_reason: remarks || 'ยกเลิกจากผลอุทธรณ์'
-                        }).eq('id', state.selectedProject.id);
-                        ui.toast('ยกเลิกโครงการสำเร็จ', 'warning');
-                    } else {
-                        // เลื่อนสถานะ
-                        await supabaseClient.from('projects').update({
-                            current_status: nextStatus
-                        }).eq('id', state.selectedProject.id);
+                    </div>
 
-                        // เก็บ Log ลง workflows
-                        await supabaseClient.from('project_workflows').insert([{
-                            project_id: state.selectedProject.id,
-                            status_no: nextStatus,
-                            status_name: utils.getStatusName(nextStatus),
-                            remarks: remarks,
-                            created_by: state.user.id
-                        }]);
-                        ui.toast('อัปเดตสถานะสำเร็จ');
-                    }
+                `).join("")}
 
-                    ui.closeModal();
-                    // รีโหลดหน้า Workflow ใหม่
-                    const updatedProjects = await api.getProjects();
-                    state.projects = updatedProjects;
-                    app.navigate('workflow', state.selectedProject.id);
+            </div>
 
-                } catch (error) {
-                    console.error(error);
-                    ui.toast('เกิดข้อผิดพลาดในการอัปเดตสถานะ', 'error');
-                } finally {
-                    ui.hideLoader();
+
+            <div
+                class="grid
+                       grid-cols-1
+                       lg:grid-cols-2
+                       gap-5"
+            >
+
+                <div
+                    class="bg-white
+                           rounded-2xl
+                           border
+                           border-slate-200
+                           p-4
+                           sm:p-6"
+                >
+
+                    <h2
+                        class="font-semibold"
+                    >
+                        Workflow โครงการ
+                    </h2>
+
+                    <div
+                        class="mt-5
+                               space-y-3"
+                    >
+
+                        ${workflowRow(
+                            "1. ยังไม่ดำเนินการ",
+                            d.status_1
+                        )}
+
+                        ${workflowRow(
+                            "2. จัดทำร่าง TOR",
+                            d.status_2
+                        )}
+
+                        ${workflowRow(
+                            "3. เผยแพร่ร่าง TOR",
+                            d.status_3
+                        )}
+
+                        ${workflowRow(
+                            "4. ประกาศเชิญชวน",
+                            d.status_4
+                        )}
+
+                        ${workflowRow(
+                            "5. ประกาศผู้ชนะ",
+                            d.status_5
+                        )}
+
+                        ${workflowRow(
+                            "6. รอผลอุทธรณ์",
+                            d.status_6
+                        )}
+
+                        ${workflowRow(
+                            "7. ลงนามสัญญา",
+                            d.status_7
+                        )}
+
+                        ${workflowRow(
+                            "8. บริหารสัญญา",
+                            d.status_8
+                        )}
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="bg-white
+                           rounded-2xl
+                           border
+                           border-slate-200
+                           p-4
+                           sm:p-6"
+                >
+
+                    <h2
+                        class="font-semibold"
+                    >
+                        ภาพรวมระบบ
+                    </h2>
+
+                    <div
+                        class="mt-5
+                               space-y-3
+                               text-sm"
+                    >
+
+                        <div
+                            class="flex
+                                   justify-between
+                                   gap-4"
+                        >
+
+                            <span
+                                class="text-slate-500"
+                            >
+                                ผู้ใช้งาน
+                            </span>
+
+                            <span
+                                class="font-medium
+                                       text-right
+                                       break-all"
+                            >
+                                ${esc(
+                                    state.user.username
+                                )}
+                            </span>
+
+                        </div>
+
+
+                        <div
+                            class="flex
+                                   justify-between
+                                   gap-4"
+                        >
+
+                            <span
+                                class="text-slate-500"
+                            >
+                                สิทธิ์
+                            </span>
+
+                            <span
+                                class="font-medium"
+                            >
+                                ${
+                                    state.user.role ===
+                                    "admin"
+                                    ? "Admin"
+                                    : "User"
+                                }
+                            </span>
+
+                        </div>
+
+
+                        <div
+                            class="flex
+                                   justify-between
+                                   gap-4"
+                        >
+
+                            <span
+                                class="text-slate-500"
+                            >
+                                สถานะ
+                            </span>
+
+                            <span
+                                class="text-emerald-600
+                                       font-medium"
+                            >
+                                ออนไลน์
+                            </span>
+
+                        </div>
+
+
+                        <button
+                            onclick="navigate('projects')"
+                            class="w-full
+                                   mt-4
+                                   h-11
+                                   rounded-xl
+                                   bg-blue-600
+                                   text-white
+                                   hover:bg-blue-700"
+                        >
+                            ดูโครงการ
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+function workflowRow(
+    name,
+    value
+) {
+
+    return `
+
+        <div>
+
+            <div
+                class="flex
+                       items-center
+                       justify-between
+                       gap-3
+                       text-xs
+                       sm:text-sm"
+            >
+
+                <span
+                    class="truncate"
+                >
+                    ${name}
+                </span>
+
+                <span
+                    class="font-semibold
+                           shrink-0"
+                >
+                    ${value}
+                </span>
+
+            </div>
+
+            <div
+                class="mt-1.5
+                       h-2
+                       rounded-full
+                       bg-slate-100
+                       overflow-hidden"
+            >
+
+                <div
+                    class="h-full
+                           rounded-full
+                           bg-blue-600"
+                    style="
+                        width:
+                        ${
+                            Math.min(
+                                Number(value || 0) * 8,
+                                100
+                            )
+                        }%;
+                    "
+                ></div>
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+/* ======================================================
+   PROJECTS
+====================================================== */
+
+async function loadProjects() {
+
+    showLoader(
+        "กำลังโหลดโครงการ..."
+    );
+
+    try {
+
+        const data =
+            await rpc(
+                "custom_get_projects",
+                {
+                    p_session_token:
+                        state.sessionToken
                 }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "โหลดโครงการไม่สำเร็จ"
+            );
+
+        }
+
+
+        state.projects =
+            data.data || [];
+
+
+        renderApp();
+
+    }
+
+    catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    }
+
+    finally {
+
+        hideLoader();
+
+    }
+
+}
+
+
+function projectsPage() {
+
+    return `
+
+        <div
+            class="space-y-5"
+        >
+
+            <div
+                class="flex
+                       flex-col
+                       sm:flex-row
+                       sm:items-center
+                       sm:justify-between
+                       gap-3"
+            >
+
+                <div>
+
+                    <h2
+                        class="text-lg
+                               sm:text-xl
+                               font-semibold"
+                    >
+                        โครงการงบประมาณ
+                    </h2>
+
+                    <p
+                        class="text-xs
+                               sm:text-sm
+                               text-slate-500
+                               mt-1"
+                    >
+                        ${
+                            state.user.role ===
+                            "admin"
+                            ? "แสดงโครงการทั้งหมด"
+                            : "แสดงเฉพาะโครงการของวิทยาลัยคุณ"
+                        }
+                    </p>
+
+                </div>
+
+
+                <button
+                    onclick="openProjectModal()"
+                    class="h-11
+                           px-4
+                           rounded-xl
+                           bg-blue-600
+                           text-white
+                           hover:bg-blue-700"
+                >
+                    + สร้างโครงการ
+                </button>
+
+            </div>
+
+
+            ${
+                state.projects.length === 0
+                ? emptyState()
+                : `
+                    <div
+                        class="space-y-3
+                               lg:hidden"
+                    >
+
+                        ${state.projects.map(
+                            projectCard
+                        ).join("")}
+
+                    </div>
+
+
+                    <div
+                        class="hidden
+                               lg:block
+                               bg-white
+                               rounded-2xl
+                               border
+                               border-slate-200
+                               overflow-hidden"
+                    >
+
+                        <div
+                            class="overflow-x-auto"
+                        >
+
+                            <table
+                                class="w-full
+                                       text-sm"
+                            >
+
+                                <thead
+                                    class="bg-slate-50"
+                                >
+
+                                    <tr>
+
+                                        <th
+                                            class="text-left
+                                                   px-5 py-4"
+                                        >
+                                            รหัส
+                                        </th>
+
+                                        <th
+                                            class="text-left
+                                                   px-5 py-4"
+                                        >
+                                            โครงการ
+                                        </th>
+
+                                        <th
+                                            class="text-left
+                                                   px-5 py-4"
+                                        >
+                                            ประเภท
+                                        </th>
+
+                                        <th
+                                            class="text-right
+                                                   px-5 py-4"
+                                        >
+                                            งบประมาณ
+                                        </th>
+
+                                        <th
+                                            class="text-left
+                                                   px-5 py-4"
+                                        >
+                                            สถานะ
+                                        </th>
+
+                                        <th
+                                            class="px-5 py-4"
+                                        >
+                                            จัดการ
+                                        </th>
+
+                                    </tr>
+
+                                </thead>
+
+                                <tbody>
+
+                                    ${state.projects.map(
+                                        projectRow
+                                    ).join("")}
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </div>
+                `
             }
+
+        </div>
+
+    `;
+
+}
+
+
+function projectCard(p) {
+
+    return `
+
+        <div
+            class="bg-white
+                   border
+                   border-slate-200
+                   rounded-2xl
+                   p-4
+                   shadow-sm"
+        >
+
+            <div
+                class="flex
+                       items-start
+                       justify-between
+                       gap-3"
+            >
+
+                <div
+                    class="min-w-0"
+                >
+
+                    <div
+                        class="text-xs
+                               text-slate-400"
+                    >
+                        ${esc(
+                            p.project_code
+                        )}
+                    </div>
+
+                    <div
+                        class="font-medium
+                               mt-1
+                               leading-6
+                               break-words"
+                    >
+                        ${esc(
+                            p.project_name
+                        )}
+                    </div>
+
+                </div>
+
+                ${statusBadge(
+                    p.status_name
+                )}
+
+            </div>
+
+
+            <div
+                class="mt-4
+                       grid
+                       grid-cols-2
+                       gap-3
+                       text-sm"
+            >
+
+                <div>
+
+                    <div
+                        class="text-xs
+                               text-slate-400"
+                    >
+                        ประเภท
+                    </div>
+
+                    <div
+                        class="mt-1"
+                    >
+                        ${esc(
+                            p.project_type
+                        )}
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="text-right"
+                >
+
+                    <div
+                        class="text-xs
+                               text-slate-400"
+                    >
+                        งบประมาณ
+                    </div>
+
+                    <div
+                        class="mt-1
+                               font-medium
+                               text-blue-600"
+                    >
+                        ${money(
+                            p.budget_amount
+                        )}
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div
+                class="mt-4
+                       flex
+                       gap-2"
+            >
+
+                <button
+                    onclick="openProjectDetail('${p.id}')"
+                    class="flex-1
+                           h-10
+                           rounded-xl
+                           bg-slate-100
+                           text-sm
+                           hover:bg-slate-200"
+                >
+                    ดูรายละเอียด
+                </button>
+
+
+                ${
+                    state.user.role ===
+                    "admin" ||
+                    p.institution_id ===
+                    state.user.institution_id
+                    ? `
+                        <button
+                            onclick="confirmDeleteProject('${p.id}')"
+                            class="w-10
+                                   h-10
+                                   rounded-xl
+                                   bg-red-50
+                                   text-red-600"
+                            aria-label="ลบ"
+                        >
+                            ×
+                        </button>
+                    `
+                    : ""
+                }
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+function projectRow(p) {
+
+    return `
+
+        <tr
+            class="border-t
+                   border-slate-100"
+        >
+
+            <td
+                class="px-5 py-4"
+            >
+                ${esc(
+                    p.project_code
+                )}
+            </td>
+
+
+            <td
+                class="px-5 py-4"
+            >
+
+                <div
+                    class="font-medium"
+                >
+                    ${esc(
+                        p.project_name
+                    )}
+                </div>
+
+                ${
+                    state.user.role ===
+                    "admin"
+                    ? `
+                        <div
+                            class="text-xs
+                                   text-slate-400
+                                   mt-1"
+                        >
+                            ${esc(
+                                p.institution_name
+                            )}
+                        </div>
+                    `
+                    : ""
+                }
+
+            </td>
+
+
+            <td
+                class="px-5 py-4"
+            >
+                ${esc(
+                    p.project_type
+                )}
+            </td>
+
+
+            <td
+                class="px-5 py-4
+                       text-right"
+            >
+                ${money(
+                    p.budget_amount
+                )}
+            </td>
+
+
+            <td
+                class="px-5 py-4"
+            >
+                ${statusBadge(
+                    p.status_name
+                )}
+            </td>
+
+
+            <td
+                class="px-5 py-4"
+            >
+
+                <div
+                    class="flex
+                           justify-center
+                           gap-2"
+                >
+
+                    <button
+                        onclick="openProjectDetail('${p.id}')"
+                        class="px-3
+                               py-2
+                               rounded-lg
+                               bg-slate-100
+                               text-xs"
+                    >
+                        ดู
+                    </button>
+
+
+                    <button
+                        onclick="confirmDeleteProject('${p.id}')"
+                        class="px-3
+                               py-2
+                               rounded-lg
+                               bg-red-50
+                               text-red-600
+                               text-xs"
+                    >
+                        ลบ
+                    </button>
+
+                </div>
+
+            </td>
+
+        </tr>
+
+    `;
+
+}
+
+
+function statusBadge(status) {
+
+    const map = {
+
+        "ยังไม่ดำเนินการ":
+            "bg-slate-100 text-slate-600",
+
+        "จัดทำร่าง TOR":
+            "bg-blue-50 text-blue-700",
+
+        "เผยแพร่ร่าง TOR":
+            "bg-indigo-50 text-indigo-700",
+
+        "ประกาศเชิญชวน":
+            "bg-purple-50 text-purple-700",
+
+        "ประกาศผู้ชนะ":
+            "bg-amber-50 text-amber-700",
+
+        "รอผลอุทธรณ์":
+            "bg-orange-50 text-orange-700",
+
+        "ลงนามสัญญา":
+            "bg-emerald-50 text-emerald-700",
+
+        "บริหารสัญญา":
+            "bg-green-50 text-green-700"
+
+    };
+
+
+    return `
+
+        <span
+            class="inline-flex
+                   items-center
+                   rounded-full
+                   px-2.5
+                   py-1
+                   text-[10px]
+                   sm:text-xs
+                   font-medium
+                   whitespace-nowrap
+                   ${
+                       map[status] ||
+                       "bg-slate-100 text-slate-600"
+                   }"
+        >
+            ${esc(status)}
+        </span>
+
+    `;
+
+}
+
+
+function emptyState() {
+
+    return `
+
+        <div
+            class="bg-white
+                   rounded-2xl
+                   border
+                   border-dashed
+                   border-slate-300
+                   p-10
+                   text-center"
+        >
+
+            <div
+                class="text-4xl
+                       text-slate-300"
+            >
+                ▤
+            </div>
+
+            <div
+                class="font-medium
+                       mt-3"
+            >
+                ยังไม่มีโครงการ
+            </div>
+
+            <div
+                class="text-sm
+                       text-slate-400
+                       mt-1"
+            >
+                เริ่มต้นสร้างโครงการแรก
+            </div>
+
+            <button
+                onclick="openProjectModal()"
+                class="mt-5
+                       h-10
+                       px-4
+                       rounded-xl
+                       bg-blue-600
+                       text-white"
+            >
+                + สร้างโครงการ
+            </button>
+
+        </div>
+
+    `;
+
+}
+
+
+/* ======================================================
+   CREATE PROJECT MODAL
+====================================================== */
+
+function openProjectModal() {
+
+    const modal =
+        document.createElement(
+            "div"
+        );
+
+
+    modal.id =
+        "projectModal";
+
+
+    modal.className =
+        "fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4";
+
+
+    modal.innerHTML = `
+
+        <div
+            class="bg-white
+                   w-full
+                   sm:max-w-lg
+                   rounded-t-3xl
+                   sm:rounded-2xl
+                   p-5
+                   sm:p-6
+                   max-h-[90vh]
+                   overflow-y-auto"
+        >
+
+            <div
+                class="flex
+                       justify-between
+                       items-center"
+            >
+
+                <div
+                    class="text-lg
+                           font-semibold"
+                >
+                    สร้างโครงการ
+                </div>
+
+                <button
+                    onclick="closeProjectModal()"
+                    class="w-9 h-9
+                           rounded-full
+                           bg-slate-100"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <form
+                id="projectForm"
+                class="mt-5
+                       space-y-4"
+            >
+
+                <div>
+
+                    <label
+                        class="text-sm
+                               font-medium"
+                    >
+                        รหัสโครงการ
+                    </label>
+
+                    <input
+                        name="project_code"
+                        required
+                        class="mt-1
+                               w-full
+                               h-11
+                               px-4
+                               rounded-xl
+                               border
+                               border-slate-200"
+                    >
+
+                </div>
+
+
+                <div>
+
+                    <label
+                        class="text-sm
+                               font-medium"
+                    >
+                        ชื่อโครงการ
+                    </label>
+
+                    <input
+                        name="project_name"
+                        required
+                        class="mt-1
+                               w-full
+                               h-11
+                               px-4
+                               rounded-xl
+                               border
+                               border-slate-200"
+                    >
+
+                </div>
+
+
+                <div>
+
+                    <label
+                        class="text-sm
+                               font-medium"
+                    >
+                        ประเภทโครงการ
+                    </label>
+
+                    <select
+                        name="project_type"
+                        required
+                        class="mt-1
+                               w-full
+                               h-11
+                               px-4
+                               rounded-xl
+                               border
+                               border-slate-200
+                               bg-white"
+                    >
+
+                        <option value="">
+                            เลือกประเภท
+                        </option>
+
+                        <option value="ที่ดิน/สิ่งก่อสร้าง">
+                            ที่ดิน/สิ่งก่อสร้าง
+                        </option>
+
+                        <option value="ครุภัณฑ์">
+                            ครุภัณฑ์
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div>
+
+                    <label
+                        class="text-sm
+                               font-medium"
+                    >
+                        วงเงินงบประมาณ
+                    </label>
+
+                    <input
+                        name="budget_amount"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        required
+                        class="mt-1
+                               w-full
+                               h-11
+                               px-4
+                               rounded-xl
+                               border
+                               border-slate-200"
+                    >
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="w-full
+                           h-11
+                           rounded-xl
+                           bg-blue-600
+                           text-white
+                           font-medium"
+                >
+                    บันทึกโครงการ
+                </button>
+
+            </form>
+
+        </div>
+
+    `;
+
+
+    document.body.appendChild(
+        modal
+    );
+
+
+    document
+        .getElementById(
+            "projectForm"
+        )
+        .addEventListener(
+            "submit",
+            createProject
+        );
+
+}
+
+
+function closeProjectModal() {
+
+    document
+        .getElementById(
+            "projectModal"
+        )
+        ?.remove();
+
+}
+
+
+async function createProject(
+    event
+) {
+
+    event.preventDefault();
+
+
+    const form =
+        event.target;
+
+
+    const fd =
+        new FormData(form);
+
+
+    showLoader(
+        "กำลังบันทึกโครงการ..."
+    );
+
+
+    try {
+
+        const data =
+            await rpc(
+                "custom_create_project",
+                {
+
+                    p_session_token:
+                        state.sessionToken,
+
+                    p_project_code:
+                        fd.get(
+                            "project_code"
+                        ),
+
+                    p_project_name:
+                        fd.get(
+                            "project_name"
+                        ),
+
+                    p_project_type:
+                        fd.get(
+                            "project_type"
+                        ),
+
+                    p_budget_amount:
+                        Number(
+                            fd.get(
+                                "budget_amount"
+                            )
+                        )
+
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "สร้างโครงการไม่สำเร็จ"
+            );
+
+        }
+
+
+        closeProjectModal();
+
+        toast(
+            "สร้างโครงการสำเร็จ",
+            "success"
+        );
+
+
+        await loadProjects();
+
+        await loadDashboard();
+
+    }
+
+    catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    }
+
+    finally {
+
+        hideLoader();
+
+    }
+
+}
+
+
+/* ======================================================
+   DELETE PROJECT
+====================================================== */
+
+function confirmDeleteProject(
+    projectId
+) {
+
+    confirmModal(
+        "ลบโครงการ",
+        "ยืนยันการลบโครงการนี้หรือไม่? การลบอาจส่งผลต่อข้อมูลที่เชื่อมโยง",
+        async () => {
+
+            showLoader(
+                "กำลังลบโครงการ..."
+            );
+
+            try {
+
+                const data =
+                    await rpc(
+                        "custom_delete_project",
+                        {
+
+                            p_session_token:
+                                state.sessionToken,
+
+                            p_project_id:
+                                projectId
+
+                        }
+                    );
+
+
+                if (!data?.success) {
+
+                    throw new Error(
+                        data?.message ||
+                        "ลบโครงการไม่สำเร็จ"
+                    );
+
+                }
+
+
+                toast(
+                    "ลบโครงการสำเร็จ",
+                    "success"
+                );
+
+
+                await loadProjects();
+
+                await loadDashboard();
+
+            }
+
+            catch (error) {
+
+                toast(
+                    error.message,
+                    "error"
+                );
+
+            }
+
+            finally {
+
+                hideLoader();
+
+            }
+
+        }
+    );
+
+}
+
+
+/* ======================================================
+   PROJECT DETAIL
+====================================================== */
+
+function openProjectDetail(
+    projectId
+) {
+
+    const project =
+        state.projects.find(
+            p =>
+                p.id ===
+                projectId
+        );
+
+
+    if (!project) {
+
+        toast(
+            "ไม่พบข้อมูลโครงการ",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    const modal =
+        document.createElement(
+            "div"
+        );
+
+
+    modal.id =
+        "detailModal";
+
+
+    modal.className =
+        "fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4";
+
+
+    modal.innerHTML = `
+
+        <div
+            class="bg-white
+                   w-full
+                   sm:max-w-2xl
+                   rounded-t-3xl
+                   sm:rounded-2xl
+                   p-5
+                   sm:p-6
+                   max-h-[90vh]
+                   overflow-y-auto"
+        >
+
+            <div
+                class="flex
+                       items-start
+                       justify-between
+                       gap-3"
+            >
+
+                <div
+                    class="min-w-0"
+                >
+
+                    <div
+                        class="text-xs
+                               text-slate-400"
+                    >
+                        ${esc(
+                            project.project_code
+                        )}
+                    </div>
+
+                    <div
+                        class="text-lg
+                               sm:text-xl
+                               font-semibold
+                               mt-1"
+                    >
+                        ${esc(
+                            project.project_name
+                        )}
+                    </div>
+
+                </div>
+
+
+                <button
+                    onclick="document.getElementById('detailModal')?.remove()"
+                    class="w-9
+                           h-9
+                           rounded-full
+                           bg-slate-100
+                           shrink-0"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <div
+                class="mt-6
+                       grid
+                       grid-cols-1
+                       sm:grid-cols-2
+                       gap-4"
+            >
+
+                ${detailItem(
+                    "ประเภท",
+                    project.project_type
+                )}
+
+                ${detailItem(
+                    "สถานะ",
+                    project.status_name
+                )}
+
+                ${detailItem(
+                    "งบประมาณ",
+                    money(
+                        project.budget_amount
+                    )
+                )}
+
+                ${
+                    project.institution_name
+                    ? detailItem(
+                        "วิทยาลัย",
+                        project.institution_name
+                    )
+                    : ""
+                }
+
+            </div>
+
+
+            <div
+                class="mt-6"
+            >
+
+                <div
+                    class="font-medium"
+                >
+                    Workflow
+                </div>
+
+
+                <div
+                    class="mt-4
+                           space-y-3"
+                >
+
+                    ${[
+                        "ยังไม่ดำเนินการ",
+                        "จัดทำร่าง TOR",
+                        "เผยแพร่ร่าง TOR",
+                        "ประกาศเชิญชวน",
+                        "ประกาศผู้ชนะ",
+                        "รอผลอุทธรณ์",
+                        "ลงนามสัญญา",
+                        "บริหารสัญญา"
+                    ].map(
+                        (status, index) => {
+
+                            const done =
+                                project.current_status >
+                                index + 1;
+
+                            const current =
+                                project.current_status ===
+                                index + 1;
+
+
+                            return `
+
+                                <div
+                                    class="flex
+                                           items-center
+                                           gap-3"
+                                >
+
+                                    <div
+                                        class="w-8 h-8
+                                               rounded-full
+                                               flex
+                                               items-center
+                                               justify-center
+                                               text-xs
+                                               ${
+                                                   done
+                                                   ? "bg-emerald-100 text-emerald-700"
+                                                   : current
+                                                   ? "bg-blue-600 text-white"
+                                                   : "bg-slate-100 text-slate-400"
+                                               }"
+                                    >
+                                        ${
+                                            done
+                                            ? "✓"
+                                            : index + 1
+                                        }
+                                    </div>
+
+                                    <div
+                                        class="${
+                                            current
+                                            ? "font-medium"
+                                            : "text-slate-500"
+                                        }"
+                                    >
+                                        ${status}
+                                    </div>
+
+                                </div>
+
+                            `;
+
+                        }
+                    ).join("")}
+
+                </div>
+
+            </div>
+
+        </div>
+
+    `;
+
+
+    document.body.appendChild(
+        modal
+    );
+
+}
+
+
+function detailItem(
+    label,
+    value
+) {
+
+    return `
+
+        <div
+            class="rounded-xl
+                   bg-slate-50
+                   p-4"
+        >
+
+            <div
+                class="text-xs
+                       text-slate-400"
+            >
+                ${esc(label)}
+            </div>
+
+            <div
+                class="mt-1
+                       font-medium
+                       break-words"
+            >
+                ${esc(value)}
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+/* ======================================================
+   USERS - ADMIN
+====================================================== */
+
+async function loadUsers() {
+
+    if (
+        state.user?.role !==
+        "admin"
+    ) {
+
+        return;
+
+    }
+
+
+    showLoader(
+        "กำลังโหลดผู้ใช้งาน..."
+    );
+
+
+    try {
+
+        const data =
+            await rpc(
+                "admin_get_users",
+                {
+                    p_session_token:
+                        state.sessionToken
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "โหลดข้อมูลไม่สำเร็จ"
+            );
+
+        }
+
+
+        state.users =
+            data.data || [];
+
+
+        renderApp();
+
+    }
+
+    catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    }
+
+    finally {
+
+        hideLoader();
+
+    }
+
+}
+
+
+function usersPage() {
+
+    if (
+        state.user.role !==
+        "admin"
+    ) {
+
+        return `
+            ${forbiddenState()}
+        `;
+
+    }
+
+
+    return `
+
+        <div
+            class="space-y-5"
+        >
+
+            <div
+                class="flex
+                       flex-col
+                       sm:flex-row
+                       sm:items-center
+                       sm:justify-between
+                       gap-3"
+            >
+
+                <div>
+
+                    <h2
+                        class="text-lg
+                               sm:text-xl
+                               font-semibold"
+                    >
+                        จัดการผู้ใช้งาน
+                    </h2>
+
+                    <p
+                        class="text-xs
+                               sm:text-sm
+                               text-slate-500
+                               mt-1"
+                    >
+                        Admin สามารถจัดการบัญชีทุกคน
+                    </p>
+
+                </div>
+
+
+                <button
+                    onclick="openUserModal()"
+                    class="h-11
+                           px-4
+                           rounded-xl
+                           bg-blue-600
+                           text-white"
+                >
+                    + เพิ่มผู้ใช้งาน
+                </button>
+
+            </div>
+
+
+            <div
+                class="space-y-3
+                       lg:hidden"
+            >
+
+                ${state.users.map(
+                    userCard
+                ).join("")}
+
+            </div>
+
+
+            <div
+                class="hidden
+                       lg:block
+                       bg-white
+                       rounded-2xl
+                       border
+                       border-slate-200
+                       overflow-hidden"
+            >
+
+                <div
+                    class="overflow-x-auto"
+                >
+
+                    <table
+                        class="w-full
+                               text-sm"
+                    >
+
+                        <thead
+                            class="bg-slate-50"
+                        >
+
+                            <tr>
+
+                                <th
+                                    class="text-left
+                                           px-5 py-4"
+                                >
+                                    Username
+                                </th>
+
+                                <th
+                                    class="text-left
+                                           px-5 py-4"
+                                >
+                                    ชื่อ
+                                </th>
+
+                                <th
+                                    class="text-left
+                                           px-5 py-4"
+                                >
+                                    สิทธิ์
+                                </th>
+
+                                <th
+                                    class="text-left
+                                           px-5 py-4"
+                                >
+                                    วิทยาลัย
+                                </th>
+
+                                <th
+                                    class="text-left
+                                           px-5 py-4"
+                                >
+                                    สถานะ
+                                </th>
+
+                                <th
+                                    class="px-5 py-4"
+                                >
+                                    จัดการ
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody>
+
+                            ${state.users.map(
+                                userRow
+                            ).join("")}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+function userCard(u) {
+
+    return `
+
+        <div
+            class="bg-white
+                   border
+                   border-slate-200
+                   rounded-2xl
+                   p-4"
+        >
+
+            <div
+                class="flex
+                       justify-between
+                       gap-3"
+            >
+
+                <div>
+
+                    <div
+                        class="font-medium"
+                    >
+                        ${esc(
+                            u.username
+                        )}
+                    </div>
+
+                    <div
+                        class="text-sm
+                               text-slate-500
+                               mt-1"
+                    >
+                        ${esc(
+                            u.full_name
+                        )}
+                    </div>
+
+                </div>
+
+
+                <span
+                    class="text-xs
+                           rounded-full
+                           px-2.5
+                           py-1
+                           bg-blue-50
+                           text-blue-700
+                           h-fit"
+                >
+                    ${esc(u.role)}
+                </span>
+
+            </div>
+
+
+            <div
+                class="mt-4
+                       text-sm
+                       space-y-2"
+            >
+
+                <div>
+                    ${esc(
+                        u.institution_name ||
+                        "ผู้ดูแลระบบ"
+                    )}
+                </div>
+
+                <div
+                    class="text-slate-400
+                           text-xs"
+                >
+                    ${u.is_active
+                        ? "ใช้งานอยู่"
+                        : "ปิดใช้งาน"}
+                </div>
+
+            </div>
+
+
+            <button
+                onclick="confirmDeleteUser('${u.id}')"
+                class="mt-4
+                       w-full
+                       h-10
+                       rounded-xl
+                       bg-red-50
+                       text-red-600
+                       text-sm"
+            >
+                ลบผู้ใช้งาน
+            </button>
+
+        </div>
+
+    `;
+
+}
+
+
+function userRow(u) {
+
+    return `
+
+        <tr
+            class="border-t
+                   border-slate-100"
+        >
+
+            <td
+                class="px-5 py-4"
+            >
+                ${esc(
+                    u.username
+                )}
+            </td>
+
+            <td
+                class="px-5 py-4"
+            >
+                ${esc(
+                    u.full_name
+                )}
+            </td>
+
+            <td
+                class="px-5 py-4"
+            >
+                ${esc(
+                    u.role
+                )}
+            </td>
+
+            <td
+                class="px-5 py-4"
+            >
+                ${esc(
+                    u.institution_name ||
+                    "Admin"
+                )}
+            </td>
+
+            <td
+                class="px-5 py-4"
+            >
+
+                ${
+                    u.is_active
+                    ? `
+                        <span
+                            class="text-emerald-600
+                                   text-xs"
+                        >
+                            ใช้งาน
+                        </span>
+                    `
+                    : `
+                        <span
+                            class="text-red-600
+                                   text-xs"
+                        >
+                            ปิด
+                        </span>
+                    `
+                }
+
+            </td>
+
+            <td
+                class="px-5 py-4"
+            >
+
+                <button
+                    onclick="confirmDeleteUser('${u.id}')"
+                    class="px-3
+                           py-2
+                           rounded-lg
+                           bg-red-50
+                           text-red-600
+                           text-xs"
+                >
+                    ลบ
+                </button>
+
+            </td>
+
+        </tr>
+
+    `;
+
+}
+
+
+/* ======================================================
+   CREATE USER MODAL
+====================================================== */
+
+function openUserModal() {
+
+    const modal =
+        document.createElement(
+            "div"
+        );
+
+
+    modal.id =
+        "userModal";
+
+
+    modal.className =
+        "fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4";
+
+
+    modal.innerHTML = `
+
+        <div
+            class="bg-white
+                   w-full
+                   sm:max-w-lg
+                   rounded-t-3xl
+                   sm:rounded-2xl
+                   p-5
+                   sm:p-6
+                   max-h-[90vh]
+                   overflow-y-auto"
+        >
+
+            <div
+                class="flex
+                       justify-between
+                       items-center"
+            >
+
+                <div
+                    class="text-lg
+                           font-semibold"
+                >
+                    เพิ่มผู้ใช้งาน
+                </div>
+
+                <button
+                    onclick="document.getElementById('userModal')?.remove()"
+                    class="w-9 h-9
+                           rounded-full
+                           bg-slate-100"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <form
+                id="userForm"
+                class="mt-5
+                       space-y-4"
+            >
+
+                <input
+                    name="username"
+                    required
+                    placeholder="Username"
+                    class="w-full
+                           h-11
+                           px-4
+                           rounded-xl
+                           border"
+                >
+
+
+                <input
+                    name="password"
+                    type="password"
+                    required
+                    minlength="6"
+                    placeholder="รหัสผ่านอย่างน้อย 6 ตัว"
+                    class="w-full
+                           h-11
+                           px-4
+                           rounded-xl
+                           border"
+                >
+
+
+                <select
+                    name="role"
+                    class="w-full
+                           h-11
+                           px-4
+                           rounded-xl
+                           border
+                           bg-white"
+                >
+
+                    <option value="user">
+                        User
+                    </option>
+
+                    <option value="admin">
+                        Admin
+                    </option>
+
+                </select>
+
+
+                <input
+                    name="institution_id"
+                    placeholder="Institution UUID"
+                    class="w-full
+                           h-11
+                           px-4
+                           rounded-xl
+                           border"
+                >
+
+
+                <input
+                    name="full_name"
+                    required
+                    placeholder="ชื่อ-นามสกุล"
+                    class="w-full
+                           h-11
+                           px-4
+                           rounded-xl
+                           border"
+                >
+
+
+                <input
+                    name="phone"
+                    placeholder="เบอร์โทร"
+                    class="w-full
+                           h-11
+                           px-4
+                           rounded-xl
+                           border"
+                >
+
+
+                <input
+                    name="email"
+                    type="email"
+                    placeholder="Email"
+                    class="w-full
+                           h-11
+                           px-4
+                           rounded-xl
+                           border"
+                >
+
+
+                <button
+                    type="submit"
+                    class="w-full
+                           h-11
+                           rounded-xl
+                           bg-blue-600
+                           text-white"
+                >
+                    สร้างบัญชี
+                </button>
+
+            </form>
+
+        </div>
+
+    `;
+
+
+    document.body.appendChild(
+        modal
+    );
+
+
+    document
+        .getElementById(
+            "userForm"
+        )
+        .addEventListener(
+            "submit",
+            createUser
+        );
+
+}
+
+
+async function createUser(
+    event
+) {
+
+    event.preventDefault();
+
+
+    const fd =
+        new FormData(
+            event.target
+        );
+
+
+    showLoader(
+        "กำลังสร้างบัญชี..."
+    );
+
+
+    try {
+
+        const data =
+            await rpc(
+                "admin_create_user",
+                {
+
+                    p_session_token:
+                        state.sessionToken,
+
+                    p_username:
+                        fd.get("username"),
+
+                    p_password:
+                        fd.get("password"),
+
+                    p_role:
+                        fd.get("role"),
+
+                    p_institution_id:
+                        fd.get("institution_id") ||
+                        null,
+
+                    p_full_name:
+                        fd.get("full_name"),
+
+                    p_phone:
+                        fd.get("phone"),
+
+                    p_email:
+                        fd.get("email")
+
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "สร้างบัญชีไม่สำเร็จ"
+            );
+
+        }
+
+
+        document
+            .getElementById(
+                "userModal"
+            )
+            ?.remove();
+
+
+        toast(
+            "สร้างบัญชีสำเร็จ",
+            "success"
+        );
+
+
+        await loadUsers();
+
+    }
+
+    catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    }
+
+    finally {
+
+        hideLoader();
+
+    }
+
+}
+
+
+/* ======================================================
+   DELETE USER
+====================================================== */
+
+function confirmDeleteUser(
+    userId
+) {
+
+    confirmModal(
+        "ลบผู้ใช้งาน",
+        "ยืนยันการลบบัญชีผู้ใช้งานนี้หรือไม่?",
+        async () => {
+
+            showLoader(
+                "กำลังลบผู้ใช้งาน..."
+            );
+
+
+            try {
+
+                const data =
+                    await rpc(
+                        "admin_delete_user",
+                        {
+
+                            p_session_token:
+                                state.sessionToken,
+
+                            p_user_id:
+                                userId
+
+                        }
+                    );
+
+
+                if (!data?.success) {
+
+                    throw new Error(
+                        data?.message ||
+                        "ลบบัญชีไม่สำเร็จ"
+                    );
+
+                }
+
+
+                toast(
+                    "ลบบัญชีสำเร็จ",
+                    "success"
+                );
+
+
+                await loadUsers();
+
+            }
+
+            catch (error) {
+
+                toast(
+                    error.message,
+                    "error"
+                );
+
+            }
+
+            finally {
+
+                hideLoader();
+
+            }
+
+        }
+    );
+
+}
+
+
+/* ======================================================
+   REPORT
+====================================================== */
+
+function reportsPage() {
+
+    return `
+
+        <div
+            class="space-y-5"
+        >
+
+            <div>
+
+                <h2
+                    class="text-lg
+                           sm:text-xl
+                           font-semibold"
+                >
+                    รายงาน
+                </h2>
+
+                <p
+                    class="text-xs
+                           sm:text-sm
+                           text-slate-500
+                           mt-1"
+                >
+                    เครื่องมือสำหรับดูและส่งออกรายงาน
+                </p>
+
+            </div>
+
+
+            <div
+                class="grid
+                       grid-cols-1
+                       sm:grid-cols-2
+                       xl:grid-cols-3
+                       gap-4"
+            >
+
+                ${reportCard(
+                    "รายงานโครงการ",
+                    "ดูข้อมูลโครงการทั้งหมดที่คุณมีสิทธิ์เข้าถึง",
+                    "generateProjectReport()"
+                )}
+
+                ${reportCard(
+                    "รายงาน Dashboard",
+                    "สร้างไฟล์รายงานภาพรวม",
+                    "generateDashboardReport()"
+                )}
+
+                ${
+                    state.user.role ===
+                    "admin"
+                    ? reportCard(
+                        "รายงานผู้ใช้งาน",
+                        "ส่งออกรายชื่อบัญชีผู้ใช้งาน",
+                        "generateUserReport()"
+                    )
+                    : ""
+                }
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+function reportCard(
+    title,
+    description,
+    action
+) {
+
+    return `
+
+        <div
+            class="bg-white
+                   border
+                   border-slate-200
+                   rounded-2xl
+                   p-5"
+        >
+
+            <div
+                class="w-11 h-11
+                       rounded-xl
+                       bg-blue-50
+                       text-blue-600
+                       flex
+                       items-center
+                       justify-center
+                       text-lg"
+            >
+                ▥
+            </div>
+
+            <div
+                class="font-medium
+                       mt-4"
+            >
+                ${title}
+            </div>
+
+            <div
+                class="text-sm
+                       text-slate-500
+                       mt-1
+                       leading-6"
+            >
+                ${description}
+            </div>
+
+            <button
+                onclick="${action}"
+                class="mt-5
+                       h-10
+                       w-full
+                       rounded-xl
+                       bg-slate-900
+                       text-white
+                       text-sm"
+            >
+                ดาวน์โหลดรายงาน
+            </button>
+
+        </div>
+
+    `;
+
+}
+
+
+/* ======================================================
+   SIMPLE CSV REPORT
+====================================================== */
+
+function downloadCSV(
+    filename,
+    rows
+) {
+
+    const csv =
+        rows.map(
+            row =>
+                row.map(
+                    cell =>
+                        `"${String(
+                            cell ?? ""
+                        ).replaceAll(
+                            '"',
+                            '""'
+                        )}"`
+                ).join(",")
+        ).join("\n");
+
+
+    const blob =
+        new Blob(
+            [
+                "\uFEFF" +
+                csv
+            ],
+            {
+                type:
+                    "text/csv;charset=utf-8;"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(
+            blob
+        );
+
+
+    const a =
+        document.createElement(
+            "a"
+        );
+
+    a.href = url;
+
+    a.download =
+        filename;
+
+    a.click();
+
+    URL.revokeObjectURL(
+        url
+    );
+
+}
+
+
+async function generateProjectReport() {
+
+    if (
+        state.projects.length === 0
+    ) {
+
+        await loadProjects();
+
+    }
+
+
+    const rows = [
+
+        [
+            "รหัสโครงการ",
+            "ชื่อโครงการ",
+            "ประเภท",
+            "งบประมาณ",
+            "สถานะ",
+            "วิทยาลัย"
+        ]
+
+    ];
+
+
+    state.projects.forEach(
+        p => {
+
+            rows.push([
+
+                p.project_code,
+
+                p.project_name,
+
+                p.project_type,
+
+                p.budget_amount,
+
+                p.status_name,
+
+                p.institution_name || ""
+
+            ]);
+
+        }
+    );
+
+
+    downloadCSV(
+        "stips-projects.csv",
+        rows
+    );
+
+
+    toast(
+        "ดาวน์โหลดรายงานแล้ว",
+        "success"
+    );
+
+}
+
+
+async function generateDashboardReport() {
+
+    if (!state.dashboard) {
+
+        await loadDashboard();
+
+    }
+
+
+    const d =
+        state.dashboard || {};
+
+
+    downloadCSV(
+        "stips-dashboard.csv",
+        [
+
+            [
+                "รายการ",
+                "ค่า"
+            ],
+
+            [
+                "จำนวนโครงการ",
+                d.total_projects
+            ],
+
+            [
+                "งบประมาณรวม",
+                d.total_budget
+            ],
+
+            [
+                "งบครุภัณฑ์",
+                d.equipment_budget
+            ],
+
+            [
+                "ที่ดิน/สิ่งก่อสร้าง",
+                d.construction_budget
+            ]
+
+        ]
+    );
+
+
+    toast(
+        "ดาวน์โหลดรายงานแล้ว",
+        "success"
+    );
+
+}
+
+
+async function generateUserReport() {
+
+    if (
+        state.user.role !==
+        "admin"
+    ) {
+
+        return;
+
+    }
+
+
+    if (
+        state.users.length === 0
+    ) {
+
+        await loadUsers();
+
+    }
+
+
+    downloadCSV(
+        "stips-users.csv",
+        [
+
+            [
+                "Username",
+                "ชื่อ",
+                "Role",
+                "วิทยาลัย",
+                "สถานะ"
+            ],
+
+            ...state.users.map(
+                u => [
+
+                    u.username,
+
+                    u.full_name,
+
+                    u.role,
+
+                    u.institution_name ||
+                    "",
+
+                    u.is_active
+                    ? "ใช้งาน"
+                    : "ปิด"
+
+                ]
+            )
+
+        ]
+    );
+
+
+    toast(
+        "ดาวน์โหลดรายงานแล้ว",
+        "success"
+    );
+
+}
+
+
+/* ======================================================
+   CONFIRM MODAL
+====================================================== */
+
+function confirmModal(
+    title,
+    message,
+    action
+) {
+
+    const modal =
+        document.createElement(
+            "div"
+        );
+
+
+    modal.className =
+        "fixed inset-0 z-[90] bg-black/40 flex items-end sm:items-center justify-center p-4";
+
+
+    modal.innerHTML = `
+
+        <div
+            class="bg-white
+                   w-full
+                   max-w-md
+                   rounded-2xl
+                   p-5
+                   shadow-xl"
+        >
+
+            <div
+                class="text-lg
+                       font-semibold"
+            >
+                ${esc(title)}
+            </div>
+
+            <div
+                class="text-sm
+                       text-slate-500
+                       mt-2
+                       leading-6"
+            >
+                ${esc(message)}
+            </div>
+
+
+            <div
+                class="mt-6
+                       grid
+                       grid-cols-2
+                       gap-3"
+            >
+
+                <button
+                    class="h-11
+                           rounded-xl
+                           bg-slate-100"
+                    onclick="this.closest('.fixed').remove()"
+                >
+                    ยกเลิก
+                </button>
+
+
+                <button
+                    id="confirmActionButton"
+                    class="h-11
+                           rounded-xl
+                           bg-red-600
+                           text-white"
+                >
+                    ยืนยัน
+                </button>
+
+            </div>
+
+        </div>
+
+    `;
+
+
+    document.body.appendChild(
+        modal
+    );
+
+
+    modal
+        .querySelector(
+            "#confirmActionButton"
+        )
+        .onclick =
+        async () => {
+
+            modal.remove();
+
+            await action();
+
         };
 
-        /* =========================
-           8. ROUTER & APP INIT
-        ========================= */
-        const app = {
-            showLogin: () => {
-                document.getElementById('app-root').classList.add('hidden');
-                document.getElementById('login-root').classList.remove('hidden');
-                ui.closeSidebar();
-            },
-            showApp: () => {
-                document.getElementById('login-root').classList.add('hidden');
-                document.getElementById('app-root').classList.remove('hidden');
-            },
-            navigate: (route, param = null) => {
-                state.currentRoute = route;
-                
-                // Update Active Menu
-                document.querySelectorAll('aside nav button').forEach(btn => {
-                    btn.classList.remove('bg-blue-50', 'text-primary');
-                    btn.classList.add('text-slate-700', 'hover:bg-slate-100');
-                });
-                const activeBtn = document.getElementById(`nav-${route === 'workflow' ? 'projects' : route}`);
-                if(activeBtn) {
-                    activeBtn.classList.remove('text-slate-700', 'hover:bg-slate-100');
-                    activeBtn.classList.add('bg-blue-50', 'text-primary');
+}
+
+
+function confirmLogout() {
+
+    confirmModal(
+        "ออกจากระบบ",
+        "ต้องการออกจากระบบหรือไม่?",
+        logout
+    );
+
+}
+
+
+/* ======================================================
+   FORBIDDEN
+====================================================== */
+
+function forbiddenState() {
+
+    return `
+
+        <div
+            class="min-h-[50vh]
+                   flex
+                   items-center
+                   justify-center"
+        >
+
+            <div
+                class="text-center"
+            >
+
+                <div
+                    class="text-5xl"
+                >
+                    🔒
+                </div>
+
+                <div
+                    class="font-semibold
+                           mt-4"
+                >
+                    ไม่มีสิทธิ์เข้าถึง
+                </div>
+
+                <div
+                    class="text-sm
+                           text-slate-500
+                           mt-1"
+                >
+                    หน้านี้สำหรับ Admin เท่านั้น
+                </div>
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+/* ======================================================
+   NAVIGATION
+====================================================== */
+
+async function navigate(
+    page
+) {
+
+    state.mobileAdminPanel =
+        false;
+
+
+    state.currentPage =
+        page;
+
+
+    renderApp();
+
+
+    if (page === "dashboard") {
+
+        await loadDashboard();
+
+    }
+
+
+    if (page === "projects") {
+
+        await loadProjects();
+
+    }
+
+
+    if (page === "users") {
+
+        await loadUsers();
+
+    }
+
+}
+
+
+function toggleAdminPanel() {
+
+    state.mobileAdminPanel =
+        !state.mobileAdminPanel;
+
+    renderApp();
+
+}
+
+
+function closeAdminPanel(
+    event
+) {
+
+    if (
+        event.target ===
+        event.currentTarget
+    ) {
+
+        state.mobileAdminPanel =
+            false;
+
+        renderApp();
+
+    }
+
+}
+
+
+function adminAction(
+    id
+) {
+
+    state.mobileAdminPanel =
+        false;
+
+
+    if (id === "users") {
+
+        navigate("users");
+
+        return;
+
+    }
+
+
+    if (id === "reports") {
+
+        navigate("reports");
+
+        return;
+
+    }
+
+
+    if (id === "allProjects") {
+
+        navigate("projects");
+
+        return;
+
+    }
+
+
+    toast(
+        "เมนูนี้จะเชื่อมต่อในโมดูลถัดไป",
+        "info"
+    );
+
+}
+
+
+/* ======================================================
+   MAIN RENDER
+====================================================== */
+
+function renderApp() {
+
+    const root =
+        document.getElementById(
+            "app"
+        );
+
+
+    if (!state.user) {
+
+        root.innerHTML =
+            loginPage();
+
+        document
+            .getElementById(
+                "loginForm"
+            )
+            ?.addEventListener(
+                "submit",
+                event => {
+
+                    event.preventDefault();
+
+                    login(
+
+                        document
+                            .getElementById(
+                                "loginUsername"
+                            )
+                            .value
+                            .trim(),
+
+                        document
+                            .getElementById(
+                                "loginPassword"
+                            )
+                            .value
+
+                    );
+
                 }
+            );
 
-                // Render Content
-                ui.closeSidebar();
-                window.scrollTo(0,0);
-                
-                if (pages[route]) {
-                    pages[route](param);
-                } else {
-                    document.getElementById('page-container').innerHTML = ui.emptyState('กำลังอยู่ระหว่างการพัฒนา');
-                }
-            },
-            init: () => {
-                // Initialize Application
-                auth.init();
-            }
-        };
+        return;
 
-        // Start App on DOM Content Loaded
-        document.addEventListener('DOMContentLoaded', app.init);
+    }
 
-    </script>
+
+    let content = "";
+
+
+    switch (
+        state.currentPage
+    ) {
+
+        case "dashboard":
+
+            content =
+                dashboardPage();
+
+            break;
+
+
+        case "projects":
+
+            content =
+                projectsPage();
+
+            break;
+
+
+        case "reports":
+
+            content =
+                reportsPage();
+
+            break;
+
+
+        case "users":
+
+            content =
+                usersPage();
+
+            break;
+
+
+        default:
+
+            content =
+                dashboardPage();
+
+    }
+
+
+    root.innerHTML =
+        shell(content);
+
+}
+
+
+/* ======================================================
+   INITIALIZE
+====================================================== */
+
+async function init() {
+
+    renderApp();
+
+
+    const valid =
+        await validateSession();
+
+
+    if (!valid) {
+
+        renderApp();
+
+        return;
+
+    }
+
+
+    renderApp();
+
+
+    await loadDashboard();
+
+}
+
+
+init();
+
+</script>
+
 </body>
 </html>
