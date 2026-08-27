@@ -44,10 +44,11 @@
             <nav class="flex-1 overflow-y-auto p-4 space-y-1.5" id="main-nav">
                 <button onclick="app.navigate('dashboard')" data-nav="dashboard" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">▣ แดชบอร์ด</button>
                 <button onclick="app.navigate('projects')" data-nav="projects" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">▤ โครงการงบประมาณ</button>
+                <button id="nav-audit" onclick="app.navigate('audit')" data-nav="audit" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">◉ ประวัติการใช้งาน</button>
+                
                 <div id="nav-admin-section" class="hidden pt-4 pb-1">
                     <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">ผู้ดูแลระบบ</p>
                     <button id="nav-users" onclick="app.navigate('users')" data-nav="users" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">♙ จัดการผู้ใช้งาน</button>
-                    <button id="nav-audit" onclick="app.navigate('audit')" data-nav="audit" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">◉ Audit Logs</button>
                 </div>
             </nav>
             <div class="p-4 border-t border-slate-100 bg-slate-50/50">
@@ -90,7 +91,7 @@
         </div>
     </div>
 
-    <!-- Global Components -->
+    <!-- Global Components (Loaders & Modals) -->
     <div id="global-loader" class="fixed inset-0 bg-slate-900/40 z-[9999] hidden items-center justify-center backdrop-blur-sm transition-opacity">
         <div class="bg-white px-6 py-5 rounded-2xl shadow-2xl flex items-center gap-4 border border-slate-100">
             <div class="w-6 h-6 border-4 border-slate-100 border-t-primary rounded-full animate-spin"></div>
@@ -129,8 +130,10 @@
 
         const state = {
             sessionToken: localStorage.getItem("stips_session_token"),
-            user: null, currentRoute: 'dashboard', projects: [], users: [], selectedProject: null,
-            projectPage: 1, projectLimit: 10, auditPage: 1, auditLimit: 20
+            user: null, currentRoute: 'dashboard', 
+            projects: [], selectedProject: null, users: [],
+            projectPage: 1, projectLimit: 10, 
+            auditPage: 1, auditLimit: 30, auditStartDate: '', auditEndDate: ''
         };
 
         const utils = {
@@ -294,9 +297,9 @@
                         <div class="flex gap-4 sm:gap-6 ${isWait ? 'opacity-50 pointer-events-none grayscale-[50%]' : ''}">
                             <div class="flex flex-col items-center"><div class="w-10 h-10 rounded-full border-2 flex items-center justify-center font-bold text-sm z-10 shrink-0 transition-all ${iconBg}">${isDone ? '✓' : (isCur?'●':i)}</div>${i<8 ? `<div class="w-0.5 h-full min-h-[40px] my-1 ${isDone?'bg-emerald-300':'bg-slate-200'}"></div>` : ''}</div>
                             <div class="flex-1 pb-8 w-full min-w-0"><div class="${isCur?'bg-white border-blue-200 shadow-lg shadow-blue-900/5 ring-1 ring-blue-50':'bg-slate-50 border-slate-200'} border rounded-2xl p-5 sm:p-6 transition-all">
-                                <div class="flex justify-between items-start">
+                                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                                     <h4 class="font-bold text-lg ${isCur?'text-blue-800':'text-slate-700'}">${i}. ${utils.getStatusName(i)}</h4>
-                                    ${isDone ? `<button onclick="handlers.revertStatus(${i})" class="text-[11px] font-bold text-warning bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg transition-colors">↺ ย้อนกลับมาแก้ไขสถานะนี้</button>` : ''}
+                                    ${isDone ? `<button onclick="handlers.revertStatus(${i})" class="text-[11px] font-bold text-warning bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg transition-colors shadow-sm">↺ ย้อนกลับมาแก้ไขสถานะนี้</button>` : ''}
                                 </div>
                                 ${isCur ? handlers.renderStepForm(i, p) : ''}
                             </div></div>
@@ -304,7 +307,48 @@
                 }
                 document.getElementById('page-container').innerHTML = html + `</div></div>`;
             },
+
+            audit: async () => {
+                ui.showLoader('กำลังโหลดประวัติ...');
+                try {
+                    const offset = (state.auditPage - 1) * state.auditLimit;
+                    const res = await rpc('custom_get_audit_logs', { 
+                        p_session_token: state.sessionToken, 
+                        p_limit: state.auditLimit, 
+                        p_offset: offset,
+                        p_start_date: state.auditStartDate || null,
+                        p_end_date: state.auditEndDate || null
+                    });
+                    
+                    const logs = res.data || []; const totalItems = res.total || 0; const totalPages = Math.ceil(totalItems / state.auditLimit) || 1;
+                    const pageTitleDesc = state.user.role === 'admin' ? 'ติดตามความเคลื่อนไหวของผู้ใช้ทั้งหมดในระบบ' : 'ประวัติการเปลี่ยนแปลงข้อมูลของคุณ';
+
+                    let html = `
+                    <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+                        <div><h2 class="text-2xl font-bold text-slate-800 tracking-tight">ประวัติการใช้งาน</h2><p class="text-sm text-slate-500 mt-1">${pageTitleDesc}</p></div>
+                        <div class="flex flex-wrap gap-2 items-center bg-white p-2 rounded-2xl shadow-sm border border-slate-200">
+                            <input type="date" id="filter_start" value="${state.auditStartDate}" class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50">
+                            <span class="text-slate-400 text-xs font-medium">ถึง</span>
+                            <input type="date" id="filter_end" value="${state.auditEndDate}" class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50">
+                            <button onclick="handlers.filterAudit()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">ค้นหา</button>
+                            <button onclick="handlers.clearAuditFilter()" class="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-200 transition">ล้าง</button>
+                        </div>
+                    </div>`;
+                    
+                    if(logs.length === 0) html += `<div class="p-12 text-center bg-white border border-dashed rounded-2xl text-slate-400 shadow-sm">ไม่มีข้อมูลประวัติในระบบหรือในช่วงเวลาที่เลือก</div>`;
+                    else {
+                        html += `
+                        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-6">
+                            <div class="overflow-x-auto"><table class="w-full text-left text-sm whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 border-b"><tr><th class="px-5 py-4">วัน-เวลา</th><th class="px-5 py-4">ผู้ใช้งาน</th>${state.user.role==='admin'?'<th class="px-5 py-4">วิทยาลัย</th>':''}<th class="px-5 py-4">Action</th><th class="px-5 py-4">รายละเอียด</th></tr></thead><tbody class="divide-y divide-slate-100">
+                            ${logs.map(L => `<tr class="hover:bg-slate-50 transition-colors"><td class="px-5 py-4 text-xs font-mono text-slate-500">${utils.formatDate(L.created_at)}</td><td class="px-5 py-4 font-medium text-primary">${utils.esc(L.full_name)} <span class="text-[10px] text-slate-400 ml-1 font-normal">(${utils.esc(L.username)})</span></td>${state.user.role==='admin'?`<td class="px-5 py-4 text-slate-600 text-xs">${utils.esc(L.institution_name)}</td>`:''}<td class="px-5 py-4"><span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border border-slate-200">${utils.esc(L.action)}</span></td><td class="px-5 py-4 text-slate-700">${utils.esc(L.description)}</td></tr>`).join('')}
+                            </tbody></table></div></div>
+                        <div class="flex items-center justify-between bg-white px-4 py-3 border border-slate-200 rounded-xl shadow-sm"><div class="text-sm text-slate-500">แสดงที่ <span class="font-medium text-slate-900">${offset + 1}</span> - <span class="font-medium text-slate-900">${Math.min(offset + state.auditLimit, totalItems)}</span> จาก <span class="font-medium text-slate-900">${totalItems}</span></div><div class="flex gap-2"><button onclick="handlers.changeAuditPage(${state.auditPage - 1})" ${state.auditPage === 1 ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ก่อนหน้า</button><button onclick="handlers.changeAuditPage(${state.auditPage + 1})" ${state.auditPage === totalPages ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ถัดไป</button></div></div>`;
+                    }
+                    document.getElementById('page-container').innerHTML = html;
+                } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
+            },
             
+            // ... (rest of management and users code remains same as standard behavior)
             management: async (projectId) => {
                 ui.showLoader('กำลังโหลดข้อมูลสัญญา...');
                 try {
@@ -322,29 +366,6 @@
                     document.getElementById('page-container').innerHTML = html;
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
-
-            audit: async () => {
-                if(state.user.role !== 'admin') { document.getElementById('page-container').innerHTML = `<div class="p-10 text-center text-red-500 font-bold text-xl mt-10">🔒 ไม่มีสิทธิ์เข้าถึงหน้านี้</div>`; return; }
-                ui.showLoader('กำลังโหลดประวัติ...');
-                try {
-                    const offset = (state.auditPage - 1) * state.auditLimit;
-                    const res = await rpc('admin_get_audit_logs', { p_session_token: state.sessionToken, p_limit: state.auditLimit, p_offset: offset });
-                    const logs = res.data || []; const totalItems = res.total || 0; const totalPages = Math.ceil(totalItems / state.auditLimit) || 1;
-
-                    let html = `<div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6"><div><h2 class="text-2xl font-bold text-slate-800 tracking-tight">Audit Logs (ประวัติการใช้งาน)</h2><p class="text-sm text-slate-500 mt-1">ติดตามทุกความเคลื่อนไหวในระบบ</p></div><button onclick="pages.audit()" class="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium shadow-sm hover:bg-slate-50">↻ รีเฟรชข้อมูล</button></div>`;
-                    if(logs.length === 0) html += `<div class="p-12 text-center bg-white border border-dashed rounded-2xl text-slate-400">ไม่มีข้อมูลประวัติ</div>`;
-                    else {
-                        html += `
-                        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-6">
-                            <div class="overflow-x-auto"><table class="w-full text-left text-sm whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 border-b"><tr><th class="px-5 py-4">วัน-เวลา</th><th class="px-5 py-4">ผู้ใช้งาน</th><th class="px-5 py-4">วิทยาลัย</th><th class="px-5 py-4">การกระทำ (Action)</th><th class="px-5 py-4">รายละเอียด</th></tr></thead><tbody class="divide-y divide-slate-100">
-                            ${logs.map(L => `<tr class="hover:bg-slate-50 transition-colors"><td class="px-5 py-3.5 text-xs font-mono text-slate-500">${utils.formatDate(L.created_at)}</td><td class="px-5 py-3.5 font-medium text-primary">${utils.esc(L.full_name)} <span class="text-[10px] text-slate-400 ml-1 font-normal">(${utils.esc(L.username)})</span></td><td class="px-5 py-3.5 text-slate-600 text-xs">${utils.esc(L.institution_name)}</td><td class="px-5 py-3.5"><span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider">${utils.esc(L.action)}</span></td><td class="px-5 py-3.5 text-slate-700">${utils.esc(L.description)}</td></tr>`).join('')}
-                            </tbody></table></div></div>
-                        <div class="flex items-center justify-between bg-white px-4 py-3 border border-slate-200 rounded-xl shadow-sm"><div class="text-sm text-slate-500">แสดงรายการที่ <span class="font-medium text-slate-900">${offset + 1}</span> - <span class="font-medium text-slate-900">${Math.min(offset + state.auditLimit, totalItems)}</span> จากทั้งหมด <span class="font-medium text-slate-900">${totalItems}</span></div><div class="flex gap-2"><button onclick="handlers.changeAuditPage(${state.auditPage - 1})" ${state.auditPage === 1 ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ก่อนหน้า</button><button onclick="handlers.changeAuditPage(${state.auditPage + 1})" ${state.auditPage === totalPages ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ถัดไป</button></div></div>`;
-                    }
-                    document.getElementById('page-container').innerHTML = html;
-                } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
-            },
-
             users: async () => {
                 if(state.user.role !== 'admin') { document.getElementById('page-container').innerHTML = `<div class="p-10 text-center text-red-500 font-bold text-2xl mt-10">🔒 ไม่มีสิทธิ์เข้าถึงหน้านี้</div>`; return; }
                 ui.showLoader('กำลังโหลดข้อมูลผู้ใช้งาน...');
@@ -365,6 +386,8 @@
         const handlers = {
             changeProjectPage: (p) => { state.projectPage = p; pages.projects(true); },
             changeAuditPage: (p) => { state.auditPage = p; pages.audit(); },
+            filterAudit: () => { state.auditStartDate = document.getElementById('filter_start').value; state.auditEndDate = document.getElementById('filter_end').value; state.auditPage = 1; pages.audit(); },
+            clearAuditFilter: () => { state.auditStartDate = ''; state.auditEndDate = ''; state.auditPage = 1; pages.audit(); },
 
             openCreateModal: () => {
                 ui.openModal('สร้างโครงการใหม่', `
@@ -398,7 +421,7 @@
                     ui.showLoader('กำลังย้อนกลับสถานะ...');
                     try {
                         await rpc('custom_revert_status', { p_session_token: state.sessionToken, p_project_id: state.selectedProject.id, p_target_status: step });
-                        ui.toast('ย้อนกลับสถานะสำเร็จ', 'success'); await pages.projects(true); // reload projects silently
+                        ui.toast('ย้อนกลับสถานะสำเร็จ', 'success'); await pages.projects(true);
                         app.navigate('workflow', state.selectedProject.id);
                     } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
                 });
@@ -489,17 +512,12 @@
                 try {
                     const pid = state.selectedProject.id;
                     const {data:upData} = await supabaseClient.storage.from('stips').upload(`contracts/${pid}/${Date.now()}.pdf`, f);
-                    
-                    // ใช้ upsert แทน insert เพื่อรองรับการย้อนสถานะมาเซฟทับใหม่
                     const {data: cData, error} = await supabaseClient.from('contracts').upsert({ project_id: pid, signed_amount: Number(document.getElementById('contract_amt').value), remaining_budget: Number(document.getElementById('remain_amt').value.replace(/,/g,'')), contract_signed_date: document.getElementById('c_start').value, contract_end_date: document.getElementById('c_end').value, installment_count: Number(document.getElementById('inst_count').value), contract_document_path: upData?.path }, { onConflict: 'project_id' }).select();
                     if(error) throw error;
-                    
-                    // ลบงวดงานเก่าทิ้ง (กรณีเซฟทับ) แล้วบันทึกใหม่
                     await supabaseClient.from('contract_installments').delete().eq('contract_id', cData[0].id);
                     const instList = []; const contAmt = Number(document.getElementById('contract_amt').value);
                     document.querySelectorAll('.inst-inp').forEach((inp, i) => { const v = Number(inp.value); instList.push({ contract_id: cData[0].id, installment_no: i+1, installment_amount: v, percentage: (v/contAmt)*100 }); });
                     await supabaseClient.from('contract_installments').insert(instList);
-                    
                     await handlers.updateStatus(8, "ลงนามเรียบร้อย เริ่มบริหารสัญญา");
                     logger('CONTRACT', `บันทึกสัญญากับโครงการ ${state.selectedProject.project_code}`);
                     ui.toast('ลงนามสัญญาสำเร็จ', 'success'); app.navigate('workflow', pid);
@@ -536,7 +554,6 @@
                 } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
 
-            // ----- Users (Admin) -----
             openUserModal: () => {
                 ui.openModal('เพิ่มบัญชีผู้ใช้งาน', `
                     <form onsubmit="handlers.submitUser(event)" class="space-y-4">
