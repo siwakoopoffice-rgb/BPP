@@ -44,6 +44,10 @@
             <nav class="flex-1 overflow-y-auto p-4 space-y-1.5" id="main-nav">
                 <button onclick="app.navigate('dashboard')" data-nav="dashboard" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">▣ แดชบอร์ด</button>
                 <button onclick="app.navigate('projects')" data-nav="projects" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">▤ โครงการงบประมาณ</button>
+                
+                <!-- ปุ่มเชื่อม Google Apps Script -->
+                <button onclick="app.navigate('appscript_dash')" data-nav="appscript_dash" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">📊 รายงาน AppScript</button>
+                
                 <button id="nav-audit" onclick="app.navigate('audit')" data-nav="audit" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">◉ ประวัติการใช้งาน</button>
                 
                 <div id="nav-admin-section" class="hidden pt-4 pb-1">
@@ -307,6 +311,30 @@
                 }
                 document.getElementById('page-container').innerHTML = html + `</div></div>`;
             },
+            
+            // หน้า Dashboard ของ App Script ที่เพิ่มเข้ามาใหม่
+            appscript_dash: () => {
+                const scriptUrl = "https://script.google.com/macros/s/AKfycbytE8z0HDEeWinuMXoatf_W9Bb-LRU2QRKc4AUQp4qhngO-GaVVsh2KPwhznCsFU0XAcw/exec";
+                document.getElementById('page-container').innerHTML = `
+                    <div class="flex flex-col h-full min-h-[80vh]">
+                        <div class="mb-4">
+                            <h2 class="text-2xl font-bold text-slate-800 tracking-tight">รายงานและสถิติ (App Script)</h2>
+                            <p class="text-sm text-slate-500 mt-1">แสดงผลข้อมูลสรุปจาก Google Apps Script</p>
+                        </div>
+                        <div class="flex-1 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm relative">
+                            <!-- Loader รอระหว่างโหลด iframe -->
+                            <div class="absolute inset-0 flex items-center justify-center bg-slate-50 z-0">
+                                <div class="text-slate-400 text-sm flex flex-col items-center gap-2">
+                                    <div class="w-6 h-6 border-2 border-slate-300 border-t-primary rounded-full animate-spin"></div>
+                                    กำลังโหลด Dashboard...
+                                </div>
+                            </div>
+                            <!-- iframe ดึงหน้าเว็บมาแสดง -->
+                            <iframe src="${scriptUrl}" class="w-full h-full min-h-[70vh] border-0 relative z-10 bg-transparent"></iframe>
+                        </div>
+                    </div>
+                `;
+            },
 
             audit: async () => {
                 ui.showLoader('กำลังโหลดประวัติ...');
@@ -348,7 +376,6 @@
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
             
-            // ... (rest of management and users code remains same as standard behavior)
             management: async (projectId) => {
                 ui.showLoader('กำลังโหลดข้อมูลสัญญา...');
                 try {
@@ -412,16 +439,13 @@
             updateStatus: async (nextStep, remarks = '') => {
                 const pid = state.selectedProject.id;
                 
-                // 1. อัปเดตข้อมูลไปยัง Database
                 await supabaseClient.from('projects').update({current_status: nextStep}).eq('id', pid);
                 await supabaseClient.from('project_workflows').insert([{project_id: pid, status_no: nextStep, status_name: utils.getStatusName(nextStep), remarks: remarks, created_by: state.user.id}]);
                 logger('UPDATE_STATUS', `อัปเดตสถานะโครงการ ${state.selectedProject.project_code} ไปยังสถานะที่ ${nextStep}`);
                 
-                // 2. อัปเดต State ในหน้าเว็บทันที (หัวใจสำคัญที่ทำให้ UI ลื่นไหล)
                 const p = state.projects.find(x => x.id === pid);
                 if (p) p.current_status = nextStep;
                 
-                // 3. วาดหน้าจอใหม่ ซึ่งจะขยับไปสเต็ปถัดไปทันที
                 app.navigate('workflow', pid);
             },
             revertStatus: async (step) => {
@@ -431,10 +455,9 @@
                         await rpc('custom_revert_status', { p_session_token: state.sessionToken, p_project_id: state.selectedProject.id, p_target_status: step });
                         ui.toast('ย้อนกลับสถานะสำเร็จ', 'success'); 
                         
-                        // อัปเดต State ในหน้าเว็บทันที
                         const p = state.projects.find(x => x.id === state.selectedProject.id);
                         if (p) p.current_status = step;
-
+                        
                         app.navigate('workflow', state.selectedProject.id);
                     } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
                 });
@@ -611,7 +634,16 @@
                     if(b.dataset.nav === route || (route==='workflow' && b.dataset.nav==='projects') || (route==='management' && b.dataset.nav==='projects')) { b.classList.add('bg-blue-100', 'text-primary', 'font-bold'); }
                 });
                 ui.closeSidebar(); window.scrollTo(0,0);
-                switch(route) { case 'dashboard': pages.dashboard(); break; case 'projects': pages.projects(); break; case 'workflow': pages.workflow(param); break; case 'management': pages.management(param); break; case 'users': pages.users(); break; case 'audit': pages.audit(); break; default: pages.dashboard(); }
+                switch(route) { 
+                    case 'dashboard': pages.dashboard(); break; 
+                    case 'projects': pages.projects(); break; 
+                    case 'workflow': pages.workflow(param); break; 
+                    case 'management': pages.management(param); break; 
+                    case 'users': pages.users(); break; 
+                    case 'audit': pages.audit(); break; 
+                    case 'appscript_dash': pages.appscript_dash(); break; 
+                    default: pages.dashboard(); 
+                }
             },
             init: async () => {
                 if (await auth.validate()) { app.initUserUI(); app.navigate('dashboard'); } 
