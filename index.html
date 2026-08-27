@@ -393,16 +393,96 @@
         // ==========================================
         const handlers = {
             openCreateModal: () => {
-                ui.openModal('สร้างโครงการใหม่', `
-                    <form onsubmit="handlers.submitCreate(event)" class="space-y-4">
-                        <input name="code" required placeholder="รหัสโครงการ (เช่น PRJ-001)" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary">
-                        <textarea name="name" required placeholder="ชื่อโครงการ" rows="2" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary"></textarea>
-                        <select name="type" required class="w-full px-4 py-2 border rounded-xl outline-none bg-white focus:ring-2 focus:ring-primary">
-                            <option value="">เลือกประเภท...</option><option value="ที่ดิน/สิ่งก่อสร้าง">ที่ดิน/สิ่งก่อสร้าง</option><option value="ครุภัณฑ์">ครุภัณฑ์</option>
-                        </select>
-                        <input name="budget" type="number" min="0" step="0.01" required placeholder="วงเงินงบประมาณ (บาท)" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary">
-                        <button type="submit" class="w-full bg-primary text-white py-3 rounded-xl font-medium hover:bg-blue-800 transition">บันทึกและสร้างโครงการ (สถานะ 1)</button>
+                // ------------------ ระบบจัดการผู้ใช้งาน (Admin) ------------------
+            openUserModal: () => {
+                ui.openModal('เพิ่มบัญชีผู้ใช้งาน', `
+                    <form onsubmit="handlers.submitUser(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Username (รหัสเจ้าหน้าที่/สถานศึกษา) <span class="text-red-500">*</span></label>
+                            <input type="text" name="username" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="เช่น ST003">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">รหัสผ่าน <span class="text-red-500">*</span></label>
+                            <input type="password" name="password" required minlength="6" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="อย่างน้อย 6 ตัวอักษร">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">สิทธิ์การใช้งาน <span class="text-red-500">*</span></label>
+                                <select name="role" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary bg-white">
+                                    <option value="user">User (ระดับวิทยาลัย)</option>
+                                    <option value="admin">Admin (ผู้ดูแลระบบ)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">รหัสวิทยาลัย (UUID)</label>
+                                <input type="text" name="institution_id" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="เว้นว่างได้ถ้าเป็น Admin">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">ชื่อ - นามสกุล <span class="text-red-500">*</span></label>
+                            <input type="text" name="full_name" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="ระบุชื่อ นามสกุล">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">เบอร์โทรศัพท์</label>
+                                <input type="tel" name="phone" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="08X-XXX-XXXX">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">อีเมล</label>
+                                <input type="email" name="email" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="example@email.com">
+                            </div>
+                        </div>
+                        <div class="pt-4 mt-2 border-t border-slate-200">
+                            <button type="submit" class="w-full bg-primary text-white font-medium py-3 rounded-xl hover:bg-blue-800 transition">สร้างบัญชีผู้ใช้งาน</button>
+                        </div>
                     </form>
+                `);
+            },
+            submitUser: async (e) => {
+                e.preventDefault(); 
+                ui.showLoader('กำลังสร้างผู้ใช้งาน...');
+                try {
+                    const fd = new FormData(e.target);
+                    await rpc("admin_create_user", {
+                        p_session_token: state.sessionToken,
+                        p_username: fd.get('username'),
+                        p_password: fd.get('password'),
+                        p_role: fd.get('role'),
+                        p_institution_id: fd.get('institution_id') || null,
+                        p_full_name: fd.get('full_name'),
+                        p_phone: fd.get('phone'),
+                        p_email: fd.get('email')
+                    });
+                    ui.closeModal(); 
+                    ui.toast('สร้างบัญชีผู้ใช้งานสำเร็จ', 'success'); 
+                    app.navigate('users'); // รีโหลดหน้าตารางผู้ใช้ใหม่
+                } catch(err) { 
+                    ui.toast(err.message, 'error'); 
+                } finally { 
+                    ui.hideLoader(); 
+                }
+            },
+            confirmDeleteUser: (userId, username) => {
+                ui.openConfirm(
+                    'ยืนยันลบผู้ใช้งาน', 
+                    `คุณต้องการลบบัญชี "${username}" ใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้`, 
+                    async () => {
+                        ui.showLoader('กำลังลบผู้ใช้งาน...');
+                        try {
+                            await rpc("admin_delete_user", { 
+                                p_session_token: state.sessionToken, 
+                                p_user_id: userId 
+                            });
+                            ui.toast('ลบผู้ใช้งานสำเร็จ');
+                            app.navigate('users'); // รีโหลดหน้าตารางผู้ใช้ใหม่
+                        } catch(e) { 
+                            ui.toast(e.message, 'error'); 
+                        } finally { 
+                            ui.hideLoader(); 
+                        }
+                    }
+                );
+            },
                 `);
             },
             submitCreate: async (e) => {
