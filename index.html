@@ -734,7 +734,10 @@
                         p_username: fd.get('username'),
                         p_password: fd.get('password'),
                         p_role: fd.get('role'),
-                        p_institution_name: fd.get('institution_name') || '',
+                        
+                        // แก้ไข 1 บรรทัดนี้: เปลี่ยนจาก p_institution_id เป็น p_institution_name
+                        p_institution_name: fd.get('institution_name') || '', 
+                        
                         p_full_name: fd.get('full_name'),
                         p_phone: fd.get('phone'),
                         p_email: fd.get('email')
