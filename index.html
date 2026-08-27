@@ -187,6 +187,8 @@ const state = {
 
     selectedProject: null,
 
+    workflow: null,
+
     adminPanelOpen: false,
 
     projectModalOpen: false,
@@ -4465,40 +4467,876 @@ function shortcutButton(
    17. MODULE PAGES
 ============================================================ */
 
+/*
+   ดึงข้อมูล Workflow (สถานะปัจจุบัน + ประวัติ) ของโครงการ
+*/
+
+async function loadWorkflow(
+    projectId
+) {
+
+    try {
+
+        const data =
+            await callRpc(
+                "custom_get_workflow",
+                {
+
+                    p_session_token:
+                        state.sessionToken,
+
+                    p_project_id:
+                        projectId
+
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "โหลดข้อมูล Workflow ไม่สำเร็จ"
+            );
+        }
+
+
+        state.workflow =
+            data.data;
+
+
+        if (
+            state.currentPage ===
+            "workflow"
+        ) {
+
+            render();
+        }
+
+    } catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+    }
+}
+
+
 function workflowPage() {
 
-    const p =
+    const project =
         state.selectedProject;
 
 
-    return modulePlaceholder(
+    if (!project) {
 
-        "workflow",
+        return simpleEmpty(
+            "กรุณาเลือกโครงการก่อน"
+        );
+    }
 
-        "ติดตาม Workflow 8 สถานะ",
 
-        p,
+    const backButton = `
 
-        [
-            "ยังไม่ดำเนินการ",
+        <button
+            onclick="navigate('projectDetail')"
+            class="
+                text-sm
+                text-blue-600
+                mb-3
+            "
+        >
+            ← กลับรายละเอียดโครงการ
+        </button>
+    `;
 
-            "จัดทำร่าง TOR",
 
-            "เผยแพร่ร่าง TOR",
+    if (
+        !state.workflow ||
+        state.workflow.project_id !==
+        project.id
+    ) {
 
-            "ประกาศเชิญชวน",
+        return `
 
-            "ประกาศผู้ชนะ",
+            <div class="space-y-5">
 
-            "รอผลอุทธรณ์",
+                ${backButton}
 
-            "ลงนามสัญญา",
+                <h1
+                    class="
+                        text-xl
+                        sm:text-2xl
+                        font-semibold
+                    "
+                >
+                    ติดตาม Workflow 8 สถานะ
+                </h1>
 
-            "บริหารสัญญา"
+                <div
+                    class="
+                        bg-white
+                        border
+                        border-slate-200
+                        rounded-2xl
+                        p-10
+                        text-center
+                        text-slate-400
+                    "
+                >
+                    กำลังโหลดข้อมูล...
+                </div>
 
-        ]
+            </div>
+        `;
+    }
 
+
+    const wf =
+        state.workflow;
+
+
+    return `
+
+        <div class="space-y-5">
+
+            ${backButton}
+
+            <div>
+
+                <h1
+                    class="
+                        text-xl
+                        sm:text-2xl
+                        font-semibold
+                    "
+                >
+                    ติดตาม Workflow 8 สถานะ
+                </h1>
+
+                <p
+                    class="
+                        text-sm
+                        text-slate-500
+                        mt-1
+                    "
+                >
+                    ${escapeHtml(
+                        project.project_name
+                    )}
+                </p>
+
+            </div>
+
+
+            ${
+                wf.is_cancelled
+
+                ? `
+                    <div
+                        class="
+                            rounded-2xl
+                            bg-red-50
+                            border
+                            border-red-100
+                            p-4
+                            text-red-700
+                            text-sm
+                        "
+                    >
+                        โครงการนี้ถูกยกเลิกแล้ว
+                    </div>
+                `
+
+                : ""
+            }
+
+
+            <div
+                class="
+                    grid
+                    grid-cols-1
+                    xl:grid-cols-2
+                    gap-5
+                "
+            >
+
+                <div
+                    class="
+                        bg-white
+                        border
+                        border-slate-200
+                        rounded-2xl
+                        p-4
+                        sm:p-6
+                    "
+                >
+
+                    <h2
+                        class="
+                            font-semibold
+                        "
+                    >
+                        ลำดับขั้นตอน
+                    </h2>
+
+                    <div
+                        class="
+                            mt-5
+                            space-y-4
+                        "
+                    >
+
+                        ${workflowTimeline(
+                            {
+                                current_status:
+                                    wf.current_status
+                            }
+                        )}
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="
+                        bg-white
+                        border
+                        border-slate-200
+                        rounded-2xl
+                        p-4
+                        sm:p-6
+                    "
+                >
+
+                    ${workflowStepForm(
+                        wf
+                    )}
+
+                </div>
+
+            </div>
+
+
+            ${
+                wf.history.length > 0
+
+                ? `
+                    <div
+                        class="
+                            bg-white
+                            border
+                            border-slate-200
+                            rounded-2xl
+                            p-4
+                            sm:p-6
+                        "
+                    >
+
+                        <h2
+                            class="
+                                font-semibold
+                            "
+                        >
+                            ประวัติการบันทึก
+                        </h2>
+
+                        <div
+                            class="
+                                mt-4
+                                space-y-3
+                            "
+                        >
+
+                            ${wf.history
+                                .map(
+                                    workflowHistoryRow
+                                )
+                                .join("")}
+
+                        </div>
+
+                    </div>
+                `
+
+                : ""
+            }
+
+        </div>
+    `;
+}
+
+
+function workflowStepForm(
+    wf
+) {
+
+    if (wf.is_cancelled) {
+
+        return `
+            <h2 class="font-semibold">บันทึกขั้นตอน</h2>
+            <div class="mt-4 text-sm text-slate-400">
+                โครงการถูกยกเลิกแล้ว ไม่สามารถบันทึกขั้นตอนเพิ่มเติมได้
+            </div>
+        `;
+    }
+
+
+    if (wf.current_status >= 6) {
+
+        const nextModule =
+            {
+
+                6: {
+                    label: "อุทธรณ์",
+                    action:
+                        "navigateProjectModule('appeal')"
+                },
+
+                7: {
+                    label: "สัญญา",
+                    action:
+                        "navigateProjectModule('contract')"
+                },
+
+                8: {
+                    label: "ความก้าวหน้า",
+                    action:
+                        "navigateProjectModule('progress')"
+                }
+
+            }[
+                wf.current_status
+            ] || {
+
+                label: "โครงการ",
+                action:
+                    "navigate('projectDetail')"
+            };
+
+
+        return `
+
+            <h2 class="font-semibold">สถานะปัจจุบัน</h2>
+
+            <div
+                class="
+                    mt-4
+                    rounded-2xl
+                    bg-amber-50
+                    border
+                    border-amber-100
+                    p-4
+                "
+            >
+
+                <div
+                    class="
+                        font-medium
+                        text-amber-800
+                    "
+                >
+                    ขั้นตอนนี้จัดการที่เมนูอื่น
+                </div>
+
+                <div
+                    class="
+                        text-sm
+                        text-amber-700
+                        mt-1
+                        leading-6
+                    "
+                >
+                    โครงการอยู่ในสถานะ "${escapeHtml(
+                        wf.status_name
+                    )}" กรุณาไปที่เมนู
+                    "${nextModule.label}" เพื่อดำเนินการต่อ
+                </div>
+
+            </div>
+
+            <button
+                onclick="${nextModule.action}"
+                class="
+                    mt-4
+                    h-11
+                    px-5
+                    rounded-xl
+                    bg-blue-600
+                    text-white
+                "
+            >
+                ไปที่ ${nextModule.label}
+            </button>
+        `;
+    }
+
+
+    const fieldsByStatus =
+        {
+
+            1: [],
+
+            2: [
+                {
+                    name: "step_date",
+                    label: "วันที่เสร็จ",
+                    type: "date",
+                    required: true
+                }
+            ],
+
+            3: [
+                {
+                    name: "publish_date",
+                    label: "วันที่เผยแพร่",
+                    type: "date",
+                    required: true
+                },
+                {
+                    name: "end_date",
+                    label: "วันที่สิ้นสุด",
+                    type: "date",
+                    required: true
+                }
+            ],
+
+            4: [
+                {
+                    name: "step_date",
+                    label: "วันประกาศเชิญชวน",
+                    type: "date",
+                    required: true
+                }
+            ],
+
+            5: [
+                {
+                    name: "step_date",
+                    label: "วันประกาศผู้ชนะ",
+                    type: "date",
+                    required: true
+                },
+                {
+                    name: "winner_name",
+                    label: "ชื่อบริษัท/ร้านที่ชนะ",
+                    type: "text",
+                    required: true
+                }
+            ]
+
+        };
+
+
+    const fields =
+        fieldsByStatus[
+            wf.current_status
+        ] || [];
+
+
+    return `
+
+        <h2 class="font-semibold">
+            บันทึกขั้นตอน: ${escapeHtml(
+                wf.status_name
+            )}
+        </h2>
+
+        <form
+            id="workflowStepForm"
+            class="
+                mt-5
+                space-y-4
+            "
+        >
+
+            ${fields
+                .map(
+                    field => `
+
+                        <div>
+
+                            <label
+                                class="
+                                    block
+                                    text-sm
+                                    font-medium
+                                    mb-1.5
+                                "
+                            >
+                                ${field.label}
+                            </label>
+
+                            <input
+                                name="${field.name}"
+                                type="${field.type}"
+                                ${
+                                    field.required
+                                    ? "required"
+                                    : ""
+                                }
+                                class="
+                                    w-full
+                                    h-11
+                                    px-4
+                                    rounded-xl
+                                    border
+                                    border-slate-200
+                                    outline-none
+                                    focus:ring-4
+                                    focus:ring-blue-500/10
+                                    focus:border-blue-500
+                                "
+                            />
+
+                        </div>
+                    `
+                )
+                .join("")}
+
+
+            <div>
+
+                <label
+                    class="
+                        block
+                        text-sm
+                        font-medium
+                        mb-1.5
+                    "
+                >
+                    หมายเหตุ (ถ้ามี)
+                </label>
+
+                <textarea
+                    name="remarks"
+                    rows="3"
+                    class="
+                        w-full
+                        px-4
+                        py-2.5
+                        rounded-xl
+                        border
+                        border-slate-200
+                        outline-none
+                        focus:ring-4
+                        focus:ring-blue-500/10
+                        focus:border-blue-500
+                    "
+                ></textarea>
+
+            </div>
+
+
+            <button
+                type="submit"
+                class="
+                    w-full
+                    h-11
+                    rounded-xl
+                    bg-blue-600
+                    text-white
+                    font-medium
+                "
+            >
+                บันทึกรายงานขั้นตอน
+            </button>
+
+        </form>
+    `;
+}
+
+
+function workflowHistoryRow(
+    entry
+) {
+
+    return `
+
+        <div
+            class="
+                rounded-xl
+                bg-slate-50
+                p-4
+            "
+        >
+
+            <div
+                class="
+                    flex
+                    items-center
+                    justify-between
+                    gap-3
+                "
+            >
+
+                <div
+                    class="
+                        text-sm
+                        font-medium
+                    "
+                >
+                    ${escapeHtml(
+                        entry.status_name
+                    )}
+                </div>
+
+                <div
+                    class="
+                        text-xs
+                        text-slate-400
+                        shrink-0
+                    "
+                >
+                    ${formatDate(
+                        entry.completed_at
+                    )}
+                </div>
+
+            </div>
+
+
+            ${
+                entry.remarks
+
+                ? `
+                    <div
+                        class="
+                            text-sm
+                            text-slate-600
+                            mt-2
+                            leading-6
+                        "
+                    >
+                        ${escapeHtml(
+                            entry.remarks
+                        )}
+                    </div>
+                `
+
+                : ""
+            }
+
+        </div>
+    `;
+}
+
+
+async function saveWorkflowStep(
+    event
+) {
+
+    event.preventDefault();
+
+
+    const wf =
+        state.workflow;
+
+
+    if (!wf) {
+        return;
+    }
+
+
+    const fd =
+        new FormData(
+            event.target
+        );
+
+
+    const extraData = {};
+
+    let completedAt = null;
+
+
+    if (wf.current_status === 3) {
+
+        const publishDate =
+            fd.get("publish_date");
+
+        const endDate =
+            fd.get("end_date");
+
+
+        if (!publishDate || !endDate) {
+
+            toast(
+                "กรุณาระบุวันที่เผยแพร่และวันที่สิ้นสุด",
+                "warning"
+            );
+
+            return;
+        }
+
+
+        if (endDate < publishDate) {
+
+            toast(
+                "วันที่สิ้นสุดต้องไม่ก่อนวันที่เผยแพร่",
+                "warning"
+            );
+
+            return;
+        }
+
+
+        extraData.publish_date =
+            publishDate;
+
+        extraData.end_date =
+            endDate;
+
+        completedAt =
+            endDate;
+
+    } else if (
+        wf.current_status === 5
+    ) {
+
+        const stepDate =
+            fd.get("step_date");
+
+        const winnerName =
+            String(
+                fd.get("winner_name") || ""
+            ).trim();
+
+
+        if (!stepDate) {
+
+            toast(
+                "กรุณาระบุวันประกาศผู้ชนะ",
+                "warning"
+            );
+
+            return;
+        }
+
+
+        if (!winnerName) {
+
+            toast(
+                "กรุณาระบุชื่อบริษัท/ร้านที่ชนะ",
+                "warning"
+            );
+
+            return;
+        }
+
+
+        extraData.winner_name =
+            winnerName;
+
+        completedAt =
+            stepDate;
+
+    } else if (
+        wf.current_status === 2 ||
+        wf.current_status === 4
+    ) {
+
+        const stepDate =
+            fd.get("step_date");
+
+
+        if (!stepDate) {
+
+            toast(
+                "กรุณาระบุวันที่",
+                "warning"
+            );
+
+            return;
+        }
+
+
+        completedAt =
+            stepDate;
+
+    } else {
+
+        completedAt =
+            new Date()
+                .toISOString()
+                .slice(0, 10);
+    }
+
+
+    showLoader(
+        "กำลังบันทึกขั้นตอน..."
     );
+
+
+    try {
+
+        const data =
+            await callRpc(
+                "custom_advance_workflow",
+                {
+
+                    p_session_token:
+                        state.sessionToken,
+
+                    p_project_id:
+                        wf.project_id,
+
+                    p_completed_at:
+                        completedAt,
+
+                    p_remarks:
+                        fd.get("remarks") ||
+                        null,
+
+                    p_extra_data:
+                        extraData
+
+                }
+            );
+
+
+        if (!data?.success) {
+
+            throw new Error(
+                data?.message ||
+                "บันทึกขั้นตอนไม่สำเร็จ"
+            );
+        }
+
+
+        toast(
+            "บันทึกขั้นตอนสำเร็จ",
+            "success"
+        );
+
+
+        if (state.selectedProject) {
+
+            state.selectedProject.current_status =
+                data.new_status;
+        }
+
+
+        await loadWorkflow(
+            wf.project_id
+        );
+
+        await refreshProjects();
+
+        await refreshDashboard();
+
+    } catch (error) {
+
+        toast(
+            error.message,
+            "error"
+        );
+
+    } finally {
+
+        hideLoader();
+    }
 }
 
 
@@ -6858,7 +7696,28 @@ function navigateProjectModule(
         "projectDetail";
 
 
+    if (
+        state.currentPage ===
+        "workflow"
+    ) {
+
+        state.workflow =
+            null;
+    }
+
+
     render();
+
+
+    if (
+        state.currentPage ===
+        "workflow"
+    ) {
+
+        loadWorkflow(
+            state.selectedProject.id
+        );
+    }
 }
 
 
@@ -7395,6 +8254,25 @@ function render() {
         profileForm.addEventListener(
             "submit",
             saveProfile
+        );
+    }
+
+
+    /*
+       Workflow Step Form
+    */
+
+    const workflowStepFormEl =
+        document.getElementById(
+            "workflowStepForm"
+        );
+
+
+    if (workflowStepFormEl) {
+
+        workflowStepFormEl.addEventListener(
+            "submit",
+            saveWorkflowStep
         );
     }
 }
