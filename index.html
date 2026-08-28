@@ -6,7 +6,11 @@
     <title>STIPS - ระบบติดตามงบประมาณลงทุนวิทยาลัย</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Supabase & SheetJS (สำหรับอ่านไฟล์ Excel) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
     <script>
         tailwind.config = {
             theme: {
@@ -279,8 +283,17 @@
                 const totalItems = state.projects.length; const totalPages = Math.ceil(totalItems / state.projectLimit) || 1;
                 const startIdx = (state.projectPage - 1) * state.projectLimit; const displayProjects = state.projects.slice(startIdx, startIdx + state.projectLimit);
 
-                let html = `<div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6"><h2 class="text-2xl font-bold text-slate-800 tracking-tight">รายการโครงการงบประมาณ</h2><button onclick="handlers.openCreateModal()" class="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-800 transition shadow-sm">+ สร้างโครงการใหม่</button></div>`;
-                if(totalItems === 0) { html += `<div class="p-12 text-center bg-white border border-dashed border-slate-300 rounded-2xl text-slate-400"><div class="text-4xl mb-3">📁</div><div class="font-medium text-lg text-slate-600">ยังไม่มีข้อมูลโครงการ</div><p class="text-sm">กดปุ่มสร้างโครงการใหม่เพื่อเริ่มต้น</p></div>`; } 
+                let html = `
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+                    <h2 class="text-2xl font-bold text-slate-800 tracking-tight">รายการโครงการงบประมาณ</h2>
+                    <div class="flex flex-wrap gap-2">
+                        <!-- ปุ่มนำเข้าข้อมูล -->
+                        <button onclick="handlers.openImportModal()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">📥 นำเข้า (Excel)</button>
+                        <button onclick="handlers.openCreateModal()" class="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-800 transition shadow-sm">+ สร้างโครงการใหม่</button>
+                    </div>
+                </div>`;
+                
+                if(totalItems === 0) { html += `<div class="p-12 text-center bg-white border border-dashed border-slate-300 rounded-2xl text-slate-400"><div class="text-4xl mb-3">📁</div><div class="font-medium text-lg text-slate-600">ยังไม่มีข้อมูลโครงการ</div><p class="text-sm">กดปุ่มสร้างโครงการใหม่ หรือ นำเข้า Excel เพื่อเริ่มต้น</p></div>`; } 
                 else {
                     html += `<div class="space-y-4 mb-6">${displayProjects.map(p => `
                         <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col lg:flex-row justify-between lg:items-center gap-4 card-hover shadow-sm">
@@ -363,6 +376,7 @@
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
             
+            // ... (rest of management and users code remains same as standard behavior)
             management: async (projectId) => {
                 ui.showLoader('กำลังโหลดข้อมูลสัญญา...');
                 try {
@@ -402,6 +416,96 @@
             changeAuditPage: (p) => { state.auditPage = p; pages.audit(); },
             filterAudit: () => { state.auditStartDate = document.getElementById('filter_start').value; state.auditEndDate = document.getElementById('filter_end').value; state.auditPage = 1; pages.audit(); },
             clearAuditFilter: () => { state.auditStartDate = ''; state.auditEndDate = ''; state.auditPage = 1; pages.audit(); },
+
+            // ====== เพิ่มฟังก์ชันสำหรับ นำเข้าข้อมูลด้วย Excel ======
+            openImportModal: () => {
+                ui.openModal('นำเข้าข้อมูลโครงการ (Excel / CSV)', `
+                    <div class="space-y-4 p-1">
+                        <div class="bg-blue-50 border border-blue-100 text-blue-800 p-4 rounded-xl text-sm leading-relaxed">
+                            <p class="font-bold mb-2">💡 รูปแบบหัวคอลัมน์ (แถวที่ 1) ที่ระบบต้องการ:</p>
+                            <ul class="list-decimal pl-5 space-y-1 text-slate-700">
+                                <li><b>ชื่อวิทยาลัย</b> <span class="text-slate-400 font-normal">(ถ้าไม่มีในระบบ จะสร้างให้อัตโนมัติ)</span></li>
+                                <li><b>ชื่อโครงการ</b></li>
+                                <li><b>วงเงินงบประมาณ</b> <span class="text-slate-400 font-normal">(ใส่แต่ตัวเลข หรือมีลูกน้ำก็ได้)</span></li>
+                                <li><b>ประเภท</b> <span class="text-slate-400 font-normal">(ที่ดิน/สิ่งก่อสร้าง หรือ ครุภัณฑ์ - ถ้าเว้นว่างจะตั้งเป็นที่ดินฯ)</span></li>
+                            </ul>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1.5">เลือกไฟล์ของคุณ <span class="text-red-500">*</span></label>
+                            <input type="file" id="excel_file" accept=".xlsx, .xls, .csv" class="w-full border border-slate-300 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition cursor-pointer">
+                        </div>
+                        <button onclick="handlers.processImport()" class="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-medium hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-2">
+                            <span class="text-lg">📥</span> ยืนยันการนำเข้าข้อมูล
+                        </button>
+                    </div>
+                `);
+            },
+            
+            processImport: async () => {
+                const fileInput = document.getElementById('excel_file');
+                if(!fileInput.files.length) return ui.toast('กรุณาเลือกไฟล์ก่อน', 'warning');
+                
+                ui.showLoader('กำลังอ่านไฟล์ Excel...');
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = async (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        
+                        // แปลงเป็น JSON
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                        if(jsonData.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel นี้');
+                        
+                        // Mapping ค่าจากคอลัมน์ (รองรับการตั้งชื่อหลายรูปแบบเผื่อพิมพ์ผิด)
+                        const payload = jsonData.map(row => {
+                            const instName = row['ชื่อวิทยาลัย'] || row['Institution'] || row['วิทยาลัย'] || '';
+                            const projName = row['ชื่อโครงการ'] || row['ชื่อโครงการงบประมาณ'] || row['Project'] || '';
+                            
+                            // แปลงตัวเลขงบประมาณ ลบลูกน้ำ และสัญลักษณ์ออก
+                            let rawBudget = String(row['วงเงินงบประมาณ'] || row['จำนวนเงินงบประมาณ'] || row['งบประมาณ'] || row['Budget'] || '0');
+                            rawBudget = rawBudget.replace(/,/g, '').replace(/฿/g, '').trim();
+                            const budgetAmt = parseFloat(rawBudget);
+
+                            const projType = row['ประเภท'] || row['ประเภทโครงการ'] || row['Type'] || 'ที่ดิน/สิ่งก่อสร้าง';
+
+                            return {
+                                institution_name: instName,
+                                project_name: projName,
+                                budget_amount: isNaN(budgetAmt) ? 0 : budgetAmt,
+                                project_type: projType
+                            };
+                        }).filter(r => r.project_name !== ''); // ตัดแถวที่ไม่มีชื่อโครงการทิ้ง
+
+                        if(payload.length === 0) throw new Error('ไม่พบข้อมูล "ชื่อโครงการ" กรุณาตรวจสอบชื่อหัวคอลัมน์ใน Excel อีกครั้ง');
+
+                        ui.showLoader(`กำลังนำเข้า ${payload.length} โครงการ สู่ฐานข้อมูล...`);
+                        
+                        // ส่ง Payload เป็น JSONB เข้าไปที่ Database (RPC)
+                        const res = await rpc('custom_import_projects', { 
+                            p_session_token: state.sessionToken, 
+                            p_data: payload 
+                        });
+                        
+                        ui.closeModal();
+                        ui.toast(res.message || 'นำเข้าข้อมูลสำเร็จ', 'success');
+                        
+                        // รีเฟรชหน้ารายการโครงการ
+                        state.projectPage = 1;
+                        pages.projects(false);
+
+                    } catch(err) {
+                        ui.toast(err.message, 'error');
+                        ui.hideLoader();
+                    }
+                };
+                
+                reader.readAsArrayBuffer(file);
+            },
+            // ===========================================
 
             openCreateModal: () => {
                 ui.openModal('สร้างโครงการใหม่', `
