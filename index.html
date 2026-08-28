@@ -315,22 +315,30 @@
                 document.getElementById('page-container').innerHTML = html; ui.hideLoader();
             },
 
-            // ===== แก้ไขปัญหาการคลิก Workflow โดยบังคับแปลง ID เป็น String ก่อนตรวจสอบ =====
+            // ===== ปรับปรุงฟังก์ชันบังคับแปลง Data Type ป้องกันบั๊ก =====
             workflow: (projectId) => {
+                // บังคับแปลงเป็น String ให้หมดเพื่อป้องกันปัญหาหาข้อมูลไม่เจอ
                 const p = state.projects.find(x => String(x.id) === String(projectId));
                 if(!p) {
-                    ui.toast('ไม่พบข้อมูลโครงการ กรุณารีเฟรชหน้าเว็บ', 'error');
+                    ui.toast('เกิดข้อผิดพลาด: ไม่พบข้อมูลโครงการ', 'error');
                     return app.navigate('projects');
                 }
                 state.selectedProject = p;
+                
+                // บังคับแปลงสถานะเป็นตัวเลข (ป้องกันปัญหาเลข 1 เทียบกับข้อความ "1")
+                const curStat = parseInt(p.current_status, 10);
+                
                 let html = `
                     <div class="mb-6"><button onclick="app.navigate('projects')" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition mb-3 inline-flex items-center gap-1">← กลับหน้ารายการ</button><h2 class="text-2xl font-bold text-slate-800">ติดตามขั้นตอนโครงการ</h2><p class="text-slate-500 mt-1 text-sm"><span class="font-mono bg-slate-200 px-1.5 rounded text-slate-700">${utils.esc(p.project_code)}</span> ${utils.esc(p.project_name)}</p></div>
                     <div class="bg-white rounded-3xl border border-slate-100 p-5 sm:p-8 mb-6 shadow-sm">
-                        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8 border-b border-slate-100 pb-5"><h3 class="font-bold text-lg text-slate-800">Timeline 8 สถานะ</h3><span class="px-4 py-1.5 text-xs rounded-full border ${utils.getStatusColor(p.current_status)} font-bold shadow-sm">ปัจจุบัน: สถานะ ${p.current_status}</span></div>
+                        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8 border-b border-slate-100 pb-5"><h3 class="font-bold text-lg text-slate-800">Timeline 8 สถานะ</h3><span class="px-4 py-1.5 text-xs rounded-full border ${utils.getStatusColor(curStat)} font-bold shadow-sm">ปัจจุบัน: สถานะ ${curStat}</span></div>
                         <div class="space-y-2">
                 `;
                 for(let i=1; i<=8; i++) {
-                    const isDone = p.current_status > i; const isCur = p.current_status === i; const isWait = p.current_status < i;
+                    const isDone = curStat > i; 
+                    const isCur = curStat === i; 
+                    const isWait = curStat < i;
+                    
                     const iconBg = isDone ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : isCur ? 'bg-primary text-white border-primary ring-4 ring-blue-100 shadow-md' : 'bg-slate-50 text-slate-300 border-slate-200';
                     html += `
                         <div class="flex gap-4 sm:gap-6 ${isWait ? 'opacity-50 pointer-events-none grayscale-[50%]' : ''}">
@@ -460,16 +468,17 @@
                     const res = await rpc('custom_update_project_status', {
                         p_session_token: state.sessionToken,
                         p_project_id: pid,
-                        p_next_step: nextStep,
-                        p_remarks: remarks
+                        p_next_step: parseInt(nextStep, 10),
+                        p_remarks: String(remarks)
                     });
                     
                     if (!res.success) throw new Error(res.message);
                     logger('UPDATE_STATUS', `อัปเดตสถานะโครงการไปที่ ${nextStep}`);
                     
                     const p = state.projects.find(x => String(x.id) === String(pid));
-                    if (p) p.current_status = nextStep;
+                    if (p) p.current_status = parseInt(nextStep, 10);
                     
+                    ui.toast('อัปเดตสถานะสำเร็จ', 'success');
                     app.navigate('workflow', pid);
                 } catch (err) {
                     ui.toast(err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่', 'error');
@@ -478,7 +487,7 @@
                 }
             },
 
-            // ส่วนอื่นคงเดิม เพิ่ม Try Catch กันเหนียวไว้ทุกตัว
+            // ส่วนอื่นๆ คงเดิม
             openImportUsersModal: () => { ui.openModal('นำเข้าบัญชีสถานศึกษา (Excel / CSV)', `<div class="space-y-4 p-1"><div class="bg-blue-50 border border-blue-100 text-blue-800 p-4 rounded-xl text-sm leading-relaxed"><p class="font-bold mb-2">💡 รูปแบบหัวคอลัมน์ (แถวแรก) สำหรับสร้างบัญชี:</p><p class="text-sm font-mono mb-2 bg-white p-2 rounded border border-blue-100 text-blue-600 text-center">ชื่อสถานศึกษา | รหัสผ่านเริ่มต้น</p><p class="text-xs text-slate-500">หมายเหตุ: ข้อมูลผู้รับผิดชอบ ทางสถานศึกษาจะเข้ามาแก้ไขเองในภายหลัง</p></div><div><label class="block text-sm font-semibold mb-1.5">เลือกไฟล์ Excel <span class="text-red-500">*</span></label><input type="file" id="excel_user_file" accept=".xlsx, .xls, .csv" class="w-full border border-slate-300 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition cursor-pointer"></div><button onclick="handlers.processImportUsers()" class="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-medium hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-2"><span class="text-lg">📥</span> ยืนยันสร้างบัญชี</button></div>`); },
             processImportUsers: async () => { const fileInput = document.getElementById('excel_user_file'); if(!fileInput.files.length) return ui.toast('กรุณาเลือกไฟล์ก่อน', 'warning'); ui.showLoader('กำลังอ่านไฟล์ Excel...'); const file = fileInput.files[0]; const reader = new FileReader(); reader.onload = async (e) => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, {type: 'array'}); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); if(jsonData.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel'); const payload = jsonData.map(row => ({ institution_name: row['ชื่อสถานศึกษา'] || '', initial_password: String(row['รหัสผ่านเริ่มต้น'] || '') })).filter(r => r.institution_name !== '' && r.initial_password !== ''); if(payload.length === 0) throw new Error('ไม่พบหัวคอลัมน์ "ชื่อสถานศึกษา" และ "รหัสผ่านเริ่มต้น"'); ui.showLoader(`กำลังสร้าง ${payload.length} บัญชี เข้าสู่ระบบ...`); const res = await rpc('admin_import_users_excel', { p_session_token: state.sessionToken, p_data: payload }); ui.closeModal(); ui.toast(res.message || 'สร้างบัญชีสำเร็จ', 'success'); pages.users(); } catch(err) { ui.toast(err.message, 'error'); ui.hideLoader(); } }; reader.readAsArrayBuffer(file); },
             submitProfile: async (e) => { e.preventDefault(); ui.showLoader('กำลังบันทึก...'); try { await rpc("custom_update_profile", { p_session_token: state.sessionToken, p_password: document.getElementById('prof_password').value, p_full_name: document.getElementById('prof_fullname').value, p_phone: document.getElementById('prof_phone').value, p_email: document.getElementById('prof_email').value }); state.user.full_name = document.getElementById('prof_fullname').value; document.getElementById('user-fullname').innerText = state.user.full_name; document.getElementById('prof_password').value = ''; ui.toast('บันทึกข้อมูลสำเร็จ', 'success'); } catch(err) { ui.toast(err.message, 'error'); } finally { ui.hideLoader(); } },
