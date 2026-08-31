@@ -404,7 +404,7 @@
                             const file = document.getElementById('appeal_file')?.files[0]; 
                             if(file) { 
                                 const base64Data = await handlers.getBase64(file);
-                                const scriptUrl = "https://script.google.com/macros/s/AKfycbyv5rQh_3Ew0D819QeXJt-5yT0dG2M_XkC4T1sJ7iWpP0j4f_Xm-FjS7tD5N3P2qD/exec"; 
+                                const scriptUrl = "https://script.google.com/macros/s/AKfycbzWV_Nv7KQyV77JGBX39O0sKrQL2nDZKdE0NaVSjoHL3eWl9iMC-GLGWq3UHkZMDoMbbA/exec"; 
                                 const uploadRes = await fetch(scriptUrl, { method: "POST", body: JSON.stringify({ filename: `appeal_${pid}_${Date.now()}.pdf`, mimeType: file.type, base64: base64Data }), headers: { "Content-Type": "text/plain;charset=utf-8" } });
                                 const driveData = await uploadRes.json();
                                 if(!driveData.success) throw new Error(driveData.error);
@@ -436,7 +436,7 @@
                 try { 
                     const pid = state.selectedProject.id; 
                     const base64Data = await handlers.getBase64(f);
-                    const scriptUrl = "https://script.google.com/macros/s/AKfycbyv5rQh_3Ew0D819QeXJt-5yT0dG2M_XkC4T1sJ7iWpP0j4f_Xm-FjS7tD5N3P2qD/exec"; 
+                    const scriptUrl = "https://script.google.com/macros/s/AKfycbzWV_Nv7KQyV77JGBX39O0sKrQL2nDZKdE0NaVSjoHL3eWl9iMC-GLGWq3UHkZMDoMbbA/exec"; 
                     
                     const uploadRes = await fetch(scriptUrl, { method: "POST", body: JSON.stringify({ filename: `contract_${pid}_${Date.now()}.pdf`, mimeType: f.type, base64: base64Data }), headers: { "Content-Type": "text/plain;charset=utf-8" } });
                     const driveData = await uploadRes.json();
