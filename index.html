@@ -158,7 +158,6 @@
             projectPage: 1, projectLimit: 10, 
             auditPage: 1, auditLimit: 30, auditStartDate: '', auditEndDate: '',
             fiscalYear: null, availableYears: [], 
-            // ตัวแปรเพิ่มใหม่สำหรับเก็บค่าคำค้นหา
             projectSearch: '', userSearch: '', auditSearch: ''
         };
 
@@ -168,6 +167,11 @@
             formatDate: (dt) => {
                 if(!dt) return '-'; const d = new Date(dt); 
                 return d.toLocaleDateString('th-TH', {year:'numeric',month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+            },
+            // ฟังก์ชันสำหรับแปลงแค่วันที่ (ใช้แสดงผลในการ์ด)
+            formatDateOnly: (dt) => {
+                if(!dt) return '-'; const d = new Date(dt); 
+                return d.toLocaleDateString('th-TH', {year:'numeric',month:'short',day:'numeric'});
             },
             getStatusName: (s) => ({ 1: 'ยังไม่ดำเนินการ', 2: 'จัดทำร่าง TOR', 3: 'เผยแพร่ร่าง TOR', 4: 'ประกาศเชิญชวน', 5: 'ประกาศผู้ชนะ', 6: 'รอผลอุทธรณ์', 7: 'ลงนามสัญญา', 8: 'บริหารสัญญา' })[s] || 'ไม่ทราบ',
             getStatusColor: (s) => ({ 1: 'bg-slate-100 text-slate-700 border-slate-200', 2: 'bg-blue-50 text-blue-700 border-blue-200', 3: 'bg-indigo-50 text-indigo-700 border-indigo-200', 4: 'bg-purple-50 text-purple-700 border-purple-200', 5: 'bg-amber-50 text-amber-700 border-amber-200', 6: 'bg-orange-50 text-orange-700 border-orange-200', 7: 'bg-emerald-50 text-emerald-700 border-emerald-200', 8: 'bg-green-100 text-green-800 border-green-200' })[s] || 'bg-slate-100'
@@ -328,9 +332,7 @@
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
 
-            // --- ฟังก์ชัน Projects เพิ่มระบบค้นหา (Local) ---
             projects: async (skipFetch = false) => {
-                // จำตำแหน่ง Cursor ปัจจุบัน ป้องกันการกระตุกเวลาพิมพ์
                 let activeElement = document.activeElement;
                 let activeId = activeElement ? activeElement.id : null;
                 let cursorPos = activeElement && activeElement.selectionStart ? activeElement.selectionStart : null;
@@ -349,7 +351,6 @@
                     } catch (e) { ui.toast(e.message, 'error'); ui.hideLoader(); return; }
                 }
 
-                // กรองด้วย ปีงบประมาณ และ คำค้นหา
                 const filteredProjects = state.projects.filter(p => {
                     const matchYear = String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear;
                     const searchStr = state.projectSearch.toLowerCase();
@@ -369,9 +370,7 @@
                 <div class="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-6">
                     <h2 class="text-2xl font-bold text-slate-800 tracking-tight">รายการโครงการงบประมาณ</h2>
                     <div class="flex flex-wrap items-center gap-2">
-                        <!-- เพิ่ม Input สำหรับค้นหา -->
                         <input type="text" id="search_projects" value="${utils.esc(state.projectSearch)}" onkeyup="handlers.searchProjects(this.value)" placeholder="🔍 ค้นหารหัส, ชื่อโครงการ, สถานศึกษา..." class="bg-white border border-slate-200 text-slate-700 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary shadow-sm text-sm w-full sm:w-64">
-                        
                         <select onchange="handlers.changeYear(this.value)" class="bg-white border border-slate-200 text-slate-700 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary shadow-sm text-sm font-bold cursor-pointer">
                             ${state.availableYears.map(y => `<option value="${y}" ${y === state.fiscalYear ? 'selected' : ''}>ปีงบประมาณ ${y}</option>`).join('')}
                         </select>
@@ -409,7 +408,6 @@
                 document.getElementById('page-container').innerHTML = html; 
                 if(!skipFetch) ui.hideLoader();
 
-                // คืนค่า Focus เพื่อให้พิมพ์ต่อได้ไม่กระตุก
                 if(activeId) {
                     setTimeout(() => {
                         const el = document.getElementById(activeId);
@@ -418,18 +416,54 @@
                 }
             },
 
-            workflow: (projectId) => {
+            // ================== อัปเดตหน้า WORKFLOW (เพิ่มการแก้รหัส และดึงประวัติ) ==================
+            workflow: async (projectId) => {
                 try {
+                    ui.showLoader('กำลังโหลดข้อมูล...');
                     const p = state.projects.find(x => String(x.id) === String(projectId));
                     if(!p) {
                         alert("เกิดข้อผิดพลาด: ระบบไม่พบรหัสอ้างอิงโครงการ (" + projectId + ") กรุณารีเฟรชหน้าเว็บ");
+                        ui.hideLoader();
                         return app.navigate('projects');
                     }
+
+                    // โหลดประวัติของ Workflow นี้ เพื่อเอามาแสดงในกล่องสถานะที่กดผ่านไปแล้ว
+                    const { data: wfHistory, error: wfError } = await supabaseClient
+                        .from('project_workflows')
+                        .select('*')
+                        .eq('project_id', projectId)
+                        .order('created_at', { ascending: false });
+                        
+                    const latestWf = {};
+                    if (wfHistory) {
+                        wfHistory.forEach(w => {
+                            if (!latestWf[w.status_no]) latestWf[w.status_no] = w; // เก็บอันล่าสุดของแต่ละสถานะไว้
+                        });
+                    }
+
                     state.selectedProject = p;
                     const curStat = parseInt(p.current_status, 10) || 1;
 
                     let html = `
-                        <div class="mb-6"><button onclick="app.navigate('projects')" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition mb-3 inline-flex items-center gap-1">← กลับหน้ารายการ</button><h2 class="text-2xl font-bold text-slate-800">ติดตามขั้นตอนโครงการ</h2><p class="text-slate-500 mt-1 text-sm"><span class="font-mono bg-slate-200 px-1.5 rounded text-slate-700">${utils.esc(p.project_code)}</span> ${utils.esc(p.project_name)}</p></div>
+                        <div class="mb-6">
+                            <button onclick="app.navigate('projects')" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition mb-3 inline-flex items-center gap-1">← กลับหน้ารายการ</button>
+                            <h2 class="text-2xl font-bold text-slate-800">ติดตามขั้นตอนโครงการ</h2>
+                            
+                            <!-- กล่องข้อมูลโครงการ พร้อมช่องกรอกรหัสงบประมาณจริง -->
+                            <div class="mt-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:flex-row xl:items-center gap-4 justify-between">
+                                <div class="flex-1">
+                                    <p class="text-slate-800 text-sm font-medium"><span class="font-mono bg-slate-200 px-1.5 py-0.5 rounded text-slate-700">${utils.esc(p.project_code)}</span> ${utils.esc(p.project_name)}</p>
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center gap-3 bg-blue-50 p-3 rounded-xl border border-blue-100 whitespace-nowrap w-full xl:w-auto">
+                                    <label class="text-[13px] font-bold text-blue-800">รหัสงบประมาณจริง:</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" id="edit_budget_code" value="${utils.esc(p.budget_code || '')}" placeholder="ระบุรหัส 12 หลัก..." class="border border-blue-200 bg-white rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary w-full sm:w-40 lg:w-48 font-mono text-blue-700 shadow-sm">
+                                        <button onclick="handlers.saveBudgetCode('${p.id}')" class="bg-primary text-white px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 shadow-sm transition">💾 บันทึก</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="bg-white rounded-3xl border border-slate-100 p-5 sm:p-8 mb-6 shadow-sm">
                             <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8 border-b border-slate-100 pb-5"><h3 class="font-bold text-lg text-slate-800">Timeline 8 สถานะ</h3><span class="px-4 py-1.5 text-xs rounded-full border ${utils.getStatusColor(curStat)} font-bold shadow-sm">ปัจจุบัน: สถานะ ${curStat}</span></div>
                             <div class="space-y-2">
@@ -437,27 +471,62 @@
                     for(let i=1; i<=8; i++) {
                         const isDone = curStat > i; const isCur = curStat === i; const isWait = curStat < i;
                         const iconBg = isDone ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : isCur ? 'bg-primary text-white border-primary ring-4 ring-blue-100 shadow-md' : 'bg-slate-50 text-slate-300 border-slate-200';
+                        
+                        // จัดเตรียมข้อมูลที่กรอกไปแล้วมาแสดงด้านขวาของการ์ด
+                        let stepInfoHtml = '';
+                        if (isDone && latestWf[i]) {
+                            let remarkStr = latestWf[i].remarks || '';
+                            let parsedObj = null;
+                            try { parsedObj = JSON.parse(remarkStr); } catch(e) { }
+
+                            let infoContent = '';
+                            if (parsedObj && typeof parsedObj === 'object') {
+                                if (i === 2 && parsedObj.s2_d) infoContent = `📅 เสร็จวันที่: <span class="font-bold">${utils.formatDateOnly(parsedObj.s2_d)}</span>`;
+                                if (i === 4 && parsedObj.s4_d) infoContent = `📢 ประกาศเชิญชวน: <span class="font-bold">${utils.formatDateOnly(parsedObj.s4_d)}</span>`;
+                                if (i === 5 && parsedObj.s5_d) infoContent = `🏆 ผู้ชนะ: <span class="font-bold text-primary">${utils.esc(parsedObj.s5_n)}</span><br>📅 วันประกาศผล: <span class="font-bold">${utils.formatDateOnly(parsedObj.s5_d)}</span>`;
+                            } else {
+                                infoContent = utils.esc(remarkStr);
+                            }
+
+                            if(infoContent && infoContent !== 'null' && infoContent !== 'undefined') {
+                                stepInfoHtml = `
+                                    <div class="mt-4 sm:mt-0 sm:ml-4 sm:max-w-[280px] w-full bg-emerald-50/70 border border-emerald-100 p-3.5 rounded-xl shadow-sm text-sm self-start">
+                                        <p class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider mb-1 border-b border-emerald-100 pb-1.5 flex items-center gap-1"><span>📥</span> ข้อมูลที่บันทึก</p>
+                                        <p class="text-slate-700 leading-relaxed mt-1">${infoContent}</p>
+                                        <p class="text-[9px] text-slate-400 mt-2 text-right">อัปเดต: ${utils.formatDate(latestWf[i].created_at)}</p>
+                                    </div>
+                                `;
+                            }
+                        }
+
                         html += `
                             <div class="flex gap-4 sm:gap-6 ${isWait ? 'opacity-50 pointer-events-none grayscale-[50%]' : ''}">
                                 <div class="flex flex-col items-center"><div class="w-10 h-10 rounded-full border-2 flex items-center justify-center font-bold text-sm z-10 shrink-0 transition-all ${iconBg}">${isDone ? '✓' : (isCur?'●':i)}</div>${i<8 ? `<div class="w-0.5 h-full min-h-[40px] my-1 ${isDone?'bg-emerald-300':'bg-slate-200'}"></div>` : ''}</div>
-                                <div class="flex-1 pb-8 w-full min-w-0"><div class="${isCur?'bg-white border-blue-200 shadow-lg shadow-blue-900/5 ring-1 ring-blue-50':'bg-slate-50 border-slate-200'} border rounded-2xl p-5 sm:p-6 transition-all">
-                                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
-                                        <h4 class="font-bold text-lg ${isCur?'text-blue-800':'text-slate-700'}">${i}. ${utils.getStatusName(i)}</h4>
-                                        ${isDone ? `<button onclick="handlers.revertStatus(${i})" class="text-[11px] font-bold text-warning bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg transition-colors shadow-sm">↺ ย้อนกลับมาแก้ไขสถานะนี้</button>` : ''}
+                                <div class="flex-1 pb-8 w-full min-w-0">
+                                    <div class="${isCur?'bg-white border-blue-200 shadow-lg shadow-blue-900/5 ring-1 ring-blue-50':'bg-slate-50 border-slate-200'} border rounded-2xl p-5 sm:p-6 transition-all">
+                                        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
+                                            <div>
+                                                <h4 class="font-bold text-lg ${isCur?'text-blue-800':'text-slate-700'}">${i}. ${utils.getStatusName(i)}</h4>
+                                                ${isDone ? `<button onclick="handlers.revertStatus(${i})" class="text-[11px] font-bold text-warning bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg transition-colors shadow-sm mt-3 flex items-center gap-1"><span>↺</span> ย้อนกลับมาแก้ไขสถานะนี้</button>` : ''}
+                                            </div>
+                                            <!-- ส่วนที่แสดงข้อมูลที่กรอกไปแล้ว จะโผล่ตรงนี้ -->
+                                            ${stepInfoHtml}
+                                        </div>
+                                        ${isCur ? handlers.renderStepForm(i, p) : ''}
                                     </div>
-                                    ${isCur ? handlers.renderStepForm(i, p) : ''}
-                                </div></div>
+                                </div>
                             </div>`;
                     }
                     document.getElementById('page-container').innerHTML = html + `</div></div>`;
+                    ui.hideLoader();
                 } catch(err) {
+                    ui.hideLoader();
                     alert("หน้าจอ Workflow เกิดข้อผิดพลาด: " + err.message);
                 }
             },
 
             profile: async () => { /* โค้ดเดิม... */ ui.showLoader(); try { const data = await rpc("admin_get_users", { p_session_token: state.sessionToken }); const myInfo = (data.data || []).find(u => u.username === state.user.username) || {}; document.getElementById('page-container').innerHTML = `<div class="max-w-2xl mx-auto mt-4"><h2 class="text-2xl font-bold text-slate-800 tracking-tight mb-6">⚙️ ตั้งค่าบัญชีผู้ใช้ (สถานศึกษา)</h2><div class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm"><form onsubmit="handlers.submitProfile(event)" class="space-y-5"><div><label class="block text-sm font-medium mb-1.5 text-slate-600">ชื่อสถานศึกษา (Username)</label><input type="text" value="${utils.esc(state.user.username)}" disabled class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 cursor-not-allowed font-bold"></div><div class="pt-4 border-t border-slate-100"><h3 class="font-bold text-slate-800 mb-4 text-lg">ข้อมูลผู้รับผิดชอบระบบ</h3><div class="space-y-4"><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">ชื่อ-นามสกุล ผู้รับผิดชอบ</label><input type="text" id="prof_fullname" value="${utils.esc(myInfo.full_name || '')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="ระบุชื่อเจ้าหน้าที่..."></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">เบอร์โทรศัพท์ติดต่อ</label><input type="text" id="prof_phone" value="${utils.esc(myInfo.phone || '')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="08xxxxxxxx"></div><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">Email</label><input type="email" id="prof_email" value="${utils.esc(myInfo.email || '')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="email@example.com"></div></div></div></div><div class="pt-4 border-t border-slate-100"><h3 class="font-bold text-slate-800 mb-4 text-lg">เปลี่ยนรหัสผ่านใหม่</h3><div class="bg-blue-50 border border-blue-100 p-4 rounded-xl"><label class="block text-sm font-bold text-blue-800 mb-2">กำหนดรหัสผ่านใหม่ <span class="text-xs font-normal text-blue-600">(เว้นว่างไว้หากไม่ต้องการเปลี่ยน)</span></label><input type="password" id="prof_password" minlength="6" class="w-full px-4 py-3 border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="พิมพ์รหัสผ่านใหม่..."></div></div><div class="pt-4"><button type="submit" class="w-full bg-slate-900 text-white font-medium py-4 rounded-xl hover:bg-slate-800 transition shadow-lg flex items-center justify-center gap-2 text-lg">💾 บันทึกการเปลี่ยนแปลง</button></div></form></div></div>`; } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } },
             
-            // --- ฟังก์ชัน Users เพิ่มระบบค้นหา (Local) ---
             users: async (skipFetch = false) => {
                 let activeElement = document.activeElement;
                 let activeId = activeElement ? activeElement.id : null;
@@ -473,7 +542,6 @@
                     } catch (e) { ui.toast(e.message, 'error'); ui.hideLoader(); return; }
                 }
 
-                // กรองข้อมูลตามคำค้นหา
                 const filteredUsers = state.users.filter(u => {
                     const searchStr = state.userSearch.toLowerCase();
                     return searchStr === '' || 
@@ -487,7 +555,6 @@
                 <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                     <div><h2 class="text-2xl font-bold text-slate-800 tracking-tight">จัดการผู้ใช้งาน / สถานศึกษา</h2><p class="text-sm text-slate-500 mt-1">Admin สามารถอัปโหลดรายชื่อสถานศึกษาเพื่อสร้าง Username ให้อัตโนมัติ</p></div>
                     <div class="flex flex-wrap gap-2 items-center">
-                        <!-- เพิ่ม Input สำหรับค้นหา -->
                         <input type="text" id="search_users" value="${utils.esc(state.userSearch)}" onkeyup="handlers.searchUsers(this.value)" placeholder="🔍 ค้นหาสถานศึกษา, ชื่อ, เบอร์..." class="bg-white border border-slate-200 text-slate-700 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary shadow-sm text-sm w-full sm:w-64">
                         <button onclick="handlers.openImportUsersModal()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">📥 นำเข้าบัญชี (Excel)</button>
                         <button onclick="handlers.openUserModal()" class="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-800 transition shadow-sm">+ เพิ่มเอง</button>
@@ -526,7 +593,6 @@
                 document.getElementById('page-container').innerHTML = html; 
                 if(!skipFetch) ui.hideLoader();
 
-                // คืนค่า Focus
                 if(activeId) {
                     setTimeout(() => {
                         const el = document.getElementById(activeId);
@@ -535,45 +601,16 @@
                 }
             },
 
-            // --- ฟังก์ชัน Audit เพิ่มระบบค้นหา (Server-Side) ---
             audit: async () => {
                 ui.showLoader('กำลังโหลดประวัติ...'); 
                 try { 
                     const offset = (state.auditPage - 1) * state.auditLimit; 
-                    
-                    // ส่งค่า p_search ไปให้ Database ประมวลผล
-                    const res = await rpc('custom_get_audit_logs', { 
-                        p_session_token: state.sessionToken, 
-                        p_limit: state.auditLimit, 
-                        p_offset: offset, 
-                        p_start_date: state.auditStartDate || null, 
-                        p_end_date: state.auditEndDate || null,
-                        p_search: state.auditSearch || null
-                    }); 
-                    
+                    const res = await rpc('custom_get_audit_logs', { p_session_token: state.sessionToken, p_limit: state.auditLimit, p_offset: offset, p_start_date: state.auditStartDate || null, p_end_date: state.auditEndDate || null, p_search: state.auditSearch || null }); 
                     const logs = res.data || []; const totalItems = res.total || 0; const totalPages = Math.ceil(totalItems / state.auditLimit) || 1; 
                     const pageTitleDesc = state.user.role === 'admin' ? 'ติดตามความเคลื่อนไหวของผู้ใช้ทั้งหมดในระบบ' : 'ประวัติการเปลี่ยนแปลงข้อมูลของคุณ'; 
-                    
-                    let html = `
-                    <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
-                        <div><h2 class="text-2xl font-bold text-slate-800 tracking-tight">ประวัติการใช้งาน</h2><p class="text-sm text-slate-500 mt-1">${pageTitleDesc}</p></div>
-                        <div class="flex flex-wrap gap-2 items-center bg-white p-2 rounded-2xl shadow-sm border border-slate-200">
-                            <!-- ช่องค้นหา -->
-                            <input type="text" id="filter_search" value="${utils.esc(state.auditSearch)}" placeholder="🔍 ค้นหาชื่อ, ข้อความ..." class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50 w-full sm:w-auto min-w-[200px]">
-                            
-                            <input type="date" id="filter_start" value="${state.auditStartDate}" class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50">
-                            <span class="text-slate-400 text-xs font-medium">ถึง</span>
-                            <input type="date" id="filter_end" value="${state.auditEndDate}" class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50">
-                            
-                            <button onclick="handlers.filterAudit()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">ค้นหา</button>
-                            <button onclick="handlers.clearAuditFilter()" class="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-200 transition">ล้าง</button>
-                        </div>
-                    </div>`; 
-
+                    let html = `<div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6"><div><h2 class="text-2xl font-bold text-slate-800 tracking-tight">ประวัติการใช้งาน</h2><p class="text-sm text-slate-500 mt-1">${pageTitleDesc}</p></div><div class="flex flex-wrap gap-2 items-center bg-white p-2 rounded-2xl shadow-sm border border-slate-200"><input type="text" id="filter_search" value="${utils.esc(state.auditSearch)}" placeholder="🔍 ค้นหาชื่อ, ข้อความ..." class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50 w-full sm:w-auto min-w-[200px]"><input type="date" id="filter_start" value="${state.auditStartDate}" class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50"><span class="text-slate-400 text-xs font-medium">ถึง</span><input type="date" id="filter_end" value="${state.auditEndDate}" class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50"><button onclick="handlers.filterAudit()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">ค้นหา</button><button onclick="handlers.clearAuditFilter()" class="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-200 transition">ล้าง</button></div></div>`; 
                     if(logs.length === 0) html += `<div class="p-12 text-center bg-white border border-dashed rounded-2xl text-slate-400 shadow-sm">ไม่มีข้อมูลประวัติในระบบหรือในช่วงเวลาที่เลือก</div>`; 
-                    else { 
-                        html += `<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-6"><div class="overflow-x-auto"><table class="w-full text-left text-sm whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 border-b"><tr><th class="px-5 py-4">วัน-เวลา</th><th class="px-5 py-4">ผู้ใช้งาน</th>${state.user.role==='admin'?'<th class="px-5 py-4">วิทยาลัย</th>':''}<th class="px-5 py-4">Action</th><th class="px-5 py-4">รายละเอียด</th></tr></thead><tbody class="divide-y divide-slate-100">${logs.map(L => `<tr class="hover:bg-slate-50 transition-colors"><td class="px-5 py-4 text-xs font-mono text-slate-500">${utils.formatDate(L.created_at)}</td><td class="px-5 py-4 font-medium text-primary">${utils.esc(L.full_name)}</td>${state.user.role==='admin'?`<td class="px-5 py-4 text-slate-600 text-xs">${utils.esc(L.institution_name)}</td>`:''}<td class="px-5 py-4"><span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border border-slate-200">${utils.esc(L.action)}</span></td><td class="px-5 py-4 text-slate-700">${utils.esc(L.description)}</td></tr>`).join('')}</tbody></table></div></div><div class="flex items-center justify-between bg-white px-4 py-3 border border-slate-200 rounded-xl shadow-sm"><div class="text-sm text-slate-500">แสดงที่ <span class="font-medium text-slate-900">${offset + 1}</span> - <span class="font-medium text-slate-900">${Math.min(offset + state.auditLimit, totalItems)}</span> จาก <span class="font-medium text-slate-900">${totalItems}</span></div><div class="flex gap-2"><button onclick="handlers.changeAuditPage(${state.auditPage - 1})" ${state.auditPage === 1 ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ก่อนหน้า</button><button onclick="handlers.changeAuditPage(${state.auditPage + 1})" ${state.auditPage === totalPages ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ถัดไป</button></div></div>`; 
-                    } 
+                    else { html += `<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-6"><div class="overflow-x-auto"><table class="w-full text-left text-sm whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 border-b"><tr><th class="px-5 py-4">วัน-เวลา</th><th class="px-5 py-4">ผู้ใช้งาน</th>${state.user.role==='admin'?'<th class="px-5 py-4">วิทยาลัย</th>':''}<th class="px-5 py-4">Action</th><th class="px-5 py-4">รายละเอียด</th></tr></thead><tbody class="divide-y divide-slate-100">${logs.map(L => `<tr class="hover:bg-slate-50 transition-colors"><td class="px-5 py-4 text-xs font-mono text-slate-500">${utils.formatDate(L.created_at)}</td><td class="px-5 py-4 font-medium text-primary">${utils.esc(L.full_name)}</td>${state.user.role==='admin'?`<td class="px-5 py-4 text-slate-600 text-xs">${utils.esc(L.institution_name)}</td>`:''}<td class="px-5 py-4"><span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border border-slate-200">${utils.esc(L.action)}</span></td><td class="px-5 py-4 text-slate-700">${utils.esc(L.description)}</td></tr>`).join('')}</tbody></table></div></div><div class="flex items-center justify-between bg-white px-4 py-3 border border-slate-200 rounded-xl shadow-sm"><div class="text-sm text-slate-500">แสดงที่ <span class="font-medium text-slate-900">${offset + 1}</span> - <span class="font-medium text-slate-900">${Math.min(offset + state.auditLimit, totalItems)}</span> จาก <span class="font-medium text-slate-900">${totalItems}</span></div><div class="flex gap-2"><button onclick="handlers.changeAuditPage(${state.auditPage - 1})" ${state.auditPage === 1 ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ก่อนหน้า</button><button onclick="handlers.changeAuditPage(${state.auditPage + 1})" ${state.auditPage === totalPages ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ถัดไป</button></div></div>`; } 
                     document.getElementById('page-container').innerHTML = html; 
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } 
             },
@@ -582,42 +619,34 @@
         };
 
         const handlers = {
-            getBase64: (file) => {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = () => {
-                        let encoded = reader.result.toString().replace(/^data:(.*,)?/, '');
-                        if ((encoded.length % 4) > 0) encoded += '='.repeat(4 - (encoded.length % 4));
-                        resolve(encoded);
-                    };
-                    reader.onerror = error => reject(error);
-                });
-            },
             changeYear: (year) => { state.fiscalYear = year; if (state.currentRoute === 'dashboard') pages.dashboard(); else if (state.currentRoute === 'projects') { state.projectPage = 1; pages.projects(true); } },
             changeProjectPage: (p) => { state.projectPage = p; pages.projects(true); },
             changeAuditPage: (p) => { state.auditPage = p; pages.audit(); },
             
-            // --- Handler สำหรับการค้นหาแบบ Real-time ---
             searchProjects: (val) => { state.projectSearch = val; state.projectPage = 1; pages.projects(true); },
             searchUsers: (val) => { state.userSearch = val; pages.users(true); },
             
-            filterAudit: () => { 
-                state.auditStartDate = document.getElementById('filter_start').value; 
-                state.auditEndDate = document.getElementById('filter_end').value; 
-                state.auditSearch = document.getElementById('filter_search').value;
-                state.auditPage = 1; 
-                pages.audit(); 
-            },
-            clearAuditFilter: () => { 
-                state.auditStartDate = ''; 
-                state.auditEndDate = ''; 
-                state.auditSearch = '';
-                state.auditPage = 1; 
-                pages.audit(); 
-            },
+            filterAudit: () => { state.auditStartDate = document.getElementById('filter_start').value; state.auditEndDate = document.getElementById('filter_end').value; state.auditSearch = document.getElementById('filter_search').value; state.auditPage = 1; pages.audit(); },
+            clearAuditFilter: () => { state.auditStartDate = ''; state.auditEndDate = ''; state.auditSearch = ''; state.auditPage = 1; pages.audit(); },
             
             loadLoginUsers: async () => { try { const usernames = await rpc("get_login_usernames"); let html = ''; usernames.forEach(u => { html += `<option value="${utils.esc(u)}">`; }); document.getElementById('login-user-list').innerHTML = html; } catch (e) { console.error("Error loading usernames", e); } },
+
+            // ฟังก์ชันอัปเดตรหัสงบประมาณ
+            saveBudgetCode: async (pid) => {
+                const code = document.getElementById('edit_budget_code').value;
+                ui.showLoader('กำลังบันทึกรหัสงบประมาณ...');
+                try {
+                    const res = await rpc('custom_update_budget_code', { p_session_token: state.sessionToken, p_project_id: pid, p_budget_code: code });
+                    if(!res.success) throw new Error(res.message);
+                    const p = state.projects.find(x => String(x.id) === String(pid));
+                    if(p) p.budget_code = code;
+                    ui.toast('อัปเดตรหัสงบประมาณเรียบร้อย', 'success');
+                } catch(e) {
+                    ui.toast(e.message, 'error');
+                } finally {
+                    ui.hideLoader();
+                }
+            },
 
             renderDashSummaryCards: (data) => { let tBud=0, tPO=0, tDis=0, tWait=0; data.forEach(p => { tBud += p.budget; tPO += p.poAmount; tDis += p.disbursed; if(p.statusNo < 7) tWait += p.budget; }); const cards = [ { t: 'รวมทั้งสิ้น (งบรวม)', amt: tBud, pct: 100, bg: 'bg-gradient-to-br from-blue-600 to-indigo-700', ic: '🏛️' }, { t: 'วางสัญญา PO แล้ว', amt: tPO, pct: tBud?((tPO/tBud)*100):0, bg: 'bg-gradient-to-br from-indigo-500 to-purple-600', ic: '📝' }, { t: 'เบิกจ่ายสำเร็จ', amt: tDis, pct: tBud?((tDis/tBud)*100):0, bg: 'bg-gradient-to-br from-emerald-500 to-teal-600', ic: '💸' }, { t: 'ผลการใช้จ่าย', amt: tDis, pct: tBud?((tDis/tBud)*100):0, bg: 'bg-gradient-to-br from-purple-600 to-pink-600', ic: '📊' }, { t: 'งบประมาณคงเหลือ', amt: tBud-tDis, pct: tBud?(((tBud-tDis)/tBud)*100):0, bg: 'bg-gradient-to-br from-amber-500 to-orange-600', ic: '⏳' } ]; let html = ''; cards.forEach(c => { html += `<div class="${c.bg} p-4 rounded-2xl shadow-md text-white flex flex-col justify-between hover:-translate-y-1 transition duration-200 border border-white/10"><div class="flex justify-between items-start"><span class="text-[13px] font-bold text-white/90">${c.t}</span><span class="w-8 h-8 rounded-xl bg-white/20 text-white flex items-center justify-center text-sm shadow-sm">${c.ic}</span></div><div class="my-2"><div class="text-xl font-extrabold tracking-tight">${utils.formatMoney(c.amt)}</div><div class="text-[10px] text-white/80 font-medium">บาท</div></div><div class="flex justify-between items-center pt-2 border-t border-white/20 text-[11px] font-semibold text-white/90"><span>สัดส่วน: <span class="text-white font-bold">${c.pct.toFixed(2)}%</span></span></div></div>`; }); document.getElementById('overviewCardsContainer').innerHTML = html; },
             renderDashBarChart: (data) => { if(window.stipsCharts.stages) window.stipsCharts.stages.destroy(); let stageData = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0 }; let stageCount = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0 }; data.forEach(p => { stageData[p.statusNo] += p.budget; stageCount[p.statusNo] += 1; }); const ctx = document.getElementById('stagesBarChart').getContext('2d'); window.stipsCharts.stages = new Chart(ctx, { type: 'bar', data: { labels: ['1.ยังไม่เริ่ม', '2.จัดทำ TOR', '3.เผยแพร่ TOR', '4.เชิญชวน', '5.ได้ผู้ชนะ', '6.อุทธรณ์', '7.เซ็นสัญญา', '8.บริหารสัญญา'], datasets: [{ data: [stageCount[1], stageCount[2], stageCount[3], stageCount[4], stageCount[5], stageCount[6], stageCount[7], stageCount[8]], backgroundColor: ['#e2e8f0','#fef08a','#fef08a','#fed7aa','#fed7aa','#fecaca','#a7f3d0','#86efac'], borderColor: ['#cbd5e1','#facc15','#facc15','#fb923c','#fb923c','#f87171','#34d399','#4ade80'], borderWidth: 1, borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 25 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` จำนวน: ${c.raw} โครงการ (งบ: ${stageData[c.dataIndex+1].toLocaleString()} บาท)` } }, datalabels: { color: '#475569', anchor: 'end', align: 'top', font: { family: 'Sarabun', weight: 'bold', size: 14 }, formatter: (v) => v > 0 ? v : '' } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: {family: 'Sarabun'}, stepSize: 1 } }, x: { grid: { display: false }, ticks: { font: { family: 'Sarabun', size: 12 } } } } } }); },
@@ -640,34 +669,29 @@
             revertStatus: async (step) => { ui.openConfirm('ย้อนกลับมาแก้ไข', `ต้องการย้อนไปที่สถานะ ${step} ใช่หรือไม่?`, async () => { ui.showLoader(); try { await rpc('custom_revert_status', { p_session_token: state.sessionToken, p_project_id: state.selectedProject.id, p_target_status: step }); ui.toast('สำเร็จ', 'success'); const p = state.projects.find(x => String(x.id) === String(state.selectedProject.id)); if (p) p.current_status = step; app.navigate('workflow', state.selectedProject.id); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } }); },
             saveStep: async (step, fields) => { let data = {}; for(let f of fields) { const val = document.getElementById(f).value; if(!val) return ui.toast('กรอกข้อมูลไม่ครบ', 'warning'); data[f] = val; } await handlers.updateStatus(step+1, JSON.stringify(data)); },
             saveStep3: async () => { const s = document.getElementById('s3_s').value; const e = document.getElementById('s3_e').value; if(!s || !e) return ui.toast('กรอกวันที่ให้ครบ', 'warning'); if(new Date(e) < new Date(s)) return ui.toast('วันสิ้นสุดต้องไม่ก่อน', 'error'); await handlers.updateStatus(4, `เริ่ม: ${s}, สิ้นสุด: ${e}`); },
+            
+            getBase64: (file) => { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => { let encoded = reader.result.toString().replace(/^data:(.*,)?/, ''); if ((encoded.length % 4) > 0) encoded += '='.repeat(4 - (encoded.length % 4)); resolve(encoded); }; reader.onerror = error => reject(error); }); },
+            
             toggleAppeal: () => { const v = document.getElementById('appeal_opt').value; document.getElementById('appeal_extra').classList[v==='3'?'remove':'add']('hidden'); let btn = ''; if(v==='1'||v==='5') btn = `<button onclick="handlers.doAppeal('save')" class="bg-primary text-white px-6 py-3 rounded-xl text-sm font-medium w-full shadow-md">บันทึกและไปสถานะที่ 7</button>`; else if(v==='2'||v==='4') btn = `<button onclick="handlers.doAppeal('cancel')" class="bg-danger text-white px-6 py-3 rounded-xl text-sm font-medium w-full shadow-md">บันทึกและยกเลิกโครงการ</button>`; else if(v==='3') btn = `<button onclick="handlers.doAppeal('hold')" class="bg-warning text-white px-6 py-3 rounded-xl text-sm font-medium w-full shadow-md">แนบหลักฐาน (ค้างสถานะเพื่อรอผล)</button>`; document.getElementById('appeal_btn').innerHTML = btn; },
+            
             doAppeal: async (action) => { 
                 ui.openConfirm('ยืนยันอุทธรณ์', 'บันทึกข้อมูลการอุทธรณ์', async () => { 
                     ui.showLoader('บันทึกอุทธรณ์ และอัปโหลดไฟล์...'); 
                     try { 
                         const pid = state.selectedProject.id; 
                         let fileLink = null; 
-                        
                         if(action === 'hold') { 
                             const file = document.getElementById('appeal_file')?.files[0]; 
                             if(file) { 
                                 const base64Data = await handlers.getBase64(file);
-                                const scriptUrl = "https://script.google.com/macros/s/AKfycbzlcpVcffk2D_-of1D2vlmDZtK_K_fYOjpfLksUd31CBy-yrEGqZ1Dg7RIXGwv7eAAb0g/exec"; // ⚠️ ใส่ URL อันเดียวกันกับข้างบน
-                                
-                                const uploadRes = await fetch(scriptUrl, {
-                                    method: "POST",
-                                    body: JSON.stringify({ filename: `appeal_${pid}_${Date.now()}.pdf`, mimeType: file.type, base64: base64Data }),
-                                    headers: { "Content-Type": "text/plain;charset=utf-8" }
-                                });
-                                
+                                const scriptUrl = "https://script.google.com/macros/s/AKfycbyv5rQh_3Ew0D819QeXJt-5yT0dG2M_XkC4T1sJ7iWpP0j4f_Xm-FjS7tD5N3P2qD/exec"; 
+                                const uploadRes = await fetch(scriptUrl, { method: "POST", body: JSON.stringify({ filename: `appeal_${pid}_${Date.now()}.pdf`, mimeType: file.type, base64: base64Data }), headers: { "Content-Type": "text/plain;charset=utf-8" } });
                                 const driveData = await uploadRes.json();
                                 if(!driveData.success) throw new Error(driveData.error);
-                                fileLink = driveData.fileUrl; // ได้ลิงก์มาแล้ว
+                                fileLink = driveData.fileUrl; 
                             } 
                         } 
-                        
                         await supabaseClient.from('appeals').insert([{ project_id: pid, appeal_option: document.getElementById('appeal_opt').value, central_audit_document_path: fileLink }]); 
-                        
                         if(action === 'cancel') { 
                             await supabaseClient.from('projects').update({is_cancelled: true, cancellation_reason: 'ยกเลิกจากผลอุทธรณ์'}).eq('id', pid); 
                             ui.toast('ยกเลิกแล้ว', 'warning'); app.navigate('projects'); 
@@ -676,65 +700,42 @@
                         } else { 
                             ui.toast('บันทึกเรียบร้อย', 'info'); app.navigate('workflow', pid); 
                         } 
-                    } catch(e) { 
-                        ui.toast(e.message, 'error'); 
-                    } finally { 
-                        ui.hideLoader(); 
-                    } 
+                    } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } 
                 }); 
             },
+
             calcRemaining: (budget) => { const amt = Number(document.getElementById('contract_amt').value||0); document.getElementById('remain_amt').value = utils.formatMoney(budget - amt); handlers.calcInst(); },
             genInst: () => { const c = Number(document.getElementById('inst_count').value); const t = document.getElementById('inst_tbody'); if(c===0) { document.getElementById('inst_table').classList.add('hidden'); handlers.calcInst(); return; } document.getElementById('inst_table').classList.remove('hidden'); let h = ''; for(let i=1;i<=c;i++) h += `<tr><td class="p-3 border-b text-center font-medium text-slate-500 bg-slate-50/50">งวด ${i}</td><td class="p-3 border-b"><input type="number" class="inst-inp w-full border border-slate-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-primary text-right font-medium text-blue-700 transition" oninput="handlers.calcInst()"></td><td class="p-3 border-b text-right inst-pct text-slate-400 font-mono text-xs">0.00%</td></tr>`; h += `<tr><td class="p-4 bg-slate-50 font-bold text-center text-slate-600">รวมทั้งหมด</td><td class="p-4 bg-slate-50 font-bold text-right text-lg text-slate-800" id="inst_sum">0.00</td><td class="p-4 bg-slate-50 font-bold text-right text-emerald-600 text-lg" id="inst_pct_sum">0.00%</td></tr>`; t.innerHTML = h; handlers.calcInst(); },
             calcInst: () => { const contAmt = Number(document.getElementById('contract_amt').value||0); let sum = 0; document.querySelectorAll('.inst-inp').forEach((inp, idx) => { const v = Number(inp.value||0); sum += v; document.querySelectorAll('.inst-pct')[idx].innerText = contAmt>0 ? ((v/contAmt)*100).toFixed(2)+'%' : '0.00%'; }); const btn = document.getElementById('btn_save_c'); if(!btn) return; if(document.getElementById('inst_sum')) { document.getElementById('inst_sum').innerText = utils.formatMoney(sum); document.getElementById('inst_pct_sum').innerText = contAmt>0 ? ((sum/contAmt)*100).toFixed(2)+'%' : '0.00%'; const valid = sum > 0 && Math.abs(sum - contAmt) < 0.01; btn.disabled = !valid; btn.className = valid ? "bg-primary text-white px-6 py-3.5 rounded-xl w-full text-sm font-medium shadow-lg shadow-blue-500/30 transition hover:bg-blue-700" : "bg-slate-300 text-slate-500 px-6 py-3.5 rounded-xl w-full text-sm font-medium opacity-70 cursor-not-allowed"; document.getElementById('inst_err').classList[valid?'add':'remove']('hidden'); } else { btn.disabled = true; } },
+            
             saveContract: async () => { 
                 const f = document.getElementById('c_file')?.files[0]; 
                 if(!f) return ui.toast('กรุณาแนบไฟล์สัญญา PDF', 'warning'); 
                 if(f.type !== 'application/pdf') return ui.toast('รองรับไฟล์ PDF เท่านั้น', 'error'); 
-                
                 ui.showLoader('กำลังอัปโหลดไฟล์ไปที่ Google Drive...'); 
                 try { 
                     const pid = state.selectedProject.id; 
-                    
-                    // แปลงไฟล์และส่งไป Google Drive
                     const base64Data = await handlers.getBase64(f);
-                    const scriptUrl = "ใส่_URL_ของ_GOOGLE_APPS_SCRIPT_ที่นี่"; // ⚠️ ใส่ URL ที่ได้จากขั้นตอนที่ 1
+                    const scriptUrl = "https://script.google.com/macros/s/AKfycbyv5rQh_3Ew0D819QeXJt-5yT0dG2M_XkC4T1sJ7iWpP0j4f_Xm-FjS7tD5N3P2qD/exec"; 
                     
-                    const uploadRes = await fetch(scriptUrl, {
-                        method: "POST",
-                        body: JSON.stringify({ filename: `contract_${pid}_${Date.now()}.pdf`, mimeType: f.type, base64: base64Data }),
-                        headers: { "Content-Type": "text/plain;charset=utf-8" } // ทริคหลบเลี่ยง CORS ของ Google
-                    });
-                    
+                    const uploadRes = await fetch(scriptUrl, { method: "POST", body: JSON.stringify({ filename: `contract_${pid}_${Date.now()}.pdf`, mimeType: f.type, base64: base64Data }), headers: { "Content-Type": "text/plain;charset=utf-8" } });
                     const driveData = await uploadRes.json();
                     if(!driveData.success) throw new Error(driveData.error);
                     
-                    // นำ URL ที่ได้จาก Google Drive มาบันทึกลง Supabase
-                    const {data: cData, error:e2} = await supabaseClient.from('contracts').upsert({ 
-                        project_id: pid, 
-                        signed_amount: Number(document.getElementById('contract_amt').value), 
-                        remaining_budget: Number(document.getElementById('remain_amt').value.replace(/,/g,'')), 
-                        contract_signed_date: document.getElementById('c_start').value, 
-                        contract_end_date: document.getElementById('c_end').value, 
-                        installment_count: Number(document.getElementById('inst_count').value), 
-                        contract_document_path: driveData.fileUrl // เก็บลิงก์ Google Drive แทน
-                    }, { onConflict: 'project_id' }).select(); 
-                    
+                    const {data: cData, error:e2} = await supabaseClient.from('contracts').upsert({ project_id: pid, signed_amount: Number(document.getElementById('contract_amt').value), remaining_budget: Number(document.getElementById('remain_amt').value.replace(/,/g,'')), contract_signed_date: document.getElementById('c_start').value, contract_end_date: document.getElementById('c_end').value, installment_count: Number(document.getElementById('inst_count').value), contract_document_path: driveData.fileUrl }, { onConflict: 'project_id' }).select(); 
                     if(e2) throw e2; 
                     
                     await supabaseClient.from('contract_installments').delete().eq('contract_id', cData[0].id); 
-                    const instList = []; 
-                    const contAmt = Number(document.getElementById('contract_amt').value); 
+                    const instList = []; const contAmt = Number(document.getElementById('contract_amt').value); 
                     document.querySelectorAll('.inst-inp').forEach((inp, i) => { const v = Number(inp.value); instList.push({ contract_id: cData[0].id, installment_no: i+1, installment_amount: v, percentage: (v/contAmt)*100 }); }); 
                     
                     const {error:e3} = await supabaseClient.from('contract_installments').insert(instList); 
                     if(e3) throw e3; 
                     
                     await handlers.updateStatus(8, "ลงนามเรียบร้อย เริ่มบริหารสัญญา"); 
-                } catch(e) { 
-                    ui.toast(e.message, 'error'); 
-                    ui.hideLoader(); 
-                } 
+                } catch(e) { ui.toast(e.message, 'error'); ui.hideLoader(); } 
             },
+
             calcDisburseRow: (id, maxVal) => { const inp = document.getElementById(`paid_${id}`); let val = Number(inp.value || 0); if (val > maxVal) { ui.toast('เบิกจ่ายห้ามเกินยอดงวดงาน', 'warning'); val = maxVal; inp.value = maxVal; } document.getElementById(`pile_${id}`).innerText = utils.formatMoney(maxVal - val); let tPaid = 0; let tPile = 0; document.querySelectorAll('[id^="paid_"]').forEach(el => tPaid += Number(el.value || 0)); document.querySelectorAll('[id^="pile_"]').forEach(el => tPile += Number(el.innerText.replace(/,/g,'') || 0)); document.getElementById('total_paid').innerText = utils.formatMoney(tPaid); document.getElementById('total_pile').innerText = utils.formatMoney(tPile); },
             saveDisburse: async (instId) => { const paid = Number(document.getElementById(`paid_${instId}`).value); const dt = document.getElementById(`date_${instId}`).value; const det = document.getElementById(`det_${instId}`).value; if(!dt) return ui.toast('กรุณาระบุวันที่เบิกจ่าย', 'warning'); ui.showLoader('บันทึกเบิกจ่าย...'); try { await rpc('custom_save_disbursement', { p_session_token: state.sessionToken, p_installment_id: instId, p_paid_amount: paid, p_payment_date: dt, p_payment_detail: det }); ui.toast('สำเร็จ'); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } },
             saveProgress: async (contractId) => { const det = document.getElementById('prog_detail').value; if(!det) return ui.toast('กรุณาระบุรายละเอียด', 'warning'); ui.showLoader('บันทึกความก้าวหน้า...'); try { await rpc('custom_save_progress', { p_session_token: state.sessionToken, p_contract_id: contractId, p_progress_detail: det, p_problem_detail: document.getElementById('prog_prob').value, p_remark: document.getElementById('prog_rem').value }); ui.toast('สำเร็จ'); app.navigate('management', state.selectedProject.id); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } },
