@@ -156,7 +156,8 @@
             user: null, currentRoute: 'dashboard', 
             projects: [], selectedProject: null, users: [],
             projectPage: 1, projectLimit: 10, 
-            auditPage: 1, auditLimit: 30, auditStartDate: '', auditEndDate: ''
+            auditPage: 1, auditLimit: 30, auditStartDate: '', auditEndDate: '',
+            fiscalYear: null, availableYears: [] // เก็บค่าปีงบประมาณที่เลือก
         };
 
         const utils = {
@@ -201,14 +202,32 @@
             dashboard: async () => {
                 ui.showLoader();
                 try {
-                    const [dRes, logsRes] = await Promise.all([
-                        rpc("custom_dashboard", { p_session_token: state.sessionToken }),
-                        rpc("custom_get_dashboard_logs", { p_session_token: state.sessionToken })
-                    ]);
-                    const d = dRes.data; const logs = logsRes.data || [];
+                    // โหลด Project Data เพื่อเอามาทำกราฟ
+                    const pRes = await rpc("custom_get_projects", { p_session_token: state.sessionToken });
+                    state.projects = pRes.data || [];
                     
+                    // --- คำนวณหาปีงบประมาณที่มีทั้งหมด ---
+                    const years = [...new Set(state.projects.map(p => String(p.fiscal_year || 'ไม่ระบุ')))].sort((a,b) => b.localeCompare(a));
+                    state.availableYears = years.length > 0 ? years : [String(new Date().getFullYear() + 543)];
+                    // ถ้ายังไม่มีการเลือกปี หรือปีที่เลือกไม่มีในข้อมูล ให้ใช้ปีล่าสุดเป็นค่าเริ่มต้น
+                    if (!state.fiscalYear || !state.availableYears.includes(state.fiscalYear)) {
+                        state.fiscalYear = state.availableYears[0];
+                    }
+
+                    // กรองเฉพาะโครงการของปีงบประมาณที่เลือก
+                    window.rawDashboardData = state.projects
+                        .filter(p => String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear)
+                        .map((p, index) => {
+                            const statNo = parseInt(p.current_status, 10);
+                            let poAmt = 0, disbAmt = 0;
+                            if(statNo >= 7) poAmt = p.budget_amount; 
+                            if(statNo === 8) disbAmt = p.budget_amount * 0.45; 
+                            return { id: p.id, no: index + 1, sourceSheet: p.project_type, type: p.project_type, institution: p.institution_name, item: p.project_name, budget: p.budget_amount, poAmount: poAmt, disbursed: disbAmt, percent: p.budget_amount > 0 ? (disbAmt / p.budget_amount * 100) : 0, status: utils.getStatusName(statNo), statusNo: statNo, projectNo: p.project_code, year: p.fiscal_year || 'ไม่ระบุ' };
+                        });
+
                     document.getElementById('page-container').innerHTML = `
-                        <div class="bg-gradient-to-b from-[#0A192F] via-[#172A46] to-[#1E3A8A] text-white rounded-2xl shadow-lg border-b-4 border-blue-500 mb-6 px-6 py-5 flex flex-col sm:flex-row justify-between items-center">
+                        <!-- แบนเนอร์ด้านบน พร้อม Dropdown เลือกปีงบประมาณ -->
+                        <div class="bg-gradient-to-b from-[#0A192F] via-[#172A46] to-[#1E3A8A] text-white rounded-2xl shadow-lg border-b-4 border-blue-500 mb-6 px-6 py-5 flex flex-col lg:flex-row justify-between items-center gap-4">
                             <div class="flex items-center space-x-4">
                                 <span class="text-4xl drop-shadow-md">🏛️</span>
                                 <div>
@@ -216,9 +235,12 @@
                                     <p class="text-sm text-blue-200 font-light mt-0.5">สำนักงานคณะกรรมการการอาชีวศึกษา (สอศ.) — ข้อมูลแบบ Real-time</p>
                                 </div>
                             </div>
-                            <div class="mt-4 sm:mt-0">
-                                <button onclick="pages.dashboard()" class="bg-white/10 hover:bg-white/20 text-white font-medium px-4 py-2 rounded-xl border border-white/20 shadow-sm transition duration-150 flex items-center space-x-2 text-sm backdrop-blur-sm">
-                                    <span>🔄</span> <span>รีเฟรชข้อมูล</span>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <select onchange="handlers.changeYear(this.value)" class="bg-white/10 hover:bg-white/20 text-white font-medium px-4 py-2.5 rounded-xl border border-white/30 shadow-sm transition duration-150 outline-none focus:ring-2 focus:ring-white/50 text-sm backdrop-blur-sm cursor-pointer">
+                                    ${state.availableYears.map(y => `<option value="${y}" class="text-slate-800" ${y === state.fiscalYear ? 'selected' : ''}>ปีงบประมาณ ${y}</option>`).join('')}
+                                </select>
+                                <button onclick="pages.dashboard()" class="bg-white/10 hover:bg-white/20 text-white font-medium px-4 py-2.5 rounded-xl border border-white/20 shadow-sm transition duration-150 flex items-center space-x-2 text-sm backdrop-blur-sm">
+                                    <span>🔄</span> <span class="hidden sm:inline">รีเฟรช</span>
                                 </button>
                             </div>
                         </div>
@@ -302,16 +324,6 @@
                         </section>
                     `;
 
-                    const pRes = await rpc("custom_get_projects", { p_session_token: state.sessionToken });
-                    state.projects = pRes.data || [];
-                    window.rawDashboardData = state.projects.map((p, index) => {
-                        const statNo = parseInt(p.current_status, 10);
-                        let poAmt = 0, disbAmt = 0;
-                        if(statNo >= 7) poAmt = p.budget_amount; 
-                        if(statNo === 8) disbAmt = p.budget_amount * 0.45; 
-                        return { id: p.id, no: index + 1, sourceSheet: p.project_type, type: p.project_type, institution: p.institution_name, item: p.project_name, budget: p.budget_amount, poAmount: poAmt, disbursed: disbAmt, percent: p.budget_amount > 0 ? (disbAmt / p.budget_amount * 100) : 0, status: utils.getStatusName(statNo), statusNo: statNo, projectNo: p.project_code, year: p.fiscal_year || '2569' };
-                    });
-
                     handlers.renderDashSummaryCards(window.rawDashboardData);
                     handlers.renderDashBarChart(window.rawDashboardData);
                     handlers.applyDashFilters(); 
@@ -324,21 +336,36 @@
                     try {
                         const data = await rpc("custom_get_projects", { p_session_token: state.sessionToken });
                         state.projects = data.data || []; state.projectPage = 1;
+
+                        // --- คำนวณหาปีงบประมาณ ---
+                        const years = [...new Set(state.projects.map(p => String(p.fiscal_year || 'ไม่ระบุ')))].sort((a,b) => b.localeCompare(a));
+                        state.availableYears = years.length > 0 ? years : [String(new Date().getFullYear() + 543)];
+                        if (!state.fiscalYear || !state.availableYears.includes(state.fiscalYear)) {
+                            state.fiscalYear = state.availableYears[0];
+                        }
                     } catch (e) { ui.toast(e.message, 'error'); ui.hideLoader(); return; }
                 }
-                const totalItems = state.projects.length; const totalPages = Math.ceil(totalItems / state.projectLimit) || 1;
-                const startIdx = (state.projectPage - 1) * state.projectLimit; const displayProjects = state.projects.slice(startIdx, startIdx + state.projectLimit);
+
+                // ดึงเฉพาะโปรเจกต์ของปีที่เลือกมาแสดงผลและแบ่งหน้า
+                const filteredProjects = state.projects.filter(p => String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear);
+                const totalItems = filteredProjects.length; 
+                const totalPages = Math.ceil(totalItems / state.projectLimit) || 1;
+                const startIdx = (state.projectPage - 1) * state.projectLimit; 
+                const displayProjects = filteredProjects.slice(startIdx, startIdx + state.projectLimit);
 
                 let html = `
-                <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+                <div class="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-6">
                     <h2 class="text-2xl font-bold text-slate-800 tracking-tight">รายการโครงการงบประมาณ</h2>
-                    <div class="flex flex-wrap gap-2">
-                        <button onclick="handlers.openImportProjectsModal()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">📥 นำเข้าโครงการ (Excel)</button>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select onchange="handlers.changeYear(this.value)" class="bg-white border border-slate-200 text-slate-700 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary shadow-sm text-sm font-bold cursor-pointer">
+                            ${state.availableYears.map(y => `<option value="${y}" ${y === state.fiscalYear ? 'selected' : ''}>ปีงบประมาณ ${y}</option>`).join('')}
+                        </select>
+                        <button onclick="handlers.openImportProjectsModal()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">📥 นำเข้า (Excel)</button>
                         <button onclick="handlers.openCreateModal()" class="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-800 transition shadow-sm">+ สร้างด้วยตนเอง</button>
                     </div>
                 </div>`;
                 
-                if(totalItems === 0) { html += `<div class="p-12 text-center bg-white border border-dashed border-slate-300 rounded-2xl text-slate-400"><div class="text-4xl mb-3">📁</div><div class="font-medium text-lg text-slate-600">ยังไม่มีข้อมูลโครงการ</div><p class="text-sm mt-1">กดปุ่มสร้างโครงการใหม่ หรือ นำเข้า Excel เพื่อเริ่มต้น</p></div>`; } 
+                if(totalItems === 0) { html += `<div class="p-12 text-center bg-white border border-dashed border-slate-300 rounded-2xl text-slate-400"><div class="text-4xl mb-3">📁</div><div class="font-medium text-lg text-slate-600">ยังไม่มีข้อมูลโครงการในปีนี้</div><p class="text-sm mt-1">กดปุ่มสร้างโครงการใหม่ หรือ นำเข้า Excel เพื่อเริ่มต้น</p></div>`; } 
                 else {
                     html += `<div class="space-y-4 mb-6">${displayProjects.map(p => `
                         <div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col lg:flex-row justify-between lg:items-center gap-4 card-hover shadow-sm">
@@ -411,20 +438,34 @@
         };
 
         const handlers = {
+            changeYear: (year) => {
+                state.fiscalYear = year;
+                if (state.currentRoute === 'dashboard') pages.dashboard();
+                else if (state.currentRoute === 'projects') { state.projectPage = 1; pages.projects(true); }
+            },
             changeProjectPage: (p) => { state.projectPage = p; pages.projects(true); },
             changeAuditPage: (p) => { state.auditPage = p; pages.audit(); },
             filterAudit: () => { state.auditStartDate = document.getElementById('filter_start').value; state.auditEndDate = document.getElementById('filter_end').value; state.auditPage = 1; pages.audit(); },
             clearAuditFilter: () => { state.auditStartDate = ''; state.auditEndDate = ''; state.auditPage = 1; pages.audit(); },
-            loadLoginUsers: async () => { try { const usernames = await rpc("get_login_usernames"); let html = ''; usernames.forEach(u => { html += `<option value="${utils.esc(u)}">`; }); document.getElementById('login-user-list').innerHTML = html; } catch (e) { console.error("Error loading usernames", e); } },
+            
+            // โหลด Dropdown ลงใน Datalist แทน Select เพื่อให้ค้นหาได้
+            loadLoginUsers: async () => { 
+                try { 
+                    const usernames = await rpc("get_login_usernames"); 
+                    let html = ''; 
+                    usernames.forEach(u => { html += `<option value="${utils.esc(u)}">`; }); 
+                    document.getElementById('login-user-list').innerHTML = html; 
+                } catch (e) { console.error("Error loading usernames", e); } 
+            },
 
             renderDashSummaryCards: (data) => { let tBud=0, tPO=0, tDis=0, tWait=0; data.forEach(p => { tBud += p.budget; tPO += p.poAmount; tDis += p.disbursed; if(p.statusNo < 7) tWait += p.budget; }); const cards = [ { t: 'รวมทั้งสิ้น (งบรวม)', amt: tBud, pct: 100, bg: 'bg-gradient-to-br from-blue-600 to-indigo-700', ic: '🏛️' }, { t: 'วางสัญญา PO แล้ว', amt: tPO, pct: tBud?((tPO/tBud)*100):0, bg: 'bg-gradient-to-br from-indigo-500 to-purple-600', ic: '📝' }, { t: 'เบิกจ่ายสำเร็จ', amt: tDis, pct: tBud?((tDis/tBud)*100):0, bg: 'bg-gradient-to-br from-emerald-500 to-teal-600', ic: '💸' }, { t: 'ผลการใช้จ่าย', amt: tDis, pct: tBud?((tDis/tBud)*100):0, bg: 'bg-gradient-to-br from-purple-600 to-pink-600', ic: '📊' }, { t: 'งบประมาณคงเหลือ', amt: tBud-tDis, pct: tBud?(((tBud-tDis)/tBud)*100):0, bg: 'bg-gradient-to-br from-amber-500 to-orange-600', ic: '⏳' } ]; let html = ''; cards.forEach(c => { html += `<div class="${c.bg} p-4 rounded-2xl shadow-md text-white flex flex-col justify-between hover:-translate-y-1 transition duration-200 border border-white/10"><div class="flex justify-between items-start"><span class="text-[13px] font-bold text-white/90">${c.t}</span><span class="w-8 h-8 rounded-xl bg-white/20 text-white flex items-center justify-center text-sm shadow-sm">${c.ic}</span></div><div class="my-2"><div class="text-xl font-extrabold tracking-tight">${utils.formatMoney(c.amt)}</div><div class="text-[10px] text-white/80 font-medium">บาท</div></div><div class="flex justify-between items-center pt-2 border-t border-white/20 text-[11px] font-semibold text-white/90"><span>สัดส่วน: <span class="text-white font-bold">${c.pct.toFixed(2)}%</span></span></div></div>`; }); document.getElementById('overviewCardsContainer').innerHTML = html; },
             renderDashBarChart: (data) => { if(window.stipsCharts.stages) window.stipsCharts.stages.destroy(); let stageData = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0 }; let stageCount = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0 }; data.forEach(p => { stageData[p.statusNo] += p.budget; stageCount[p.statusNo] += 1; }); const ctx = document.getElementById('stagesBarChart').getContext('2d'); window.stipsCharts.stages = new Chart(ctx, { type: 'bar', data: { labels: ['1.ยังไม่เริ่ม', '2.จัดทำ TOR', '3.เผยแพร่ TOR', '4.เชิญชวน', '5.ได้ผู้ชนะ', '6.อุทธรณ์', '7.เซ็นสัญญา', '8.บริหารสัญญา'], datasets: [{ data: [stageCount[1], stageCount[2], stageCount[3], stageCount[4], stageCount[5], stageCount[6], stageCount[7], stageCount[8]], backgroundColor: ['#e2e8f0','#fef08a','#fef08a','#fed7aa','#fed7aa','#fecaca','#a7f3d0','#86efac'], borderColor: ['#cbd5e1','#facc15','#facc15','#fb923c','#fb923c','#f87171','#34d399','#4ade80'], borderWidth: 1, borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 25 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` จำนวน: ${c.raw} โครงการ (งบ: ${stageData[c.dataIndex+1].toLocaleString()} บาท)` } }, datalabels: { color: '#475569', anchor: 'end', align: 'top', font: { family: 'Sarabun', weight: 'bold', size: 14 }, formatter: (v) => v > 0 ? v : '' } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: {family: 'Sarabun'}, stepSize: 1 } }, x: { grid: { display: false }, ticks: { font: { family: 'Sarabun', size: 12 } } } } } }); },
             applyDashFilters: () => { const sheetFilter = document.getElementById('filterSheet').value; const statusFilter = document.getElementById('filterStatus').value; const searchKeyword = document.getElementById('searchInput').value.toLowerCase().trim(); const filtered = window.rawDashboardData.filter(item => { const matchSheet = (sheetFilter === 'ALL') || (item.sourceSheet === sheetFilter); const matchStatus = (statusFilter === 'ALL') || (String(item.statusNo) === statusFilter); const matchSearch = (item.institution.toLowerCase().includes(searchKeyword)) || (item.item.toLowerCase().includes(searchKeyword)) || (item.projectNo.toLowerCase().includes(searchKeyword)); return matchSheet && matchStatus && matchSearch; }); let tBud=0, tPO=0, tDis=0; filtered.forEach(i => { tBud+=i.budget; tPO+=i.poAmount; tDis+=i.disbursed; }); document.getElementById('filterSumBudget').innerText = utils.formatMoney(tBud) + ' บาท'; document.getElementById('filterSumPO').innerText = utils.formatMoney(tPO) + ' บาท'; document.getElementById('filterSumDisbursed').innerText = utils.formatMoney(tDis) + ' บาท'; let html = ''; filtered.slice(0,100).forEach(r => { let bCol = r.statusNo>=7?'bg-emerald-100 text-emerald-800 border-emerald-200' : r.statusNo>=4?'bg-orange-100 text-orange-800 border-orange-200' : 'bg-slate-100 text-slate-700 border-slate-200'; let tCol = r.type==='สิ่งก่อสร้าง'?'bg-slate-700 text-white' : 'bg-purple-600 text-white'; html += `<tr class="hover:bg-blue-50/40 transition"><td class="p-3 text-center text-slate-500">${r.no}</td><td class="p-3"><span class="text-[10px] px-2 py-0.5 rounded-md ${tCol}">${r.type}</span><div class="text-[10px] text-slate-400 mt-1">${r.projectNo}</div></td><td class="p-3 font-semibold text-slate-800 max-w-[150px] truncate" title="${r.institution}">${r.institution}</td><td class="p-3 text-slate-600 max-w-[250px] truncate" title="${r.item}">${r.item}</td><td class="p-3 text-right font-bold text-primary">${utils.formatMoney(r.budget)}</td><td class="p-3 text-center"><span class="px-2 py-1 rounded-lg text-[10px] font-bold border ${bCol}">${r.status}</span></td><td class="p-3 text-center"><button onclick="app.navigate('workflow','${r.id}')" class="text-xs bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700">ดูข้อมูล →</button></td></tr>`; }); document.getElementById('dashTableBody').innerHTML = html || `<tr><td colspan="7" class="p-8 text-center text-slate-400">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>`; document.getElementById('tableCount').innerText = `แสดง ${Math.min(filtered.length, 100)} จาก ${filtered.length} รายการ`; const drawPie = (cid, dataArr, instKey) => { if(window.stipsCharts[instKey]) window.stipsCharts[instKey].destroy(); if(dataArr.length===0) return; const ctx = document.getElementById(cid).getContext('2d'); window.stipsCharts[instKey] = new Chart(ctx, { type: 'pie', data: { labels: dataArr.map(x=>x.label), datasets: [{ data: dataArr.map(x=>x.val), backgroundColor: dataArr.map(x=>x.color), borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: {font:{family:'Sarabun',size:10}} }, datalabels: { color: '#fff', font: {family:'Sarabun', weight:'bold', size:10}, formatter: (v,c) => { let sum=0; c.dataset.data.forEach(d=>sum+=d); let pct=(v/sum*100); return pct>5?pct.toFixed(1)+'%':''; } } } } }); }; let tCnt={'ที่ดิน/สิ่งก่อสร้าง':0, 'ครุภัณฑ์':0}; filtered.forEach(f => { tCnt[f.type] = (tCnt[f.type]||0)+f.budget; }); drawPie('typePieChart', [{label:'สิ่งก่อสร้าง',val:tCnt['ที่ดิน/สิ่งก่อสร้าง'],color:'#3b82f6'},{label:'ครุภัณฑ์',val:tCnt['ครุภัณฑ์'],color:'#9333ea'}].filter(x=>x.val>0), 'pieTypes'); const statGrp = (typeKey) => { let d = { 'เริ่มดำเนินการ':0, 'จัดซื้อจัดจ้าง':0, 'ทำสัญญาแล้ว':0 }; filtered.filter(x=>x.type===typeKey).forEach(x => { if(x.statusNo>=7) d['ทำสัญญาแล้ว']+=x.budget; else if(x.statusNo>=4) d['จัดซื้อจัดจ้าง']+=x.budget; else d['เริ่มดำเนินการ']+=x.budget; }); return [{label:'เริ่มดำเนินการ (1-3)',val:d['เริ่มดำเนินการ'],color:'#cbd5e1'}, {label:'จัดซื้อจัดจ้าง (4-6)',val:d['จัดซื้อจัดจ้าง'],color:'#fb923c'}, {label:'ทำสัญญาแล้ว (7-8)',val:d['ทำสัญญาแล้ว'],color:'#34d399'}].filter(x=>x.val>0); }; drawPie('constructionStatusPie', statGrp('ที่ดิน/สิ่งก่อสร้าง'), 'pieConst'); drawPie('equipmentStatusPie', statGrp('ครุภัณฑ์'), 'pieEquip'); },
 
             confirmDeleteProject: (pid, pcode) => { ui.openConfirm('ยืนยันลบโครงการ', `ต้องการลบโครงการ ${pcode} ใช่หรือไม่? ข้อมูลประวัติและสัญญาที่เกี่ยวข้องจะถูกลบถาวร`, async () => { ui.showLoader(); try { await rpc("admin_delete_project", { p_session_token: state.sessionToken, p_project_id: pid }); ui.toast('ลบโครงการสำเร็จ'); pages.projects(false); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } }); },
-            updateStatus: async (nextStep, remarks = '') => { try { ui.showLoader('กำลังบันทึกสถานะ...'); const pid = state.selectedProject.id; const res = await rpc('custom_update_project_status', { p_session_token: state.sessionToken, p_project_id: pid, p_next_step: parseInt(nextStep, 10), p_remarks: String(remarks) }); if (!res.success) throw new Error(res.message); logger('UPDATE_STATUS', `อัปเดตสถานะโครงการไปที่ ${nextStep}`); const p = state.projects.find(x => String(x.id) === String(pid)); if (p) p.current_status = parseInt(nextStep, 10); ui.toast('อัปเดตสถานะสำเร็จ', 'success'); app.navigate('workflow', pid); } catch (err) { ui.toast(err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่', 'error'); } finally { ui.hideLoader(); } },
+            updateStatus: async (nextStep, remarks = '') => { try { ui.showLoader('กำลังบันทึกสถานะ...'); const pid = state.selectedProject.id; const res = await rpc('custom_update_project_status', { p_session_token: state.sessionToken, p_project_id: pid, p_next_step: parseInt(nextStep, 10), p_remarks: String(remarks) }); if (!res.success) throw new Error(res.message); logger('UPDATE_STATUS', `อัปเดตสถานะโครงการไปที่ ${nextStep}`); const p = state.projects.find(x => String(x.id) === String(pid)); if (p) p.current_status = parseInt(nextStep, 10); ui.toast('อัปเดตสถานะสำเร็จ', 'success'); app.navigate('workflow', pid); } catch (err) { ui.toast(err.message || 'เกิดข้อผิดพลาด', 'error'); } finally { ui.hideLoader(); } },
 
-            // ---> ฟังก์ชันที่หายไป กลับมาแล้วตรงนี้ครับ <---
+            // ---> ฟังก์ชันสำคัญที่เผลอลบไป กลับมาแล้วครับ <---
             renderStepForm: (step, p) => {
                 let f = `<div class="mt-5 pt-5 border-t border-slate-100">`;
                 if(step === 1) f += `<button onclick="handlers.updateStatus(${step+1}, 'เริ่มจัดทำ TOR')" class="bg-primary text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">บันทึกรายงานขั้นตอน →</button>`;
@@ -437,7 +478,7 @@
                 else if(step === 8) f += `<button onclick="app.navigate('management', '${p.id}')" class="bg-slate-900 text-white px-6 py-4 rounded-xl text-sm font-medium w-full hover:bg-slate-800 transition shadow-lg shadow-slate-900/20 flex items-center justify-center gap-2">เข้าสู่หน้าระบบบริหารสัญญาและการเบิกจ่าย <span class="text-lg">→</span></button>`;
                 f += `</div>`; return f;
             },
-            // -----------------------------------------------------------
+            // -----------------------------------------------------------------
 
             openImportUsersModal: () => { ui.openModal('นำเข้าบัญชีสถานศึกษา (Excel / CSV)', `<div class="space-y-4 p-1"><div class="bg-blue-50 border border-blue-100 text-blue-800 p-4 rounded-xl text-sm leading-relaxed"><p class="font-bold mb-2">💡 รูปแบบหัวคอลัมน์ (แถวแรก) สำหรับสร้างบัญชี:</p><p class="text-sm font-mono mb-2 bg-white p-2 rounded border border-blue-100 text-blue-600 text-center">ชื่อสถานศึกษา | รหัสผ่านเริ่มต้น</p><p class="text-xs text-slate-500">หมายเหตุ: ข้อมูลผู้รับผิดชอบ ทางสถานศึกษาจะเข้ามาแก้ไขเองในภายหลัง</p></div><div><label class="block text-sm font-semibold mb-1.5">เลือกไฟล์ Excel <span class="text-red-500">*</span></label><input type="file" id="excel_user_file" accept=".xlsx, .xls, .csv" class="w-full border border-slate-300 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition cursor-pointer"></div><button onclick="handlers.processImportUsers()" class="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-medium hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-2"><span class="text-lg">📥</span> ยืนยันสร้างบัญชี</button></div>`); },
             processImportUsers: async () => { const fileInput = document.getElementById('excel_user_file'); if(!fileInput.files.length) return ui.toast('กรุณาเลือกไฟล์ก่อน', 'warning'); ui.showLoader('กำลังอ่านไฟล์ Excel...'); const file = fileInput.files[0]; const reader = new FileReader(); reader.onload = async (e) => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, {type: 'array'}); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); if(jsonData.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel'); const payload = jsonData.map(row => ({ institution_name: row['ชื่อสถานศึกษา'] || '', initial_password: String(row['รหัสผ่านเริ่มต้น'] || '') })).filter(r => r.institution_name !== '' && r.initial_password !== ''); if(payload.length === 0) throw new Error('ไม่พบหัวคอลัมน์ "ชื่อสถานศึกษา" และ "รหัสผ่านเริ่มต้น"'); ui.showLoader(`กำลังสร้าง ${payload.length} บัญชี เข้าสู่ระบบ...`); const res = await rpc('admin_import_users_excel', { p_session_token: state.sessionToken, p_data: payload }); ui.closeModal(); ui.toast(res.message || 'สร้างบัญชีสำเร็จ', 'success'); pages.users(); } catch(err) { ui.toast(err.message, 'error'); ui.hideLoader(); } }; reader.readAsArrayBuffer(file); },
@@ -490,18 +531,13 @@
                         case 'audit': pages.audit(); break; 
                         default: pages.dashboard(); 
                     }
-                } catch (err) {
-                    alert("เกิดข้อผิดพลาดในการโหลดหน้าจอ: " + err.message);
-                }
+                } catch (err) { alert("เกิดข้อผิดพลาดในการโหลดหน้าจอ: " + err.message); }
             },
             init: async () => {
                 if (await auth.validate()) { 
-                    app.initUserUI(); 
-                    app.navigate('dashboard'); 
+                    app.initUserUI(); app.navigate('dashboard'); 
                 } else { 
-                    document.getElementById('app-root').classList.add('hidden'); 
-                    document.getElementById('login-root').classList.remove('hidden'); 
-                    handlers.loadLoginUsers(); 
+                    document.getElementById('app-root').classList.add('hidden'); document.getElementById('login-root').classList.remove('hidden'); handlers.loadLoginUsers(); 
                 }
             }
         };
