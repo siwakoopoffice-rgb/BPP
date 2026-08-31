@@ -582,6 +582,18 @@
         };
 
         const handlers = {
+            getBase64: (file) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => {
+                        let encoded = reader.result.toString().replace(/^data:(.*,)?/, '');
+                        if ((encoded.length % 4) > 0) encoded += '='.repeat(4 - (encoded.length % 4));
+                        resolve(encoded);
+                    };
+                    reader.onerror = error => reject(error);
+                });
+            },
             changeYear: (year) => { state.fiscalYear = year; if (state.currentRoute === 'dashboard') pages.dashboard(); else if (state.currentRoute === 'projects') { state.projectPage = 1; pages.projects(true); } },
             changeProjectPage: (p) => { state.projectPage = p; pages.projects(true); },
             changeAuditPage: (p) => { state.auditPage = p; pages.audit(); },
@@ -629,11 +641,100 @@
             saveStep: async (step, fields) => { let data = {}; for(let f of fields) { const val = document.getElementById(f).value; if(!val) return ui.toast('กรอกข้อมูลไม่ครบ', 'warning'); data[f] = val; } await handlers.updateStatus(step+1, JSON.stringify(data)); },
             saveStep3: async () => { const s = document.getElementById('s3_s').value; const e = document.getElementById('s3_e').value; if(!s || !e) return ui.toast('กรอกวันที่ให้ครบ', 'warning'); if(new Date(e) < new Date(s)) return ui.toast('วันสิ้นสุดต้องไม่ก่อน', 'error'); await handlers.updateStatus(4, `เริ่ม: ${s}, สิ้นสุด: ${e}`); },
             toggleAppeal: () => { const v = document.getElementById('appeal_opt').value; document.getElementById('appeal_extra').classList[v==='3'?'remove':'add']('hidden'); let btn = ''; if(v==='1'||v==='5') btn = `<button onclick="handlers.doAppeal('save')" class="bg-primary text-white px-6 py-3 rounded-xl text-sm font-medium w-full shadow-md">บันทึกและไปสถานะที่ 7</button>`; else if(v==='2'||v==='4') btn = `<button onclick="handlers.doAppeal('cancel')" class="bg-danger text-white px-6 py-3 rounded-xl text-sm font-medium w-full shadow-md">บันทึกและยกเลิกโครงการ</button>`; else if(v==='3') btn = `<button onclick="handlers.doAppeal('hold')" class="bg-warning text-white px-6 py-3 rounded-xl text-sm font-medium w-full shadow-md">แนบหลักฐาน (ค้างสถานะเพื่อรอผล)</button>`; document.getElementById('appeal_btn').innerHTML = btn; },
-            doAppeal: async (action) => { ui.openConfirm('ยืนยันอุทธรณ์', 'บันทึกข้อมูลการอุทธรณ์', async () => { ui.showLoader('บันทึกอุทธรณ์...'); try { const pid = state.selectedProject.id; let path = null; if(action==='hold') { const file = document.getElementById('appeal_file')?.files[0]; if(file) { const {data, error} = await supabaseClient.storage.from('stips').upload(`appeals/${pid}/${Date.now()}.pdf`, file); if(!error) path = data.path; } } await supabaseClient.from('appeals').insert([{ project_id: pid, appeal_option: document.getElementById('appeal_opt').value, central_audit_document_path: path }]); if(action==='cancel') { await supabaseClient.from('projects').update({is_cancelled: true, cancellation_reason: 'ยกเลิกจากผลอุทธรณ์'}).eq('id', pid); ui.toast('ยกเลิกแล้ว', 'warning'); app.navigate('projects'); } else if(action==='save') { await handlers.updateStatus(7, "ผ่านอุทธรณ์"); } else { ui.toast('บันทึกเรียบร้อย', 'info'); app.navigate('workflow', pid); } } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } }); },
+            doAppeal: async (action) => { 
+                ui.openConfirm('ยืนยันอุทธรณ์', 'บันทึกข้อมูลการอุทธรณ์', async () => { 
+                    ui.showLoader('บันทึกอุทธรณ์ และอัปโหลดไฟล์...'); 
+                    try { 
+                        const pid = state.selectedProject.id; 
+                        let fileLink = null; 
+                        
+                        if(action === 'hold') { 
+                            const file = document.getElementById('appeal_file')?.files[0]; 
+                            if(file) { 
+                                const base64Data = await handlers.getBase64(file);
+                                const scriptUrl = "https://script.google.com/macros/s/AKfycbzlcpVcffk2D_-of1D2vlmDZtK_K_fYOjpfLksUd31CBy-yrEGqZ1Dg7RIXGwv7eAAb0g/exec"; // ⚠️ ใส่ URL อันเดียวกันกับข้างบน
+                                
+                                const uploadRes = await fetch(scriptUrl, {
+                                    method: "POST",
+                                    body: JSON.stringify({ filename: `appeal_${pid}_${Date.now()}.pdf`, mimeType: file.type, base64: base64Data }),
+                                    headers: { "Content-Type": "text/plain;charset=utf-8" }
+                                });
+                                
+                                const driveData = await uploadRes.json();
+                                if(!driveData.success) throw new Error(driveData.error);
+                                fileLink = driveData.fileUrl; // ได้ลิงก์มาแล้ว
+                            } 
+                        } 
+                        
+                        await supabaseClient.from('appeals').insert([{ project_id: pid, appeal_option: document.getElementById('appeal_opt').value, central_audit_document_path: fileLink }]); 
+                        
+                        if(action === 'cancel') { 
+                            await supabaseClient.from('projects').update({is_cancelled: true, cancellation_reason: 'ยกเลิกจากผลอุทธรณ์'}).eq('id', pid); 
+                            ui.toast('ยกเลิกแล้ว', 'warning'); app.navigate('projects'); 
+                        } else if(action === 'save') { 
+                            await handlers.updateStatus(7, "ผ่านอุทธรณ์"); 
+                        } else { 
+                            ui.toast('บันทึกเรียบร้อย', 'info'); app.navigate('workflow', pid); 
+                        } 
+                    } catch(e) { 
+                        ui.toast(e.message, 'error'); 
+                    } finally { 
+                        ui.hideLoader(); 
+                    } 
+                }); 
+            },
             calcRemaining: (budget) => { const amt = Number(document.getElementById('contract_amt').value||0); document.getElementById('remain_amt').value = utils.formatMoney(budget - amt); handlers.calcInst(); },
             genInst: () => { const c = Number(document.getElementById('inst_count').value); const t = document.getElementById('inst_tbody'); if(c===0) { document.getElementById('inst_table').classList.add('hidden'); handlers.calcInst(); return; } document.getElementById('inst_table').classList.remove('hidden'); let h = ''; for(let i=1;i<=c;i++) h += `<tr><td class="p-3 border-b text-center font-medium text-slate-500 bg-slate-50/50">งวด ${i}</td><td class="p-3 border-b"><input type="number" class="inst-inp w-full border border-slate-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-primary text-right font-medium text-blue-700 transition" oninput="handlers.calcInst()"></td><td class="p-3 border-b text-right inst-pct text-slate-400 font-mono text-xs">0.00%</td></tr>`; h += `<tr><td class="p-4 bg-slate-50 font-bold text-center text-slate-600">รวมทั้งหมด</td><td class="p-4 bg-slate-50 font-bold text-right text-lg text-slate-800" id="inst_sum">0.00</td><td class="p-4 bg-slate-50 font-bold text-right text-emerald-600 text-lg" id="inst_pct_sum">0.00%</td></tr>`; t.innerHTML = h; handlers.calcInst(); },
             calcInst: () => { const contAmt = Number(document.getElementById('contract_amt').value||0); let sum = 0; document.querySelectorAll('.inst-inp').forEach((inp, idx) => { const v = Number(inp.value||0); sum += v; document.querySelectorAll('.inst-pct')[idx].innerText = contAmt>0 ? ((v/contAmt)*100).toFixed(2)+'%' : '0.00%'; }); const btn = document.getElementById('btn_save_c'); if(!btn) return; if(document.getElementById('inst_sum')) { document.getElementById('inst_sum').innerText = utils.formatMoney(sum); document.getElementById('inst_pct_sum').innerText = contAmt>0 ? ((sum/contAmt)*100).toFixed(2)+'%' : '0.00%'; const valid = sum > 0 && Math.abs(sum - contAmt) < 0.01; btn.disabled = !valid; btn.className = valid ? "bg-primary text-white px-6 py-3.5 rounded-xl w-full text-sm font-medium shadow-lg shadow-blue-500/30 transition hover:bg-blue-700" : "bg-slate-300 text-slate-500 px-6 py-3.5 rounded-xl w-full text-sm font-medium opacity-70 cursor-not-allowed"; document.getElementById('inst_err').classList[valid?'add':'remove']('hidden'); } else { btn.disabled = true; } },
-            saveContract: async () => { const f = document.getElementById('c_file')?.files[0]; if(!f) return ui.toast('กรุณาแนบไฟล์สัญญา PDF', 'warning'); if(f.type !== 'application/pdf') return ui.toast('รองรับไฟล์ PDF เท่านั้น', 'error'); ui.showLoader('บันทึกสัญญา...'); try { const pid = state.selectedProject.id; const {data:upData, error:e1} = await supabaseClient.storage.from('stips').upload(`contracts/${pid}/${Date.now()}.pdf`, f); if(e1) throw e1; const {data: cData, error:e2} = await supabaseClient.from('contracts').upsert({ project_id: pid, signed_amount: Number(document.getElementById('contract_amt').value), remaining_budget: Number(document.getElementById('remain_amt').value.replace(/,/g,'')), contract_signed_date: document.getElementById('c_start').value, contract_end_date: document.getElementById('c_end').value, installment_count: Number(document.getElementById('inst_count').value), contract_document_path: upData?.path }, { onConflict: 'project_id' }).select(); if(e2) throw e2; await supabaseClient.from('contract_installments').delete().eq('contract_id', cData[0].id); const instList = []; const contAmt = Number(document.getElementById('contract_amt').value); document.querySelectorAll('.inst-inp').forEach((inp, i) => { const v = Number(inp.value); instList.push({ contract_id: cData[0].id, installment_no: i+1, installment_amount: v, percentage: (v/contAmt)*100 }); }); const {error:e3} = await supabaseClient.from('contract_installments').insert(instList); if(e3) throw e3; await handlers.updateStatus(8, "ลงนามเรียบร้อย เริ่มบริหารสัญญา"); } catch(e) { ui.toast(e.message, 'error'); ui.hideLoader(); } },
+            saveContract: async () => { 
+                const f = document.getElementById('c_file')?.files[0]; 
+                if(!f) return ui.toast('กรุณาแนบไฟล์สัญญา PDF', 'warning'); 
+                if(f.type !== 'application/pdf') return ui.toast('รองรับไฟล์ PDF เท่านั้น', 'error'); 
+                
+                ui.showLoader('กำลังอัปโหลดไฟล์ไปที่ Google Drive...'); 
+                try { 
+                    const pid = state.selectedProject.id; 
+                    
+                    // แปลงไฟล์และส่งไป Google Drive
+                    const base64Data = await handlers.getBase64(f);
+                    const scriptUrl = "ใส่_URL_ของ_GOOGLE_APPS_SCRIPT_ที่นี่"; // ⚠️ ใส่ URL ที่ได้จากขั้นตอนที่ 1
+                    
+                    const uploadRes = await fetch(scriptUrl, {
+                        method: "POST",
+                        body: JSON.stringify({ filename: `contract_${pid}_${Date.now()}.pdf`, mimeType: f.type, base64: base64Data }),
+                        headers: { "Content-Type": "text/plain;charset=utf-8" } // ทริคหลบเลี่ยง CORS ของ Google
+                    });
+                    
+                    const driveData = await uploadRes.json();
+                    if(!driveData.success) throw new Error(driveData.error);
+                    
+                    // นำ URL ที่ได้จาก Google Drive มาบันทึกลง Supabase
+                    const {data: cData, error:e2} = await supabaseClient.from('contracts').upsert({ 
+                        project_id: pid, 
+                        signed_amount: Number(document.getElementById('contract_amt').value), 
+                        remaining_budget: Number(document.getElementById('remain_amt').value.replace(/,/g,'')), 
+                        contract_signed_date: document.getElementById('c_start').value, 
+                        contract_end_date: document.getElementById('c_end').value, 
+                        installment_count: Number(document.getElementById('inst_count').value), 
+                        contract_document_path: driveData.fileUrl // เก็บลิงก์ Google Drive แทน
+                    }, { onConflict: 'project_id' }).select(); 
+                    
+                    if(e2) throw e2; 
+                    
+                    await supabaseClient.from('contract_installments').delete().eq('contract_id', cData[0].id); 
+                    const instList = []; 
+                    const contAmt = Number(document.getElementById('contract_amt').value); 
+                    document.querySelectorAll('.inst-inp').forEach((inp, i) => { const v = Number(inp.value); instList.push({ contract_id: cData[0].id, installment_no: i+1, installment_amount: v, percentage: (v/contAmt)*100 }); }); 
+                    
+                    const {error:e3} = await supabaseClient.from('contract_installments').insert(instList); 
+                    if(e3) throw e3; 
+                    
+                    await handlers.updateStatus(8, "ลงนามเรียบร้อย เริ่มบริหารสัญญา"); 
+                } catch(e) { 
+                    ui.toast(e.message, 'error'); 
+                    ui.hideLoader(); 
+                } 
+            },
             calcDisburseRow: (id, maxVal) => { const inp = document.getElementById(`paid_${id}`); let val = Number(inp.value || 0); if (val > maxVal) { ui.toast('เบิกจ่ายห้ามเกินยอดงวดงาน', 'warning'); val = maxVal; inp.value = maxVal; } document.getElementById(`pile_${id}`).innerText = utils.formatMoney(maxVal - val); let tPaid = 0; let tPile = 0; document.querySelectorAll('[id^="paid_"]').forEach(el => tPaid += Number(el.value || 0)); document.querySelectorAll('[id^="pile_"]').forEach(el => tPile += Number(el.innerText.replace(/,/g,'') || 0)); document.getElementById('total_paid').innerText = utils.formatMoney(tPaid); document.getElementById('total_pile').innerText = utils.formatMoney(tPile); },
             saveDisburse: async (instId) => { const paid = Number(document.getElementById(`paid_${instId}`).value); const dt = document.getElementById(`date_${instId}`).value; const det = document.getElementById(`det_${instId}`).value; if(!dt) return ui.toast('กรุณาระบุวันที่เบิกจ่าย', 'warning'); ui.showLoader('บันทึกเบิกจ่าย...'); try { await rpc('custom_save_disbursement', { p_session_token: state.sessionToken, p_installment_id: instId, p_paid_amount: paid, p_payment_date: dt, p_payment_detail: det }); ui.toast('สำเร็จ'); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } },
             saveProgress: async (contractId) => { const det = document.getElementById('prog_detail').value; if(!det) return ui.toast('กรุณาระบุรายละเอียด', 'warning'); ui.showLoader('บันทึกความก้าวหน้า...'); try { await rpc('custom_save_progress', { p_session_token: state.sessionToken, p_contract_id: contractId, p_progress_detail: det, p_problem_detail: document.getElementById('prog_prob').value, p_remark: document.getElementById('prog_rem').value }); ui.toast('สำเร็จ'); app.navigate('management', state.selectedProject.id); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } },
