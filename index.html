@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>STIPS - ระบบติดตามงบประมาณลงทุนวิทยาลัย</title>
+    <title>ระบบติดตามการใช้จ่ายงบประมาณ(งบลงทุน)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -61,8 +61,8 @@
         <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 flex flex-col shadow-xl md:shadow-none">
             <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
                 <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 bg-primary text-white rounded-lg flex items-center justify-center font-bold text-lg">S</div>
-                    <h1 class="text-2xl font-bold text-primary tracking-tight">STIPS</h1>
+                    <img src="Logo.jpg" alt="Logo" class="w-8 h-8 rounded-full object-cover border shadow-sm">
+                    <h1 class="text-xl font-bold text-primary tracking-tight">STIPS</h1>
                 </div>
                 <button onclick="ui.closeSidebar()" class="md:hidden text-2xl text-slate-400">&times;</button>
             </div>
@@ -91,7 +91,7 @@
         <main class="flex-1 flex flex-col h-full overflow-hidden w-full relative bg-slate-50">
             <header class="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shrink-0 shadow-sm z-30">
                 <div class="flex items-center gap-2">
-                    <div class="w-6 h-6 bg-primary text-white rounded-md flex items-center justify-center font-bold text-xs">S</div>
+                    <img src="Logo.jpg" alt="Logo" class="w-7 h-7 rounded-full object-cover shadow-sm border border-slate-100">
                     <h1 class="text-xl font-bold text-slate-800">STIPS</h1>
                 </div>
                 <button onclick="ui.openSidebar()" class="p-1.5 text-2xl text-slate-600">☰</button>
@@ -138,9 +138,12 @@
         <div class="order-1 lg:order-2 flex items-center justify-center p-6 sm:p-10 bg-slate-50 relative">
             <div class="bg-white p-8 sm:p-10 rounded-3xl shadow-2xl w-full max-w-md border border-slate-100 z-10">
                 <div class="text-center mb-8">
-                    <div class="w-16 h-16 bg-primary text-white rounded-2xl flex items-center justify-center font-bold text-3xl mx-auto mb-4 shadow-lg shadow-blue-500/30">S</div>
-                    <h1 class="text-2xl font-bold text-slate-800">เข้าสู่ระบบ STIPS</h1>
-                    <p class="text-xs text-slate-500 mt-1 uppercase tracking-widest">ระบบติดตามงบประมาณลงทุน สอศ.</p>
+                    <!-- โลโก้ใหม่ (ปรับให้กลมกลืนและสวยงาม) -->
+                    <img src="Logo.jpg" alt="Logo" class="w-24 h-24 mx-auto mb-4 rounded-full shadow-lg border-2 border-white object-cover">
+                    <!-- ข้อความหัวข้อใหม่ -->
+                    <h1 class="text-xl sm:text-2xl font-bold text-slate-800 leading-tight">เข้าสู่ระบบ<br><span class="text-primary text-lg sm:text-xl">ระบบติดตามการใช้จ่ายงบประมาณ(งบลงทุน)</span></h1>
+                    <!-- ข้อความรองใหม่ -->
+                    <p class="text-sm text-slate-500 mt-2 font-medium tracking-wide">กลุ่มติดตามผลการใช้งบประมาณ</p>
                 </div>
                 <form onsubmit="auth.login(event)" class="space-y-5">
                     <div>
@@ -153,6 +156,15 @@
                         <input type="password" id="login-password" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary outline-none transition-all">
                     </div>
                     <button type="submit" class="w-full bg-primary text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 mt-2 text-lg">เข้าสู่ระบบ</button>
+                    
+                    <!-- ส่วนติดต่อผู้ดูแลระบบ (เพิ่มใหม่) -->
+                    <div class="mt-6 text-center bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm">
+                        <p class="font-bold text-slate-700 text-sm mb-0.5">หากมีปัญหา/สงสัย กรุณาติดต่อ</p>
+                        <p class="text-[13px] text-slate-600 font-medium">กลุ่มงานติดตามผลการใช้จ่ายงบประมาณ</p>
+                        <p class="font-bold text-primary mt-1.5 flex items-center justify-center gap-1.5 text-sm">
+                            <span>📞</span> โทร. 02 026 5555 ต่อ 3007
+                        </p>
+                    </div>
                 </form>
             </div>
         </div>
@@ -465,7 +477,6 @@
                                         <option value="ที่ดิน/สิ่งก่อสร้าง">🏗️ ที่ดิน/สิ่งก่อสร้าง</option>
                                         <option value="ครุภัณฑ์">🖥️ ครุภัณฑ์</option>
                                     </select>
-                                    <!-- 🌟 อัปเดตตัวเลือก Status ให้แสดงครบ 8 ตัว -->
                                     <select id="filterStatus" onchange="handlers.applyDashFilters()" class="bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary shadow-sm max-w-xs">
                                         <option value="ALL">🔄 ทุกสถานะดำเนินการ</option>
                                         <option value="1">1. ยังไม่ดำเนินการ</option>
