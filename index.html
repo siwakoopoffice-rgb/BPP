@@ -399,10 +399,8 @@
                         .filter(p => String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear)
                         .map((p, index) => {
                             const statNo = parseInt(p.current_status, 10);
-                            
                             let poAmt = Number(p.po_amount) || 0;
                             let disbAmt = Number(p.disbursed_amount) || 0;
-
                             return { 
                                 id: p.id, 
                                 no: index + 1, 
@@ -559,7 +557,6 @@
                 const startIdx = (state.projectPage - 1) * state.projectLimit; 
                 const displayProjects = filteredProjects.slice(startIdx, startIdx + state.projectLimit);
 
-                // 🌟 ปรับซ่อนปุ่ม Excel และ สร้างใหม่ เฉพาะ Admin เท่านั้นที่เห็น (Rule 2)
                 let html = `
                 <div class="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-6">
                     <h2 class="text-2xl font-bold text-slate-800 tracking-tight">รายการโครงการงบประมาณ</h2>
@@ -720,11 +717,12 @@
                 }
             },
 
+            // 🌟 แก้ไข: ดึงข้อมูลโปรไฟล์ของ "ตัวเอง" เท่านั้น
             profile: async () => {
                 ui.showLoader();
                 try {
-                    const data = await rpc("admin_get_users", { p_session_token: state.sessionToken });
-                    const myInfo = (data.data || []).find(u => u.username === state.user.username) || {};
+                    const res = await rpc("custom_get_my_profile", { p_session_token: state.sessionToken });
+                    const myInfo = res.data || {};
                     document.getElementById('page-container').innerHTML = `
                         <div class="max-w-2xl mx-auto mt-4"><h2 class="text-2xl font-bold text-slate-800 tracking-tight mb-6">⚙️ ตั้งค่าบัญชีผู้ใช้ (สถานศึกษา)</h2>
                         <div class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm"><form onsubmit="handlers.submitProfile(event)" class="space-y-5">
