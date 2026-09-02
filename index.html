@@ -53,13 +53,10 @@
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
         td, th { padding-top: 1rem !important; padding-bottom: 1rem !important; }
-        .text-\\[9px\\], .text-\\[10px\\], .text-\\[11px\\] { font-size: 15px !important; line-height: 1.4 !important; }
-        .text-\\[13px\\] { font-size: 17px !important; line-height: 1.5 !important; }
     </style>
 </head>
 <body class="antialiased h-screen flex flex-col overflow-hidden">
 
-    <!-- MAIN APP CONTAINER -->
     <div id="app-root" class="w-full h-full flex flex-col md:flex-row hidden">
         <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 flex flex-col shadow-xl md:shadow-none">
             <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
@@ -145,7 +142,6 @@
                     <h1 class="text-2xl font-bold text-slate-800">เข้าสู่ระบบ STIPS</h1>
                     <p class="text-xs text-slate-500 mt-1 uppercase tracking-widest">ระบบติดตามงบประมาณลงทุน สอศ.</p>
                 </div>
-                <!-- กำหนดให้เรียกฟังก์ชัน auth.login เมื่อกดปุ่ม -->
                 <form onsubmit="auth.login(event)" class="space-y-5">
                     <div>
                         <label class="block text-sm font-semibold text-slate-600 mb-1.5">สถานศึกษา / ผู้ใช้งาน (Username)</label>
@@ -195,21 +191,19 @@
 
     <!-- SCRIPT LOGIC MAIN -->
     <script>
-        // ระบบแจ้งเตือนโค้ดพัง (Safe Mode Error Trap)
         window.onerror = function(msg, url, line) {
             if(!msg.includes("ResizeObserver")) {
-                alert("🚨 เกิดข้อผิดพลาดของระบบ: กรุณารีเฟรชหน้าจอ\n(" + msg + ")");
+                console.error("System Error:", msg);
+                // alert("🚨 เกิดข้อผิดพลาดของระบบ: กรุณารีเฟรชหน้าจอ\n(" + msg + ")");
             }
         };
 
-        // 1. ตั้งค่าฐานข้อมูลและระบบจัดเก็บ
         const SUPABASE_URL = "https://jfkqxwkukotmjaeuttcs.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_hEoWELY_mQr3E-5ldGB4og_82jI5BY_";
         const GOOGLE_DRIVE_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbyv5rQh_3Ew0D819QeXJt-5yT0dG2M_XkC4T1sJ7iWpP0j4f_Xm-FjS7tD5N3P2qD/exec";
         
         let supabaseClient;
 
-        // ตัวช่วยจัดการ Storage แบบปลอดภัย (ไม่ให้ระบบค้างถ้าคุกกี้โดนบล็อก)
         const storage = {
             get: (k) => { try { return localStorage.getItem(k); } catch(e){ return null; } },
             set: (k,v) => { try { localStorage.setItem(k,v); } catch(e){} },
@@ -402,6 +396,7 @@
                         state.fiscalYear = state.availableYears[0];
                     }
 
+                    // ป้องกันค่า NULL ที่ทำให้ .toLowerCase() พัง
                     window.rawDashboardData = state.projects
                         .filter(p => String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear)
                         .map((p, index) => {
@@ -409,7 +404,22 @@
                             let poAmt = 0, disbAmt = 0;
                             if(statNo >= 7) poAmt = p.budget_amount; 
                             if(statNo === 8) disbAmt = p.budget_amount * 0.45; 
-                            return { id: p.id, no: index + 1, sourceSheet: p.project_type, type: p.project_type, institution: p.institution_name, item: p.project_name, budget: p.budget_amount, poAmount: poAmt, disbursed: disbAmt, percent: p.budget_amount > 0 ? (disbAmt / p.budget_amount * 100) : 0, status: utils.getStatusName(statNo), statusNo: statNo, budgetCode: p.budget_code, year: p.fiscal_year || 'ไม่ระบุ' };
+                            return { 
+                                id: p.id, 
+                                no: index + 1, 
+                                sourceSheet: p.project_type || '', 
+                                type: p.project_type || '', 
+                                institution: p.institution_name || '', 
+                                item: p.project_name || '', 
+                                budget: p.budget_amount || 0, 
+                                poAmount: poAmt, 
+                                disbursed: disbAmt, 
+                                percent: p.budget_amount > 0 ? (disbAmt / p.budget_amount * 100) : 0, 
+                                status: utils.getStatusName(statNo), 
+                                statusNo: statNo, 
+                                budgetCode: p.budget_code || '', 
+                                year: p.fiscal_year || 'ไม่ระบุ' 
+                            };
                         });
 
                     document.getElementById('page-container').innerHTML = `
@@ -535,6 +545,7 @@
                     } catch (e) { ui.toast(e.message, 'error'); ui.hideLoader(); return; }
                 }
 
+                // ป้องกันค่า NULL ในหน้าค้นหา Projects
                 const filteredProjects = state.projects.filter(p => {
                     const matchYear = String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear;
                     const searchStr = state.projectSearch.toLowerCase();
@@ -786,7 +797,45 @@
             // --- ส่วนของ Dashboard ---
             renderDashSummaryCards: (data) => { let tBud=0, tPO=0, tDis=0, tWait=0; data.forEach(p => { tBud += p.budget; tPO += p.poAmount; tDis += p.disbursed; if(p.statusNo < 7) tWait += p.budget; }); const cards = [ { t: 'รวมทั้งสิ้น (งบรวม)', amt: tBud, pct: 100, bg: 'bg-gradient-to-br from-blue-600 to-indigo-700', ic: '🏛️' }, { t: 'วางสัญญา PO แล้ว', amt: tPO, pct: tBud?((tPO/tBud)*100):0, bg: 'bg-gradient-to-br from-indigo-500 to-purple-600', ic: '📝' }, { t: 'เบิกจ่ายสำเร็จ', amt: tDis, pct: tBud?((tDis/tBud)*100):0, bg: 'bg-gradient-to-br from-emerald-500 to-teal-600', ic: '💸' }, { t: 'ผลการใช้จ่าย', amt: tDis, pct: tBud?((tDis/tBud)*100):0, bg: 'bg-gradient-to-br from-purple-600 to-pink-600', ic: '📊' }, { t: 'งบประมาณคงเหลือ', amt: tBud-tDis, pct: tBud?(((tBud-tDis)/tBud)*100):0, bg: 'bg-gradient-to-br from-amber-500 to-orange-600', ic: '⏳' } ]; let html = ''; cards.forEach(c => { html += `<div class="${c.bg} p-4 rounded-2xl shadow-md text-white flex flex-col justify-between hover:-translate-y-1 transition duration-200 border border-white/10"><div class="flex justify-between items-start"><span class="text-[13px] font-bold text-white/90">${c.t}</span><span class="w-8 h-8 rounded-xl bg-white/20 text-white flex items-center justify-center text-sm shadow-sm">${c.ic}</span></div><div class="my-2"><div class="text-xl font-extrabold tracking-tight">${utils.formatMoney(c.amt)}</div><div class="text-[10px] text-white/80 font-medium">บาท</div></div><div class="flex justify-between items-center pt-2 border-t border-white/20 text-[11px] font-semibold text-white/90"><span>สัดส่วน: <span class="text-white font-bold">${c.pct.toFixed(2)}%</span></span></div></div>`; }); document.getElementById('overviewCardsContainer').innerHTML = html; },
             renderDashBarChart: (data) => { if(window.stipsCharts.stages) window.stipsCharts.stages.destroy(); let stageData = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0 }; let stageCount = { 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0 }; data.forEach(p => { stageData[p.statusNo] += p.budget; stageCount[p.statusNo] += 1; }); const ctx = document.getElementById('stagesBarChart').getContext('2d'); window.stipsCharts.stages = new Chart(ctx, { type: 'bar', data: { labels: ['1.ยังไม่เริ่ม', '2.จัดทำ TOR', '3.เผยแพร่ TOR', '4.เชิญชวน', '5.ได้ผู้ชนะ', '6.อุทธรณ์', '7.เซ็นสัญญา', '8.บริหารสัญญา'], datasets: [{ data: [stageCount[1], stageCount[2], stageCount[3], stageCount[4], stageCount[5], stageCount[6], stageCount[7], stageCount[8]], backgroundColor: ['#e2e8f0','#fef08a','#fef08a','#fed7aa','#fed7aa','#fecaca','#a7f3d0','#86efac'], borderColor: ['#cbd5e1','#facc15','#facc15','#fb923c','#fb923c','#f87171','#34d399','#4ade80'], borderWidth: 1, borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 25 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` จำนวน: ${c.raw} โครงการ (งบ: ${stageData[c.dataIndex+1].toLocaleString()} บาท)` } }, datalabels: { color: '#475569', anchor: 'end', align: 'top', font: { family: 'Sarabun', weight: 'bold', size: 14 }, formatter: (v) => v > 0 ? v : '' } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: {family: 'Sarabun'}, stepSize: 1 } }, x: { grid: { display: false }, ticks: { font: { family: 'Sarabun', size: 12 } } } } } }); },
-            applyDashFilters: () => { const sheetFilter = document.getElementById('filterSheet').value; const statusFilter = document.getElementById('filterStatus').value; const searchKeyword = document.getElementById('searchInput').value.toLowerCase().trim(); const filtered = window.rawDashboardData.filter(item => { const matchSheet = (sheetFilter === 'ALL') || (item.sourceSheet === sheetFilter); const matchStatus = (statusFilter === 'ALL') || (String(item.statusNo) === statusFilter); const matchSearch = (item.institution.toLowerCase().includes(searchKeyword)) || (item.item.toLowerCase().includes(searchKeyword)) || (item.projectNo.toLowerCase().includes(searchKeyword)); return matchSheet && matchStatus && matchSearch; }); let tBud=0, tPO=0, tDis=0; filtered.forEach(i => { tBud+=i.budget; tPO+=i.poAmount; tDis+=i.disbursed; }); document.getElementById('filterSumBudget').innerText = utils.formatMoney(tBud) + ' บาท'; document.getElementById('filterSumPO').innerText = utils.formatMoney(tPO) + ' บาท'; document.getElementById('filterSumDisbursed').innerText = utils.formatMoney(tDis) + ' บาท'; let html = ''; filtered.slice(0,100).forEach(r => { let bCol = r.statusNo>=7?'bg-emerald-100 text-emerald-800 border-emerald-200' : r.statusNo>=4?'bg-orange-100 text-orange-800 border-orange-200' : 'bg-slate-100 text-slate-700 border-slate-200'; let tCol = r.type==='สิ่งก่อสร้าง'?'bg-slate-700 text-white' : 'bg-purple-600 text-white'; html += `<tr class="hover:bg-blue-50/40 transition"><td class="p-3 font-mono text-sm font-bold text-indigo-600 border-r border-slate-100">${utils.esc(r.budgetCode) || '-'}</td><td class="p-3 border-r border-slate-100"><span class="text-[10px] px-2 py-0.5 rounded-md ${tCol}">${r.type}</span></td><td class="p-3 font-semibold text-slate-800 max-w-[150px] truncate" title="${r.institution}">${r.institution}</td><td class="p-3 text-slate-600 max-w-[250px] truncate" title="${r.item}">${r.item}</td><td class="p-3 text-right font-bold text-primary">${utils.formatMoney(r.budget)}</td><td class="p-3 text-center"><span class="px-2 py-1 rounded-lg text-[10px] font-bold border ${bCol}">${r.status}</span></td><td class="p-3 text-center"><button onclick="app.navigate('workflow','${r.id}')" class="text-xs bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700">ดูข้อมูล →</button></td></tr>`; }); document.getElementById('dashTableBody').innerHTML = html || `<tr><td colspan="7" class="p-8 text-center text-slate-400">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>`; document.getElementById('tableCount').innerText = `แสดง ${Math.min(filtered.length, 100)} จาก ${filtered.length} รายการ`; const drawPie = (cid, dataArr, instKey) => { if(window.stipsCharts[instKey]) window.stipsCharts[instKey].destroy(); if(dataArr.length===0) return; const ctx = document.getElementById(cid).getContext('2d'); window.stipsCharts[instKey] = new Chart(ctx, { type: 'pie', data: { labels: dataArr.map(x=>x.label), datasets: [{ data: dataArr.map(x=>x.val), backgroundColor: dataArr.map(x=>x.color), borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: {font:{family:'Sarabun',size:10}} }, datalabels: { color: '#fff', font: {family:'Sarabun', weight:'bold', size:10}, formatter: (v,c) => { let sum=0; c.dataset.data.forEach(d=>sum+=d); let pct=(v/sum*100); return pct>5?pct.toFixed(1)+'%':''; } } } } }); }; let tCnt={'ที่ดิน/สิ่งก่อสร้าง':0, 'ครุภัณฑ์':0}; filtered.forEach(f => { tCnt[f.type] = (tCnt[f.type]||0)+f.budget; }); drawPie('typePieChart', [{label:'สิ่งก่อสร้าง',val:tCnt['ที่ดิน/สิ่งก่อสร้าง'],color:'#3b82f6'},{label:'ครุภัณฑ์',val:tCnt['ครุภัณฑ์'],color:'#9333ea'}].filter(x=>x.val>0), 'pieTypes'); const statGrp = (typeKey) => { let d = { 'เริ่มดำเนินการ':0, 'จัดซื้อจัดจ้าง':0, 'ทำสัญญาแล้ว':0 }; filtered.filter(x=>x.type===typeKey).forEach(x => { if(x.statusNo>=7) d['ทำสัญญาแล้ว']+=x.budget; else if(x.statusNo>=4) d['จัดซื้อจัดจ้าง']+=x.budget; else d['เริ่มดำเนินการ']+=x.budget; }); return [{label:'เริ่มดำเนินการ (1-3)',val:d['เริ่มดำเนินการ'],color:'#cbd5e1'}, {label:'จัดซื้อจัดจ้าง (4-6)',val:d['จัดซื้อจัดจ้าง'],color:'#fb923c'}, {label:'ทำสัญญาแล้ว (7-8)',val:d['ทำสัญญาแล้ว'],color:'#34d399'}].filter(x=>x.val>0); }; drawPie('constructionStatusPie', statGrp('ที่ดิน/สิ่งก่อสร้าง'), 'pieConst'); drawPie('equipmentStatusPie', statGrp('ครุภัณฑ์'), 'pieEquip'); },
+            applyDashFilters: () => { 
+                const sheetFilter = document.getElementById('filterSheet').value; 
+                const statusFilter = document.getElementById('filterStatus').value; 
+                const searchKeyword = document.getElementById('searchInput').value.toLowerCase().trim(); 
+                const filtered = window.rawDashboardData.filter(item => { 
+                    const matchSheet = (sheetFilter === 'ALL') || (item.sourceSheet === sheetFilter); 
+                    const matchStatus = (statusFilter === 'ALL') || (String(item.statusNo) === statusFilter); 
+                    
+                    // 🛡️ ป้องกันบั๊ก Cannot read properties of null (reading 'toLowerCase')
+                    const matchSearch = ((item.institution || '').toLowerCase().includes(searchKeyword)) || 
+                                        ((item.item || '').toLowerCase().includes(searchKeyword)) || 
+                                        ((item.budgetCode || '').toLowerCase().includes(searchKeyword)); 
+                                        
+                    return matchSheet && matchStatus && matchSearch; 
+                }); 
+                
+                let tBud=0, tPO=0, tDis=0; 
+                filtered.forEach(i => { tBud+=i.budget; tPO+=i.poAmount; tDis+=i.disbursed; }); 
+                document.getElementById('filterSumBudget').innerText = utils.formatMoney(tBud) + ' บาท'; 
+                document.getElementById('filterSumPO').innerText = utils.formatMoney(tPO) + ' บาท'; 
+                document.getElementById('filterSumDisbursed').innerText = utils.formatMoney(tDis) + ' บาท'; 
+                
+                let html = ''; 
+                filtered.slice(0,100).forEach(r => { 
+                    let bCol = r.statusNo>=7?'bg-emerald-100 text-emerald-800 border-emerald-200' : r.statusNo>=4?'bg-orange-100 text-orange-800 border-orange-200' : 'bg-slate-100 text-slate-700 border-slate-200'; 
+                    let tCol = r.type==='สิ่งก่อสร้าง'?'bg-slate-700 text-white' : 'bg-purple-600 text-white'; 
+                    html += `<tr class="hover:bg-blue-50/40 transition"><td class="p-3 font-mono text-sm font-bold text-indigo-600 border-r border-slate-100">${utils.esc(r.budgetCode) || '-'}</td><td class="p-3 border-r border-slate-100"><span class="text-[10px] px-2 py-0.5 rounded-md ${tCol}">${r.type}</span></td><td class="p-3 font-semibold text-slate-800 max-w-[150px] truncate" title="${r.institution}">${r.institution}</td><td class="p-3 text-slate-600 max-w-[250px] truncate" title="${r.item}">${r.item}</td><td class="p-3 text-right font-bold text-primary">${utils.formatMoney(r.budget)}</td><td class="p-3 text-center"><span class="px-2 py-1 rounded-lg text-[10px] font-bold border ${bCol}">${r.status}</span></td><td class="p-3 text-center"><button onclick="app.navigate('workflow','${r.id}')" class="text-xs bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700">ดูข้อมูล →</button></td></tr>`; 
+                }); 
+                document.getElementById('dashTableBody').innerHTML = html || `<tr><td colspan="7" class="p-8 text-center text-slate-400">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>`; 
+                document.getElementById('tableCount').innerText = `แสดง ${Math.min(filtered.length, 100)} จาก ${filtered.length} รายการ`; 
+                
+                const drawPie = (cid, dataArr, instKey) => { if(window.stipsCharts[instKey]) window.stipsCharts[instKey].destroy(); if(dataArr.length===0) return; const ctx = document.getElementById(cid).getContext('2d'); window.stipsCharts[instKey] = new Chart(ctx, { type: 'pie', data: { labels: dataArr.map(x=>x.label), datasets: [{ data: dataArr.map(x=>x.val), backgroundColor: dataArr.map(x=>x.color), borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: {font:{family:'Sarabun',size:10}} }, datalabels: { color: '#fff', font: {family:'Sarabun', weight:'bold', size:10}, formatter: (v,c) => { let sum=0; c.dataset.data.forEach(d=>sum+=d); let pct=(v/sum*100); return pct>5?pct.toFixed(1)+'%':''; } } } } }); }; 
+                let tCnt={'ที่ดิน/สิ่งก่อสร้าง':0, 'ครุภัณฑ์':0}; 
+                filtered.forEach(f => { tCnt[f.type] = (tCnt[f.type]||0)+f.budget; }); 
+                drawPie('typePieChart', [{label:'สิ่งก่อสร้าง',val:tCnt['ที่ดิน/สิ่งก่อสร้าง'],color:'#3b82f6'},{label:'ครุภัณฑ์',val:tCnt['ครุภัณฑ์'],color:'#9333ea'}].filter(x=>x.val>0), 'pieTypes'); 
+                const statGrp = (typeKey) => { let d = { 'เริ่มดำเนินการ':0, 'จัดซื้อจัดจ้าง':0, 'ทำสัญญาแล้ว':0 }; filtered.filter(x=>x.type===typeKey).forEach(x => { if(x.statusNo>=7) d['ทำสัญญาแล้ว']+=x.budget; else if(x.statusNo>=4) d['จัดซื้อจัดจ้าง']+=x.budget; else d['เริ่มดำเนินการ']+=x.budget; }); return [{label:'เริ่มดำเนินการ (1-3)',val:d['เริ่มดำเนินการ'],color:'#cbd5e1'}, {label:'จัดซื้อจัดจ้าง (4-6)',val:d['จัดซื้อจัดจ้าง'],color:'#fb923c'}, {label:'ทำสัญญาแล้ว (7-8)',val:d['ทำสัญญาแล้ว'],color:'#34d399'}].filter(x=>x.val>0); }; 
+                drawPie('constructionStatusPie', statGrp('ที่ดิน/สิ่งก่อสร้าง'), 'pieConst'); 
+                drawPie('equipmentStatusPie', statGrp('ครุภัณฑ์'), 'pieEquip'); 
+            },
 
             // --- ส่วนของ Projects / แก้ไข ---
             confirmDeleteProject: (pid, pname) => { ui.openConfirm('ยืนยันลบโครงการ', `ต้องการลบโครงการ "${pname}" ใช่หรือไม่? ข้อมูลประวัติและสัญญาที่เกี่ยวข้องจะถูกลบถาวร`, async () => { ui.showLoader(); try { await rpc("admin_delete_project", { p_session_token: state.sessionToken, p_project_id: pid }); ui.toast('ลบโครงการสำเร็จ'); pages.projects(false); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } }); },
