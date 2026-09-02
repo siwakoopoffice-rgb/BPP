@@ -395,7 +395,6 @@
                         state.fiscalYear = state.availableYears[0];
                     }
 
-                    // 🌟 ดึงข้อมูล "ราคาสัญญา(po_amount)" และ "เบิกจ่ายจริง(disbursed_amount)" จากที่ SQL ส่งมาให้ใช้งานเลย
                     window.rawDashboardData = state.projects
                         .filter(p => String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear)
                         .map((p, index) => {
@@ -560,6 +559,7 @@
                 const startIdx = (state.projectPage - 1) * state.projectLimit; 
                 const displayProjects = filteredProjects.slice(startIdx, startIdx + state.projectLimit);
 
+                // 🌟 ปรับซ่อนปุ่ม Excel และ สร้างใหม่ เฉพาะ Admin เท่านั้นที่เห็น (Rule 2)
                 let html = `
                 <div class="flex flex-col xl:flex-row justify-between xl:items-center gap-4 mb-6">
                     <h2 class="text-2xl font-bold text-slate-800 tracking-tight">รายการโครงการงบประมาณ</h2>
@@ -568,8 +568,10 @@
                         <select onchange="handlers.changeYear(this.value)" class="bg-white border border-slate-200 text-slate-700 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary shadow-sm text-sm font-bold cursor-pointer">
                             ${state.availableYears.map(y => `<option value="${y}" ${y === state.fiscalYear ? 'selected' : ''}>ปีงบประมาณ ${y}</option>`).join('')}
                         </select>
-                        <button onclick="handlers.openImportProjectsModal()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">📥 นำเข้า (Excel)</button>
-                        <button onclick="handlers.openCreateModal()" class="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-800 transition shadow-sm">+ สร้างด้วยตนเอง</button>
+                        ${state.user.role === 'admin' ? `
+                            <button onclick="handlers.openImportProjectsModal()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">📥 นำเข้า (Excel)</button>
+                            <button onclick="handlers.openCreateModal()" class="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-800 transition shadow-sm">+ สร้างด้วยตนเอง</button>
+                        ` : ''}
                     </div>
                 </div>`;
                 
