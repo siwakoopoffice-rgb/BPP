@@ -194,7 +194,6 @@
         window.onerror = function(msg, url, line) {
             if(!msg.includes("ResizeObserver")) {
                 console.error("System Error:", msg);
-                // alert("🚨 เกิดข้อผิดพลาดของระบบ: กรุณารีเฟรชหน้าจอ\n(" + msg + ")");
             }
         };
 
@@ -396,14 +395,15 @@
                         state.fiscalYear = state.availableYears[0];
                     }
 
-                    // ป้องกันค่า NULL ที่ทำให้ .toLowerCase() พัง
+                    // 🌟 ดึงข้อมูล "ราคาสัญญา(po_amount)" และ "เบิกจ่ายจริง(disbursed_amount)" จากที่ SQL ส่งมาให้ใช้งานเลย
                     window.rawDashboardData = state.projects
                         .filter(p => String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear)
                         .map((p, index) => {
                             const statNo = parseInt(p.current_status, 10);
-                            let poAmt = 0, disbAmt = 0;
-                            if(statNo >= 7) poAmt = p.budget_amount; 
-                            if(statNo === 8) disbAmt = p.budget_amount * 0.45; 
+                            
+                            let poAmt = Number(p.po_amount) || 0;
+                            let disbAmt = Number(p.disbursed_amount) || 0;
+
                             return { 
                                 id: p.id, 
                                 no: index + 1, 
@@ -545,7 +545,6 @@
                     } catch (e) { ui.toast(e.message, 'error'); ui.hideLoader(); return; }
                 }
 
-                // ป้องกันค่า NULL ในหน้าค้นหา Projects
                 const filteredProjects = state.projects.filter(p => {
                     const matchYear = String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear;
                     const searchStr = state.projectSearch.toLowerCase();
@@ -804,21 +803,14 @@
                 const filtered = window.rawDashboardData.filter(item => { 
                     const matchSheet = (sheetFilter === 'ALL') || (item.sourceSheet === sheetFilter); 
                     const matchStatus = (statusFilter === 'ALL') || (String(item.statusNo) === statusFilter); 
-                    
-                    // 🛡️ ป้องกันบั๊ก Cannot read properties of null (reading 'toLowerCase')
-                    const matchSearch = ((item.institution || '').toLowerCase().includes(searchKeyword)) || 
-                                        ((item.item || '').toLowerCase().includes(searchKeyword)) || 
-                                        ((item.budgetCode || '').toLowerCase().includes(searchKeyword)); 
-                                        
+                    const matchSearch = ((item.institution || '').toLowerCase().includes(searchKeyword)) || ((item.item || '').toLowerCase().includes(searchKeyword)) || ((item.budgetCode || '').toLowerCase().includes(searchKeyword)); 
                     return matchSheet && matchStatus && matchSearch; 
                 }); 
-                
                 let tBud=0, tPO=0, tDis=0; 
                 filtered.forEach(i => { tBud+=i.budget; tPO+=i.poAmount; tDis+=i.disbursed; }); 
                 document.getElementById('filterSumBudget').innerText = utils.formatMoney(tBud) + ' บาท'; 
                 document.getElementById('filterSumPO').innerText = utils.formatMoney(tPO) + ' บาท'; 
                 document.getElementById('filterSumDisbursed').innerText = utils.formatMoney(tDis) + ' บาท'; 
-                
                 let html = ''; 
                 filtered.slice(0,100).forEach(r => { 
                     let bCol = r.statusNo>=7?'bg-emerald-100 text-emerald-800 border-emerald-200' : r.statusNo>=4?'bg-orange-100 text-orange-800 border-orange-200' : 'bg-slate-100 text-slate-700 border-slate-200'; 
@@ -827,7 +819,6 @@
                 }); 
                 document.getElementById('dashTableBody').innerHTML = html || `<tr><td colspan="7" class="p-8 text-center text-slate-400">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>`; 
                 document.getElementById('tableCount').innerText = `แสดง ${Math.min(filtered.length, 100)} จาก ${filtered.length} รายการ`; 
-                
                 const drawPie = (cid, dataArr, instKey) => { if(window.stipsCharts[instKey]) window.stipsCharts[instKey].destroy(); if(dataArr.length===0) return; const ctx = document.getElementById(cid).getContext('2d'); window.stipsCharts[instKey] = new Chart(ctx, { type: 'pie', data: { labels: dataArr.map(x=>x.label), datasets: [{ data: dataArr.map(x=>x.val), backgroundColor: dataArr.map(x=>x.color), borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: {font:{family:'Sarabun',size:10}} }, datalabels: { color: '#fff', font: {family:'Sarabun', weight:'bold', size:10}, formatter: (v,c) => { let sum=0; c.dataset.data.forEach(d=>sum+=d); let pct=(v/sum*100); return pct>5?pct.toFixed(1)+'%':''; } } } } }); }; 
                 let tCnt={'ที่ดิน/สิ่งก่อสร้าง':0, 'ครุภัณฑ์':0}; 
                 filtered.forEach(f => { tCnt[f.type] = (tCnt[f.type]||0)+f.budget; }); 
@@ -842,7 +833,7 @@
             openEditProjectModal: (pid) => { const p = state.projects.find(x => String(x.id) === String(pid)); if(!p) return; ui.openModal('✏️ แก้ไขข้อมูลโครงการ', `<form onsubmit="handlers.submitEditProject(event, '${pid}')" class="space-y-4 p-1"><div><label class="block text-sm font-medium mb-1 text-slate-500">รหัสอ้างอิงโครงการ (สร้างโดยระบบ)</label><input type="text" value="${utils.esc(p.project_code)}" disabled class="w-full px-4 py-2 border rounded-xl outline-none bg-slate-100 text-slate-400 font-bold cursor-not-allowed"></div><div><label class="block text-sm font-medium mb-1">รหัสงบประมาณจริง (GFMIS / รหัสอนุมัติ)</label><input type="text" id="ep_bcode" value="${utils.esc(p.budget_code || '')}" placeholder="ระบุรหัสงบประมาณ..." class="w-full px-4 py-2.5 border border-blue-200 bg-blue-50/50 rounded-xl outline-none focus:ring-2 focus:ring-primary font-mono text-blue-700 font-bold"></div><div><label class="block text-sm font-medium mb-1">ชื่อโครงการ (รายการ) <span class="text-red-500">*</span></label><textarea id="ep_name" required rows="2" class="w-full px-4 py-2 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary text-slate-700">${utils.esc(p.project_name)}</textarea></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium mb-1">ประเภท <span class="text-red-500">*</span></label><select id="ep_type" required class="w-full px-4 py-2.5 border border-slate-300 rounded-xl outline-none bg-white focus:ring-2 focus:ring-primary text-slate-700"><option value="ที่ดิน/สิ่งก่อสร้าง" ${p.project_type==='ที่ดิน/สิ่งก่อสร้าง'?'selected':''}>ที่ดิน/สิ่งก่อสร้าง</option><option value="ครุภัณฑ์" ${p.project_type==='ครุภัณฑ์'?'selected':''}>ครุภัณฑ์</option></select></div><div><label class="block text-sm font-medium mb-1">งบตาม พรบ. (บาท) <span class="text-red-500">*</span></label><input type="number" id="ep_budget" value="${p.budget_amount}" min="0" step="0.01" required class="w-full px-4 py-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary text-slate-700"></div></div><button type="submit" class="w-full bg-primary text-white font-medium py-3.5 rounded-xl hover:bg-blue-800 transition mt-2 shadow-sm">💾 บันทึกการแก้ไขข้อมูล</button></form>`); },
             submitEditProject: async (e, pid) => { e.preventDefault(); ui.showLoader('กำลังบันทึกข้อมูล...'); try { const bcode = document.getElementById('ep_bcode').value; const name = document.getElementById('ep_name').value; const type = document.getElementById('ep_type').value; const budget = Number(document.getElementById('ep_budget').value); const res = await rpc('custom_update_project_details', { p_session_token: state.sessionToken, p_project_id: pid, p_project_name: name, p_project_type: type, p_budget_amount: budget, p_budget_code: bcode }); if(!res.success) throw new Error(res.message); ui.closeModal(); ui.toast('แก้ไขข้อมูลโครงการสำเร็จ', 'success'); pages.projects(false); } catch(err) { ui.toast(err.message, 'error'); } finally { ui.hideLoader(); } },
 
-            // --- ส่วนของ Workflow โครงการ (ฟังก์ชันหลักกลับมาแล้ว!) ---
+            // --- ส่วนของ Workflow โครงการ ---
             updateStatus: async (nextStep, remarks = '') => { 
                 try { 
                     ui.showLoader('กำลังบันทึกสถานะ...'); 
