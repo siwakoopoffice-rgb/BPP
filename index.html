@@ -138,7 +138,7 @@
         <div class="order-1 lg:order-2 flex items-center justify-center p-6 sm:p-10 bg-slate-50 relative">
             <div class="bg-white p-8 sm:p-10 rounded-3xl shadow-2xl w-full max-w-md border border-slate-100 z-10">
                 <div class="text-center mb-8">
-                    <!-- โลโก้ใหม่ (ดึงจากอินเทอร์เน็ต) -->
+                    <!-- โลโก้ใหม่ -->
                     <img src="https://i.postimg.cc/vmSdyWZp/sxs-logo.png" alt="Logo" class="w-24 h-24 mx-auto mb-4 rounded-full shadow-lg border-2 border-white object-cover bg-white">
                     <!-- ข้อความหัวข้อใหม่ -->
                     <h1 class="text-xl sm:text-2xl font-bold text-slate-800 leading-tight">เข้าสู่ระบบ<br><span class="text-primary text-lg sm:text-xl">ระบบติดตามการใช้จ่ายงบประมาณ(งบลงทุน)</span></h1>
@@ -211,9 +211,6 @@
 
         const SUPABASE_URL = "https://jfkqxwkukotmjaeuttcs.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_hEoWELY_mQr3E-5ldGB4og_82jI5BY_";
-        
-        // 🌟 ลิงก์ Web App URL ของคุณ (ที่เพิ่งอัปเดตโค้ด Apps Script ไปใหม่)
-        const GOOGLE_DRIVE_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbzWV_Nv7KQyV77JGBX39O0sKrQL2nDZKdE0NaVSjoHL3eWl9iMC-GLGWq3UHkZMDoMbbA/exec";
         
         let supabaseClient;
 
@@ -479,6 +476,7 @@
                                         <option value="ที่ดิน/สิ่งก่อสร้าง">🏗️ ที่ดิน/สิ่งก่อสร้าง</option>
                                         <option value="ครุภัณฑ์">🖥️ ครุภัณฑ์</option>
                                     </select>
+                                    <!-- 🌟 ปรับเพิ่มตัวกรองให้ดูได้ครบ 8 สถานะ -->
                                     <select id="filterStatus" onchange="handlers.applyDashFilters()" class="bg-slate-50 border border-slate-200 text-sm rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary shadow-sm max-w-xs">
                                         <option value="ALL">🔄 ทุกสถานะดำเนินการ</option>
                                         <option value="1">1. ยังไม่ดำเนินการ</option>
@@ -541,7 +539,6 @@
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
 
-            // --- ส่วนของ Projects / จัดการโครงการ ---
             projects: async (skipFetch = false) => {
                 let activeElement = document.activeElement;
                 let activeId = activeElement ? activeElement.id : null;
@@ -703,165 +700,44 @@
                             const optLabels = { "1": "ไม่มีการอุทธรณ์", "2": "มีการอุทธรณ์ แล้วเห็นด้วย", "3": "ส่งกรมบัญชีกลาง", "4": "รอผลอุทธรณ์ฟังขึ้น", "5": "ผลอุทธรณ์ไม่ขึ้น" };
                             infoContent = `📌 สถานะล่าสุด:<br><span class="font-bold text-warning">${optLabels[appealData.appeal_option] || 'รอผลอุทธรณ์'}</span>`;
                             if (appealData.central_audit_document_path) pdfButton = `<a href="${appealData.central_audit_document_path}" target="_blank" class="mt-2.5 inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 text-primary px-3 py-2 rounded-lg text-[11px] font-bold hover:bg-slate-50 transition shadow-sm w-full"><span class="text-sm">📄</span> เปิดดูไฟล์แนบอุทธรณ์</a>`;
-                        }
+                        เห็นด้วยครับ การถอยกลับ (Rollback) ไปใช้วิธีอัปโหลดไฟล์ PDF เข้า Supabase Storage เป็นการตัดสินใจที่ถูกต้อง เพื่อให้ระบบกลับมาใช้งานได้ปกติตามเดิมก่อน แล้วเราค่อยกลับมาจัดการเรื่อง Google Drive ในภายหลังเมื่อพร้อมครับ
 
-                        if(infoContent) {
-                            let timestamp = '';
-                            if (isDone && wfRecord) timestamp = `<p class="text-[9px] text-slate-400 mt-2.5 text-right border-t border-emerald-100/50 pt-1.5">อัปเดต: ${utils.formatDate(wfRecord.created_at)}</p>`;
-                            else if (i === 6 && appealData) timestamp = `<p class="text-[9px] text-slate-400 mt-2.5 text-right border-t border-emerald-100/50 pt-1.5">อัปเดต: ${utils.formatDate(appealData.created_at)}</p>`;
-                            stepInfoHtml = `<div class="mt-4 sm:mt-0 sm:ml-4 sm:w-64 shrink-0 bg-emerald-50/60 border border-emerald-200/60 p-3.5 rounded-xl shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] text-sm self-start relative overflow-hidden"><div class="absolute top-0 left-0 w-1 h-full bg-emerald-400"></div><p class="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5"><span>✅</span> ข้อมูลที่บันทึกไว้</p><p class="text-slate-700 leading-relaxed">${infoContent}</p>${pdfButton}${timestamp}</div>`;
-                        }
+คุณสามารถนำโค้ดชุดเดิมที่เคยทำไว้กลับมาแทนที่ได้เลย หรือหากต้องการโครงสร้างโค้ดมาตรฐานสำหรับอัปโหลดไฟล์เข้า Supabase เพื่อนำไปปรับใช้ สามารถใช้รูปแบบด้านล่างนี้ครับ
 
-                        html += `
-                            <div class="flex gap-4 sm:gap-6 ${isWait ? 'opacity-50 pointer-events-none grayscale-[50%]' : ''}">
-                                <div class="flex flex-col items-center"><div class="w-10 h-10 rounded-full border-2 flex items-center justify-center font-bold text-sm z-10 shrink-0 transition-all ${iconBg}">${isDone ? '✓' : (isCur?'●':i)}</div>${i<8 ? `<div class="w-0.5 h-full min-h-[40px] my-1 ${isDone?'bg-emerald-300':'bg-slate-200'}"></div>` : ''}</div>
-                                <div class="flex-1 pb-8 w-full min-w-0">
-                                    <div class="${isCur?'bg-white border-blue-200 shadow-lg shadow-blue-900/5 ring-1 ring-blue-50':'bg-slate-50 border-slate-200'} border rounded-2xl p-5 sm:p-6 transition-all">
-                                        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
-                                            <div>
-                                                <h4 class="font-bold text-lg ${isCur?'text-blue-800':'text-slate-700'}">${i}. ${utils.getStatusName(i)}</h4>
-                                                ${isDone ? `<button onclick="handlers.revertStatus(${i})" class="text-[11px] font-bold text-warning bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg transition-colors shadow-sm mt-3 flex items-center gap-1"><span>↺</span> ย้อนกลับมาแก้ไข</button>` : ''}
-                                            </div>
-                                            ${stepInfoHtml}
-                                        </div>
-                                        ${isCur ? handlers.renderStepForm(i, p) : ''}
-                                    </div>
-                                </div>
-                            </div>`;
-                    }
-                    document.getElementById('page-container').innerHTML = html + `</div></div>`;
-                    ui.hideLoader();
-                } catch(err) {
-                    ui.hideLoader(); alert("หน้าจอ Workflow เกิดข้อผิดพลาด: " + err.message);
-                }
-            },
+**โค้ดสำหรับการอัปโหลดไฟล์ PDF ไปยัง Supabase (JavaScript/TypeScript)**
 
-            profile: async () => {
-                ui.showLoader();
-                try {
-                    const res = await rpc("custom_get_my_profile", { p_session_token: state.sessionToken });
-                    const myInfo = res.data || {};
-                    document.getElementById('page-container').innerHTML = `
-                        <div class="max-w-2xl mx-auto mt-4"><h2 class="text-2xl font-bold text-slate-800 tracking-tight mb-6">⚙️ ตั้งค่าบัญชีผู้ใช้ (สถานศึกษา)</h2>
-                        <div class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm"><form onsubmit="handlers.submitProfile(event)" class="space-y-5">
-                        <div><label class="block text-sm font-medium mb-1.5 text-slate-600">ชื่อสถานศึกษา (Username)</label><input type="text" value="${utils.esc(state.user.username)}" disabled class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 cursor-not-allowed font-bold"></div>
-                        <div class="pt-4 border-t border-slate-100"><h3 class="font-bold text-slate-800 mb-4 text-lg">ข้อมูลผู้รับผิดชอบระบบ</h3><div class="space-y-4"><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">ชื่อ-นามสกุล ผู้รับผิดชอบ</label><input type="text" id="prof_fullname" value="${utils.esc(myInfo.full_name || '')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="ระบุชื่อเจ้าหน้าที่..."></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">เบอร์โทรศัพท์ติดต่อ</label><input type="text" id="prof_phone" value="${utils.esc(myInfo.phone || '')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="08xxxxxxxx"></div><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">Email</label><input type="email" id="prof_email" value="${utils.esc(myInfo.email || '')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="email@example.com"></div></div></div></div>
-                        <div class="pt-4 border-t border-slate-100"><h3 class="font-bold text-slate-800 mb-4 text-lg">เปลี่ยนรหัสผ่านใหม่</h3><div class="bg-blue-50 border border-blue-100 p-4 rounded-xl"><label class="block text-sm font-bold text-blue-800 mb-2">กำหนดรหัสผ่านใหม่ <span class="text-xs font-normal text-blue-600">(เว้นว่างไว้หากไม่ต้องการเปลี่ยน)</span></label><input type="password" id="prof_password" minlength="6" class="w-full px-4 py-3 border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="พิมพ์รหัสผ่านใหม่..."></div></div>
-                        <div class="pt-4"><button type="submit" class="w-full bg-slate-900 text-white font-medium py-4 rounded-xl hover:bg-slate-800 transition shadow-lg flex items-center justify-center gap-2 text-lg">💾 บันทึกการเปลี่ยนแปลง</button></div></form></div></div>`;
-                } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
-            },
+```javascript
+import { createClient } from '@supabase/supabase-js';
 
-            users: async (skipFetch = false) => {
-                let activeElement = document.activeElement; let activeId = activeElement ? activeElement.id : null; let cursorPos = activeElement && activeElement.selectionStart ? activeElement.selectionStart : null;
-                if(state.user.role !== 'admin') { document.getElementById('page-container').innerHTML = `<div class="p-10 text-center text-red-500 font-bold text-2xl mt-10">🔒 ไม่มีสิทธิ์เข้าถึงหน้านี้</div>`; return; }
-                if(!skipFetch) { ui.showLoader('กำลังโหลดข้อมูลผู้ใช้งาน...'); try { const data = await rpc("admin_get_users", { p_session_token: state.sessionToken }); state.users = data.data || []; } catch (e) { ui.toast(e.message, 'error'); ui.hideLoader(); return; } }
-                
-                const filteredUsers = state.users.filter(u => { const searchStr = state.userSearch.toLowerCase(); return searchStr === '' || (u.username || '').toLowerCase().includes(searchStr) || (u.full_name || '').toLowerCase().includes(searchStr) || (u.email || '').toLowerCase().includes(searchStr) || (u.phone || '').toLowerCase().includes(searchStr); });
-                
-                let html = ` <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6"> <div><h2 class="text-2xl font-bold text-slate-800 tracking-tight">จัดการผู้ใช้งาน / สถานศึกษา</h2><p class="text-sm text-slate-500 mt-1">Admin สามารถอัปโหลดรายชื่อสถานศึกษาเพื่อสร้าง Username ให้อัตโนมัติ</p></div> <div class="flex flex-wrap gap-2 items-center"> <input type="text" id="search_users" value="${utils.esc(state.userSearch)}" onkeyup="handlers.searchUsers(this.value)" placeholder="🔍 ค้นหาสถานศึกษา, ชื่อ, เบอร์..." class="bg-white border border-slate-200 text-slate-700 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary shadow-sm text-sm w-full sm:w-64"> <button onclick="handlers.openImportUsersModal()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-emerald-700 transition shadow-sm flex items-center gap-2">📥 นำเข้าบัญชี (Excel)</button> <button onclick="handlers.openUserModal()" class="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-800 transition shadow-sm">+ เพิ่มเอง</button> </div> </div>`;
-                if(filteredUsers.length === 0) { html += `<div class="p-10 text-center bg-white border border-dashed border-slate-300 rounded-xl text-slate-400">ไม่พบข้อมูลผู้ใช้งานที่ค้นหา</div>`; } 
-                else { html += `<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"><div class="overflow-x-auto"><table class="w-full text-left text-sm whitespace-nowrap"><thead class="bg-slate-50 border-b border-slate-200 text-slate-600"><tr><th class="px-6 py-4 font-semibold">Username (สถานศึกษา)</th><th class="px-6 py-4 font-semibold">ข้อมูลผู้รับผิดชอบ</th><th class="px-6 py-4 font-semibold text-center">สิทธิ์</th><th class="px-6 py-4 font-semibold text-center">จัดการ</th></tr></thead><tbody class="divide-y divide-slate-100"> ${filteredUsers.map(u => ` <tr class="hover:bg-slate-50 transition-colors"> <td class="px-6 py-4 font-bold text-slate-900">${utils.esc(u.username)}</td> <td class="px-6 py-4 text-slate-700"> <div class="font-medium text-primary">${utils.esc(u.full_name || 'ยังไม่ระบุ')}</div> <div class="text-xs text-slate-500 mt-1 flex flex-col gap-0.5"> <span>📞 ${utils.esc(u.phone || '-')}</span> <span>✉️ ${utils.esc(u.email || '-')}</span> </div> </td> <td class="px-6 py-4 text-center"><span class="px-3 py-1.5 text-xs rounded-full border font-bold uppercase tracking-wider ${u.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}">${u.role}</span></td> <td class="px-6 py-4 text-center"> <div class="flex items-center justify-center gap-2"> <button onclick="handlers.openEditUserModal('${u.id}')" class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-primary px-3 py-1.5 rounded-xl transition-colors font-medium text-xs shadow-sm flex items-center gap-1"> <span>✏️</span> แก้ไข </button> <button onclick="handlers.confirmDeleteUser('${u.id}', '${utils.esc(u.username)}')" class="bg-white border border-red-200 text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-colors font-medium text-xs shadow-sm flex items-center gap-1"> <span>🗑️</span> ลบ </button> </div> </td> </tr> `).join('')} </tbody></table></div></div>`; }
-                document.getElementById('page-container').innerHTML = html; 
-                if(!skipFetch) ui.hideLoader();
-                if(activeId) { setTimeout(() => { const el = document.getElementById(activeId); if(el) { el.focus(); if(cursorPos !== null && el.setSelectionRange) el.setSelectionRange(cursorPos, cursorPos); } }, 0); }
-            },
+// กำหนดค่า Supabase Client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL; // เปลี่ยนตามตัวแปรของคุณ
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-            audit: async () => {
-                ui.showLoader('กำลังโหลดประวัติ...'); 
-                try { 
-                    const offset = (state.auditPage - 1) * state.auditLimit; 
-                    const res = await rpc('custom_get_audit_logs', { p_session_token: state.sessionToken, p_limit: state.auditLimit, p_offset: offset, p_start_date: state.auditStartDate || null, p_end_date: state.auditEndDate || null, p_search: state.auditSearch || null }); 
-                    const logs = res.data || []; const totalItems = res.total || 0; const totalPages = Math.ceil(totalItems / state.auditLimit) || 1; 
-                    const pageTitleDesc = state.user.role === 'admin' ? 'ติดตามความเคลื่อนไหวของผู้ใช้ทั้งหมดในระบบ' : 'ประวัติการเปลี่ยนแปลงข้อมูลของคุณ'; 
-                    let html = `<div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6"><div><h2 class="text-2xl font-bold text-slate-800 tracking-tight">ประวัติการใช้งาน</h2><p class="text-sm text-slate-500 mt-1">${pageTitleDesc}</p></div><div class="flex flex-wrap gap-2 items-center bg-white p-2 rounded-2xl shadow-sm border border-slate-200"><input type="text" id="filter_search" value="${utils.esc(state.auditSearch)}" placeholder="🔍 ค้นหาชื่อ, ข้อความ..." class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50 w-full sm:w-auto min-w-[200px]"><input type="date" id="filter_start" value="${state.auditStartDate}" class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50"><span class="text-slate-400 text-xs font-medium">ถึง</span><input type="date" id="filter_end" value="${state.auditEndDate}" class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary text-slate-600 bg-slate-50"><button onclick="handlers.filterAudit()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">ค้นหา</button><button onclick="handlers.clearAuditFilter()" class="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-200 transition">ล้าง</button></div></div>`; 
-                    if(logs.length === 0) html += `<div class="p-12 text-center bg-white border border-dashed rounded-2xl text-slate-400 shadow-sm">ไม่มีข้อมูลประวัติในระบบหรือในช่วงเวลาที่เลือก</div>`; 
-                    else { html += `<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-6"><div class="overflow-x-auto"><table class="w-full text-left text-sm whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 border-b"><tr><th class="px-5 py-4">วัน-เวลา</th><th class="px-5 py-4">ผู้ใช้งาน</th>${state.user.role==='admin'?'<th class="px-5 py-4">วิทยาลัย</th>':''}<th class="px-5 py-4">Action</th><th class="px-5 py-4">รายละเอียด</th></tr></thead><tbody class="divide-y divide-slate-100">${logs.map(L => `<tr class="hover:bg-slate-50 transition-colors"><td class="px-5 py-4 text-xs font-mono text-slate-500">${utils.formatDate(L.created_at)}</td><td class="px-5 py-4 font-medium text-primary">${utils.esc(L.full_name)}</td>${state.user.role==='admin'?`<td class="px-5 py-4 text-slate-600 text-xs">${utils.esc(L.institution_name)}</td>`:''}<td class="px-5 py-4"><span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border border-slate-200">${utils.esc(L.action)}</span></td><td class="px-5 py-4 text-slate-700">${utils.esc(L.description)}</td></tr>`).join('')}</tbody></table></div></div><div class="flex items-center justify-between bg-white px-4 py-3 border border-slate-200 rounded-xl shadow-sm"><div class="text-sm text-slate-500">แสดงที่ <span class="font-medium text-slate-900">${offset + 1}</span> - <span class="font-medium text-slate-900">${Math.min(offset + state.auditLimit, totalItems)}</span> จาก <span class="font-medium text-slate-900">${totalItems}</span></div><div class="flex gap-2"><button onclick="handlers.changeAuditPage(${state.auditPage - 1})" ${state.auditPage === 1 ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ก่อนหน้า</button><button onclick="handlers.changeAuditPage(${state.auditPage + 1})" ${state.auditPage === totalPages ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ถัดไป</button></div></div>`; } 
-                    document.getElementById('page-container').innerHTML = html; 
-                } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } 
-            },
+async function uploadPDFToSupabase(file) {
+  try {
+    // 1. สร้างชื่อไฟล์ไม่ให้ซ้ำกัน
+    const fileName = `${Date.now()}-${file.name}`;
 
-            management: async (projectId) => {
-                ui.showLoader('กำลังโหลดข้อมูลสัญญา...'); 
-                try { 
-                    const p = state.projects.find(x => String(x.id) === String(projectId)); 
-                    if(!p) return app.navigate('projects'); 
-                    const res = await rpc('custom_get_contract_details', { p_session_token: state.sessionToken, p_project_id: projectId }); 
-                    if(!res.success) throw new Error(res.message); 
-                    const insts = res.installments || []; const progs = res.progress || []; let totalAmt = 0, totalPaid = 0, totalPile = 0; 
-                    let instRows = insts.map(i => { const d = i.disbursement || {}; const pAmt = Number(d.paid_amount || 0); const pPile = Number(d.pile_return_amount || 0); totalAmt += Number(i.installment_amount); totalPaid += pAmt; totalPile += pPile; return `<tr class="hover:bg-blue-50/50 transition-colors"><td class="px-4 py-3 border-b text-center text-xs font-bold text-slate-500">งวด ${i.installment_no}</td><td class="px-4 py-3 border-b text-right text-sm font-semibold text-slate-800">${utils.formatMoney(i.installment_amount)}</td><td class="px-4 py-3 border-b"><input type="number" id="paid_${i.id}" value="${d.paid_amount || ''}" max="${i.installment_amount}" oninput="handlers.calcDisburseRow('${i.id}', ${i.installment_amount})" class="w-full min-w-[100px] border border-slate-300 p-2 rounded-lg outline-none text-right text-sm focus:ring-2 focus:ring-primary font-medium text-blue-700" placeholder="0.00"></td><td class="px-4 py-3 border-b text-right text-sm font-bold text-orange-600" id="pile_${i.id}">${utils.formatMoney(pPile)}</td><td class="px-4 py-3 border-b"><input type="date" id="date_${i.id}" value="${d.payment_date || ''}" class="w-full border border-slate-300 p-2 rounded-lg outline-none text-sm focus:ring-2 focus:ring-primary text-slate-600"></td><td class="px-4 py-3 border-b"><input type="text" id="det_${i.id}" value="${utils.esc(d.payment_detail || '')}" placeholder="คำอธิบาย..." class="w-full min-w-[140px] border border-slate-300 p-2 rounded-lg outline-none text-sm focus:ring-2 focus:ring-primary"></td><td class="px-4 py-3 border-b text-center"><button onclick="handlers.saveDisburse('${i.id}')" class="bg-primary text-white px-4 py-2 rounded-xl text-xs font-medium hover:bg-blue-700 shadow-sm transition">บันทึก</button></td></tr>`; }).join(''); 
-                    let html = `<div class="mb-6"><button onclick="app.navigate('workflow', '${projectId}')" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition mb-3 inline-flex items-center gap-1">← กลับหน้า Workflow</button><h2 class="text-2xl font-bold text-slate-800">บริหารสัญญาและการเบิกจ่าย</h2><p class="text-slate-500 mt-1 text-sm"> ${p.budget_code ? `<span class="font-mono bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded text-indigo-800 font-bold">${utils.esc(p.budget_code)}</span>` : `<span class="bg-slate-100 border border-slate-200 text-slate-400 px-2 py-0.5 rounded text-xs">ยังไม่ระบุรหัสงบฯ</span>`}  ${utils.esc(p.project_name)}</p></div><div class="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden mb-6"><div class="p-5 border-b border-slate-100 bg-slate-50"><h3 class="font-bold text-slate-800 text-lg">1. ตารางติดตามการเบิกจ่ายจริงตามงวดงาน</h3></div><div class="overflow-x-auto p-1"><table class="w-full text-sm text-left whitespace-nowrap"><thead class="bg-slate-100/50 text-slate-500 text-xs uppercase tracking-wider"><tr><th class="px-4 py-3 text-center">งวดงาน</th><th class="px-4 py-3 text-right">ราคางวดงาน</th><th class="px-4 py-3">ยอดเบิกจ่ายแล้ว (บาท)</th><th class="px-4 py-3 text-right">คืนค่าเสาเข็ม/ค่างาน</th><th class="px-4 py-3">วันที่เบิกจ่าย</th><th class="px-4 py-3">รายละเอียด</th><th class="px-4 py-3 text-center">จัดการ</th></tr></thead><tbody>${instRows}</tbody><tfoot class="bg-slate-50/80 font-bold text-sm border-t-2 border-slate-200"><tr><td class="px-4 py-4 text-center">สรุปรวม</td><td class="px-4 py-4 text-right text-slate-800 text-base">${utils.formatMoney(totalAmt)}</td><td class="px-4 py-4 text-right text-emerald-600 text-base" id="total_paid">${utils.formatMoney(totalPaid)}</td><td class="px-4 py-4 text-right text-orange-600 text-base" id="total_pile">${utils.formatMoney(totalPile)}</td><td colspan="3"></td></tr></tfoot></table></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="bg-white border border-slate-200 rounded-3xl shadow-sm p-6 h-fit"><h3 class="font-bold text-slate-800 text-lg mb-5 pb-3 border-b border-slate-100">2. บันทึกความก้าวหน้า / ปัญหาอุปสรรค</h3><div class="space-y-4"><div><label class="block text-sm font-semibold text-slate-700 mb-1.5">รายละเอียดความก้าวหน้า <span class="text-red-500">*</span></label><textarea id="prog_detail" rows="3" class="w-full border border-slate-300 rounded-xl p-3 outline-none text-sm focus:ring-2 focus:ring-primary transition"></textarea></div><div><label class="block text-sm font-semibold text-slate-700 mb-1.5">ปัญหา / อุปสรรค</label><textarea id="prog_prob" rows="2" class="w-full border border-slate-300 rounded-xl p-3 outline-none text-sm focus:ring-2 focus:ring-red-400 transition"></textarea></div><div><label class="block text-sm font-semibold text-slate-700 mb-1.5">หมายเหตุ</label><input type="text" id="prog_rem" class="w-full border border-slate-300 rounded-xl p-3 outline-none text-sm focus:ring-2 focus:ring-primary transition"></div><button onclick="handlers.saveProgress('${res.contract.id}')" class="w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-medium hover:bg-slate-800 mt-2 shadow-md transition">บันทึกรายงานความก้าวหน้า</button></div></div><div class="bg-white border border-slate-200 rounded-3xl shadow-sm p-6 h-fit"><h3 class="font-bold text-slate-800 text-lg mb-5 pb-3 border-b border-slate-100 flex items-center gap-2"><span class="text-xl">⏱️</span> ประวัติรายงาน</h3><div class="space-y-5 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">${progs.length === 0 ? '<div class="text-center py-10 bg-slate-50 rounded-xl border border-dashed"><p class="text-sm text-slate-400 font-medium">ยังไม่มีประวัติการบันทึก</p></div>' : progs.map(pr => `<div class="relative pl-5 before:content-[''] before:absolute before:left-0 before:top-1.5 before:bottom-[-20px] before:w-[3px] before:bg-blue-100 last:before:hidden"><div class="absolute left-[-2px] top-1.5 w-[7px] h-[7px] rounded-full bg-primary ring-4 ring-white"></div><div class="bg-slate-50 border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition"><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex justify-between"><span>${utils.formatDate(pr.created_at)}</span><span class="text-primary">${utils.esc(pr.creator_name)}</span></p><p class="text-sm font-medium text-slate-800 leading-relaxed">${utils.esc(pr.progress_detail)}</p>${pr.problem_detail ? `<div class="mt-3 p-2.5 bg-red-50 border border-red-100 rounded-lg"><p class="text-xs font-semibold text-red-700 mb-0.5">⚠️ ปัญหาอุปสรรค:</p><p class="text-xs text-red-600">${utils.esc(pr.problem_detail)}</p></div>` : ''}</div></div>`).join('')}</div></div></div>`; document.getElementById('page-container').innerHTML = html; 
-                } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } 
-            }
-        };
+    // 2. อัปโหลดไฟล์ไปยัง Bucket (เปลี่ยน 'your-bucket-name' เป็นชื่อ Bucket จริง)
+    const { data, error } = await supabase.storage
+      .from('your-bucket-name')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false // ตั้งเป็น true หากต้องการให้เขียนทับไฟล์เดิมที่มีชื่อเดียวกัน
+      });
 
-        const app = {
-            initUserUI: () => {
-                if (state.user.role === 'admin') {
-                    document.getElementById('user-fullname').innerText = state.user.full_name || 'ผู้ดูแลระบบ (Admin)';
-                    document.getElementById('user-role-badge').innerText = 'ADMINISTRATOR';
-                    document.getElementById('user-role-badge').className = 'text-[10px] mt-1.5 inline-block px-2.5 py-1 bg-purple-50 border border-purple-200 text-purple-700 rounded-md shadow-sm font-bold tracking-wider';
-                } else {
-                    document.getElementById('user-fullname').innerText = state.user.username || 'ชื่อวิทยาลัย';
-                    document.getElementById('user-role-badge').innerText = 'USER';
-                    document.getElementById('user-role-badge').className = 'text-[10px] mt-1.5 inline-block px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-md shadow-sm font-bold tracking-wider';
-                }
-                
-                const s = document.getElementById('nav-admin-section'); 
-                if(state.user.role === 'admin' && s) { s.classList.remove('hidden'); }
-                document.getElementById('login-root').classList.add('hidden'); 
-                document.getElementById('app-root').classList.remove('hidden');
-            },
-            navigate: (route, param = null) => {
-                try {
-                    state.currentRoute = route;
-                    document.querySelectorAll('#main-nav button').forEach(b => {
-                        b.classList.remove('bg-blue-100', 'text-primary', 'font-bold');
-                        if(b.dataset.nav === route || (route==='workflow' && b.dataset.nav==='projects') || (route==='management' && b.dataset.nav==='projects')) { 
-                            b.classList.add('bg-blue-100', 'text-primary', 'font-bold'); 
-                        }
-                    });
-                    ui.closeSidebar(); 
-                    window.scrollTo(0,0);
-                    switch(route) { 
-                        case 'dashboard': pages.dashboard(); break; 
-                        case 'projects': pages.projects(); break; 
-                        case 'workflow': pages.workflow(param); break; 
-                        case 'management': pages.management(param); break; 
-                        case 'profile': pages.profile(); break;
-                        case 'users': pages.users(); break; 
-                        case 'audit': pages.audit(); break; 
-                        default: pages.dashboard(); 
-                    }
-                } catch (err) { 
-                    alert("เกิดข้อผิดพลาดในการโหลดหน้าจอ: " + err.message); 
-                }
-            },
-            init: async () => {
-                try {
-                    if(!window.supabase) throw new Error("ไม่สามารถโหลดไลบรารี Supabase ได้ (อินเทอร์เน็ตอาจบล็อกไฟล์)");
-                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                    
-                    if(window.Chart && window.ChartDataLabels) {
-                        Chart.register(ChartDataLabels);
-                    }
-                } catch(err) {
-                    alert("🚨 ข้อผิดพลาดระบบ: " + err.message);
-                    return;
-                }
+    if (error) throw error;
 
-                if (await auth.validate()) { 
-                    app.initUserUI(); 
-                    app.navigate('dashboard'); 
-                } else { 
-                    document.getElementById('app-root').classList.add('hidden'); 
-                    document.getElementById('login-root').classList.remove('hidden'); 
-                    handlers.loadLoginUsers(); 
-                    handlers.loadLeaderboard(); 
-                }
-            }
-        };
+    // 3. ดึง Public URL ของไฟล์เพื่อนำไปบันทึกลง Database หรือแสดงผล
+    const { data: urlData } = supabase.storage
+      .from('your-bucket-name')
+      .getPublicUrl(fileName);
 
-        document.addEventListener('DOMContentLoaded', app.init);
-    </script>
-</body>
-</html>
+    return urlData.publicUrl;
+
+  } catch (error) {
+    console.error('Error uploading to Supabase:', error.message);
+    throw error;
+  }
+}
