@@ -61,7 +61,7 @@
         <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 flex flex-col shadow-xl md:shadow-none">
             <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
                 <div class="flex items-center gap-2">
-                    <img src="https://upload.wikimedia.org/wikipedia/th/7/7b/Vocational_Education_Commission.png" alt="Logo" class="w-8 h-8 rounded-full object-cover border shadow-sm bg-white">
+                    <img src="https://i.postimg.cc/vmSdyWZp/sxs-logo.png" alt="Logo" class="w-8 h-8 rounded-full object-cover border shadow-sm bg-white">
                     <h1 class="text-2xl font-bold text-primary tracking-tight">STIPS</h1>
                 </div>
                 <button onclick="ui.closeSidebar()" class="md:hidden text-2xl text-slate-400">&times;</button>
@@ -91,7 +91,7 @@
         <main class="flex-1 flex flex-col h-full overflow-hidden w-full relative bg-slate-50">
             <header class="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shrink-0 shadow-sm z-30">
                 <div class="flex items-center gap-2">
-                    <img src="https://upload.wikimedia.org/wikipedia/th/7/7b/Vocational_Education_Commission.png" alt="Logo" class="w-7 h-7 rounded-full object-cover shadow-sm border border-slate-100 bg-white">
+                    <img src="https://i.postimg.cc/vmSdyWZp/sxs-logo.png" alt="Logo" class="w-7 h-7 rounded-full object-cover shadow-sm border border-slate-100 bg-white">
                     <h1 class="text-xl font-bold text-slate-800">STIPS</h1>
                 </div>
                 <button onclick="ui.openSidebar()" class="p-1.5 text-2xl text-slate-600">☰</button>
@@ -138,7 +138,7 @@
         <div class="order-1 lg:order-2 flex items-center justify-center p-6 sm:p-10 bg-slate-50 relative">
             <div class="bg-white p-8 sm:p-10 rounded-3xl shadow-2xl w-full max-w-md border border-slate-100 z-10">
                 <div class="text-center mb-8">
-                    <img src="https://upload.wikimedia.org/wikipedia/th/7/7b/Vocational_Education_Commission.png" alt="Logo" class="w-24 h-24 mx-auto mb-4 rounded-full shadow-lg border-2 border-white object-cover bg-white">
+                    <img src="https://i.postimg.cc/vmSdyWZp/sxs-logo.png" alt="Logo" class="w-24 h-24 mx-auto mb-4 rounded-full shadow-lg border-2 border-white object-cover bg-white">
                     <h1 class="text-xl sm:text-2xl font-bold text-slate-800 leading-tight">เข้าสู่ระบบ<br><span class="text-primary text-lg sm:text-xl">ระบบติดตามการใช้จ่ายงบประมาณ(งบลงทุน)</span></h1>
                     <p class="text-sm text-slate-500 mt-2 font-medium tracking-wide">กลุ่มติดตามผลการใช้งบประมาณ</p>
                 </div>
@@ -207,8 +207,6 @@
 
         const SUPABASE_URL = "https://jfkqxwkukotmjaeuttcs.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_hEoWELY_mQr3E-5ldGB4og_82jI5BY_";
-        
-        // 🌟 ลิงก์ Web App URL เดิมของคุณ (ที่เพิ่งอัปเดตโค้ด Apps Script ไปใหม่)
         const GOOGLE_DRIVE_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbzWV_Nv7KQyV77JGBX39O0sKrQL2nDZKdE0NaVSjoHL3eWl9iMC-GLGWq3UHkZMDoMbbA/exec";
         
         let supabaseClient;
@@ -790,7 +788,6 @@
         };
 
         const handlers = {
-            // 🌟 อัปเดต: ขอตั๋วอัปโหลดจาก Apps Script แล้วยิงไฟล์เข้า Google Drive ตรงๆ (เร็วขึ้น 10 เท่า)
             doAppeal: async (action) => { 
                 ui.openConfirm('ยืนยันอุทธรณ์', 'บันทึกข้อมูลการอุทธรณ์', async () => { 
                     ui.showLoader('กำลังอัปโหลดไฟล์ (ไม่เกิน 3 วินาที)...'); 
@@ -799,7 +796,6 @@
                         if(action === 'hold') { 
                             const f = document.getElementById('appeal_file')?.files[0]; 
                             if(f) { 
-                                // 1. ขอตั๋วอัปโหลดจาก Apps Script
                                 const initRes = await fetch(GOOGLE_DRIVE_UPLOAD_URL, {
                                     method: "POST",
                                     body: JSON.stringify({ filename: `appeal_${pid}_${Date.now()}.pdf`, mimeType: f.type }),
@@ -808,7 +804,6 @@
                                 const initData = await initRes.json();
                                 if(!initData.success) throw new Error(initData.error);
 
-                                // 2. ยิงไฟล์ตรงเข้าเซิร์ฟเวอร์ Google (ไม่แปลง Base64)
                                 const uploadRes = await fetch(initData.uploadUrl, { method: 'PUT', body: f });
                                 const driveData = await uploadRes.json();
                                 fileLink = `https://drive.google.com/file/d/${driveData.id}/view`;
@@ -822,7 +817,6 @@
                 }); 
             },
 
-            // 🌟 อัปเดต: ขอตั๋วอัปโหลดจาก Apps Script แล้วยิงไฟล์เข้า Google Drive ตรงๆ (เร็วขึ้น 10 เท่า)
             saveContract: async () => { 
                 const f = document.getElementById('c_file')?.files[0]; 
                 if(!f) return ui.toast('กรุณาแนบไฟล์สัญญา PDF', 'warning'); 
@@ -831,7 +825,6 @@
                 try { 
                     const pid = state.selectedProject.id; 
                     
-                    // 1. ขอตั๋วอัปโหลดจาก Apps Script
                     const initRes = await fetch(GOOGLE_DRIVE_UPLOAD_URL, {
                         method: "POST",
                         body: JSON.stringify({ filename: `contract_${pid}_${Date.now()}.pdf`, mimeType: f.type }),
@@ -840,7 +833,6 @@
                     const initData = await initRes.json();
                     if(!initData.success) throw new Error(initData.error);
 
-                    // 2. ยิงไฟล์ตรงเข้าเซิร์ฟเวอร์ Google (ไม่แปลง Base64)
                     const uploadRes = await fetch(initData.uploadUrl, { method: 'PUT', body: f });
                     const driveData = await uploadRes.json();
                     const fileLink = `https://drive.google.com/file/d/${driveData.id}/view`;
