@@ -61,7 +61,7 @@
         <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 flex flex-col shadow-xl md:shadow-none">
             <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
                 <div class="flex items-center gap-2">
-                    <img src="https://upload.wikimedia.org/wikipedia/th/7/7b/Vocational_Education_Commission.png" alt="Logo" class="w-8 h-8 rounded-full object-cover border shadow-sm bg-white">
+                    <img src="https://i.postimg.cc/vmSdyWZp/sxs-logo.png" alt="Logo" class="w-8 h-8 rounded-full object-cover border shadow-sm bg-white">
                     <h1 class="text-2xl font-bold text-primary tracking-tight">STIPS</h1>
                 </div>
                 <button onclick="ui.closeSidebar()" class="md:hidden text-2xl text-slate-400">&times;</button>
@@ -91,7 +91,7 @@
         <main class="flex-1 flex flex-col h-full overflow-hidden w-full relative bg-slate-50">
             <header class="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shrink-0 shadow-sm z-30">
                 <div class="flex items-center gap-2">
-                    <img src="https://upload.wikimedia.org/wikipedia/th/7/7b/Vocational_Education_Commission.png" alt="Logo" class="w-7 h-7 rounded-full object-cover shadow-sm border border-slate-100 bg-white">
+                    <img src="https://i.postimg.cc/vmSdyWZp/sxs-logo.png" alt="Logo" class="w-7 h-7 rounded-full object-cover shadow-sm border border-slate-100 bg-white">
                     <h1 class="text-xl font-bold text-slate-800">STIPS</h1>
                 </div>
                 <button onclick="ui.openSidebar()" class="p-1.5 text-2xl text-slate-600">☰</button>
@@ -138,8 +138,11 @@
         <div class="order-1 lg:order-2 flex items-center justify-center p-6 sm:p-10 bg-slate-50 relative">
             <div class="bg-white p-8 sm:p-10 rounded-3xl shadow-2xl w-full max-w-md border border-slate-100 z-10">
                 <div class="text-center mb-8">
-                    <img src="https://upload.wikimedia.org/wikipedia/th/7/7b/Vocational_Education_Commission.png" alt="Logo" class="w-24 h-24 mx-auto mb-4 rounded-full shadow-lg border-2 border-white object-cover bg-white">
+                    <!-- โลโก้ใหม่ (ดึงจากอินเทอร์เน็ต) -->
+                    <img src="https://i.postimg.cc/vmSdyWZp/sxs-logo.png" alt="Logo" class="w-24 h-24 mx-auto mb-4 rounded-full shadow-lg border-2 border-white object-cover bg-white">
+                    <!-- ข้อความหัวข้อใหม่ -->
                     <h1 class="text-xl sm:text-2xl font-bold text-slate-800 leading-tight">เข้าสู่ระบบ<br><span class="text-primary text-lg sm:text-xl">ระบบติดตามการใช้จ่ายงบประมาณ(งบลงทุน)</span></h1>
+                    <!-- ข้อความรองใหม่ -->
                     <p class="text-sm text-slate-500 mt-2 font-medium tracking-wide">กลุ่มติดตามผลการใช้งบประมาณ</p>
                 </div>
                 <form onsubmit="auth.login(event)" class="space-y-5">
@@ -154,6 +157,7 @@
                     </div>
                     <button type="submit" class="w-full bg-primary text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 mt-2 text-lg">เข้าสู่ระบบ</button>
                     
+                    <!-- ส่วนติดต่อผู้ดูแลระบบ -->
                     <div class="mt-6 text-center bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm">
                         <p class="font-bold text-slate-700 text-sm mb-0.5">หากมีปัญหา/สงสัย กรุณาติดต่อ</p>
                         <p class="text-[13px] text-slate-600 font-medium">กลุ่มงานติดตามผลการใช้จ่ายงบประมาณ</p>
@@ -208,7 +212,7 @@
         const SUPABASE_URL = "https://jfkqxwkukotmjaeuttcs.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_hEoWELY_mQr3E-5ldGB4og_82jI5BY_";
         
-        // 🌟 ลิงก์ Web App URL เดิมของคุณ (ที่เพิ่งอัปเดตโค้ด Apps Script ไปใหม่)
+        // 🌟 ลิงก์ Web App URL ของคุณ (ที่เพิ่งอัปเดตโค้ด Apps Script ไปใหม่)
         const GOOGLE_DRIVE_UPLOAD_URL = "https://script.google.com/macros/s/AKfycbzWV_Nv7KQyV77JGBX39O0sKrQL2nDZKdE0NaVSjoHL3eWl9iMC-GLGWq3UHkZMDoMbbA/exec";
         
         let supabaseClient;
@@ -537,6 +541,7 @@
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
 
+            // --- ส่วนของ Projects / จัดการโครงการ ---
             projects: async (skipFetch = false) => {
                 let activeElement = document.activeElement;
                 let activeId = activeElement ? activeElement.id : null;
@@ -786,188 +791,6 @@
                     let instRows = insts.map(i => { const d = i.disbursement || {}; const pAmt = Number(d.paid_amount || 0); const pPile = Number(d.pile_return_amount || 0); totalAmt += Number(i.installment_amount); totalPaid += pAmt; totalPile += pPile; return `<tr class="hover:bg-blue-50/50 transition-colors"><td class="px-4 py-3 border-b text-center text-xs font-bold text-slate-500">งวด ${i.installment_no}</td><td class="px-4 py-3 border-b text-right text-sm font-semibold text-slate-800">${utils.formatMoney(i.installment_amount)}</td><td class="px-4 py-3 border-b"><input type="number" id="paid_${i.id}" value="${d.paid_amount || ''}" max="${i.installment_amount}" oninput="handlers.calcDisburseRow('${i.id}', ${i.installment_amount})" class="w-full min-w-[100px] border border-slate-300 p-2 rounded-lg outline-none text-right text-sm focus:ring-2 focus:ring-primary font-medium text-blue-700" placeholder="0.00"></td><td class="px-4 py-3 border-b text-right text-sm font-bold text-orange-600" id="pile_${i.id}">${utils.formatMoney(pPile)}</td><td class="px-4 py-3 border-b"><input type="date" id="date_${i.id}" value="${d.payment_date || ''}" class="w-full border border-slate-300 p-2 rounded-lg outline-none text-sm focus:ring-2 focus:ring-primary text-slate-600"></td><td class="px-4 py-3 border-b"><input type="text" id="det_${i.id}" value="${utils.esc(d.payment_detail || '')}" placeholder="คำอธิบาย..." class="w-full min-w-[140px] border border-slate-300 p-2 rounded-lg outline-none text-sm focus:ring-2 focus:ring-primary"></td><td class="px-4 py-3 border-b text-center"><button onclick="handlers.saveDisburse('${i.id}')" class="bg-primary text-white px-4 py-2 rounded-xl text-xs font-medium hover:bg-blue-700 shadow-sm transition">บันทึก</button></td></tr>`; }).join(''); 
                     let html = `<div class="mb-6"><button onclick="app.navigate('workflow', '${projectId}')" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition mb-3 inline-flex items-center gap-1">← กลับหน้า Workflow</button><h2 class="text-2xl font-bold text-slate-800">บริหารสัญญาและการเบิกจ่าย</h2><p class="text-slate-500 mt-1 text-sm"> ${p.budget_code ? `<span class="font-mono bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded text-indigo-800 font-bold">${utils.esc(p.budget_code)}</span>` : `<span class="bg-slate-100 border border-slate-200 text-slate-400 px-2 py-0.5 rounded text-xs">ยังไม่ระบุรหัสงบฯ</span>`}  ${utils.esc(p.project_name)}</p></div><div class="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden mb-6"><div class="p-5 border-b border-slate-100 bg-slate-50"><h3 class="font-bold text-slate-800 text-lg">1. ตารางติดตามการเบิกจ่ายจริงตามงวดงาน</h3></div><div class="overflow-x-auto p-1"><table class="w-full text-sm text-left whitespace-nowrap"><thead class="bg-slate-100/50 text-slate-500 text-xs uppercase tracking-wider"><tr><th class="px-4 py-3 text-center">งวดงาน</th><th class="px-4 py-3 text-right">ราคางวดงาน</th><th class="px-4 py-3">ยอดเบิกจ่ายแล้ว (บาท)</th><th class="px-4 py-3 text-right">คืนค่าเสาเข็ม/ค่างาน</th><th class="px-4 py-3">วันที่เบิกจ่าย</th><th class="px-4 py-3">รายละเอียด</th><th class="px-4 py-3 text-center">จัดการ</th></tr></thead><tbody>${instRows}</tbody><tfoot class="bg-slate-50/80 font-bold text-sm border-t-2 border-slate-200"><tr><td class="px-4 py-4 text-center">สรุปรวม</td><td class="px-4 py-4 text-right text-slate-800 text-base">${utils.formatMoney(totalAmt)}</td><td class="px-4 py-4 text-right text-emerald-600 text-base" id="total_paid">${utils.formatMoney(totalPaid)}</td><td class="px-4 py-4 text-right text-orange-600 text-base" id="total_pile">${utils.formatMoney(totalPile)}</td><td colspan="3"></td></tr></tfoot></table></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6"><div class="bg-white border border-slate-200 rounded-3xl shadow-sm p-6 h-fit"><h3 class="font-bold text-slate-800 text-lg mb-5 pb-3 border-b border-slate-100">2. บันทึกความก้าวหน้า / ปัญหาอุปสรรค</h3><div class="space-y-4"><div><label class="block text-sm font-semibold text-slate-700 mb-1.5">รายละเอียดความก้าวหน้า <span class="text-red-500">*</span></label><textarea id="prog_detail" rows="3" class="w-full border border-slate-300 rounded-xl p-3 outline-none text-sm focus:ring-2 focus:ring-primary transition"></textarea></div><div><label class="block text-sm font-semibold text-slate-700 mb-1.5">ปัญหา / อุปสรรค</label><textarea id="prog_prob" rows="2" class="w-full border border-slate-300 rounded-xl p-3 outline-none text-sm focus:ring-2 focus:ring-red-400 transition"></textarea></div><div><label class="block text-sm font-semibold text-slate-700 mb-1.5">หมายเหตุ</label><input type="text" id="prog_rem" class="w-full border border-slate-300 rounded-xl p-3 outline-none text-sm focus:ring-2 focus:ring-primary transition"></div><button onclick="handlers.saveProgress('${res.contract.id}')" class="w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-medium hover:bg-slate-800 mt-2 shadow-md transition">บันทึกรายงานความก้าวหน้า</button></div></div><div class="bg-white border border-slate-200 rounded-3xl shadow-sm p-6 h-fit"><h3 class="font-bold text-slate-800 text-lg mb-5 pb-3 border-b border-slate-100 flex items-center gap-2"><span class="text-xl">⏱️</span> ประวัติรายงาน</h3><div class="space-y-5 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">${progs.length === 0 ? '<div class="text-center py-10 bg-slate-50 rounded-xl border border-dashed"><p class="text-sm text-slate-400 font-medium">ยังไม่มีประวัติการบันทึก</p></div>' : progs.map(pr => `<div class="relative pl-5 before:content-[''] before:absolute before:left-0 before:top-1.5 before:bottom-[-20px] before:w-[3px] before:bg-blue-100 last:before:hidden"><div class="absolute left-[-2px] top-1.5 w-[7px] h-[7px] rounded-full bg-primary ring-4 ring-white"></div><div class="bg-slate-50 border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition"><p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex justify-between"><span>${utils.formatDate(pr.created_at)}</span><span class="text-primary">${utils.esc(pr.creator_name)}</span></p><p class="text-sm font-medium text-slate-800 leading-relaxed">${utils.esc(pr.progress_detail)}</p>${pr.problem_detail ? `<div class="mt-3 p-2.5 bg-red-50 border border-red-100 rounded-lg"><p class="text-xs font-semibold text-red-700 mb-0.5">⚠️ ปัญหาอุปสรรค:</p><p class="text-xs text-red-600">${utils.esc(pr.problem_detail)}</p></div>` : ''}</div></div>`).join('')}</div></div></div>`; document.getElementById('page-container').innerHTML = html; 
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } 
-            }
-        };
-
-        const handlers = {
-            // 🌟 อัปเดต: ขอตั๋วอัปโหลดจาก Apps Script แล้วยิงไฟล์เข้า Google Drive ตรงๆ (เร็วขึ้น 10 เท่า)
-            doAppeal: async (action) => { 
-                ui.openConfirm('ยืนยันอุทธรณ์', 'บันทึกข้อมูลการอุทธรณ์', async () => { 
-                    ui.showLoader('กำลังอัปโหลดไฟล์ (ไม่เกิน 3 วินาที)...'); 
-                    try { 
-                        const pid = state.selectedProject.id; let fileLink = null; 
-                        if(action === 'hold') { 
-                            const f = document.getElementById('appeal_file')?.files[0]; 
-                            if(f) { 
-                                // 1. ขอตั๋วอัปโหลดจาก Apps Script
-                                const initRes = await fetch(GOOGLE_DRIVE_UPLOAD_URL, {
-                                    method: "POST",
-                                    body: JSON.stringify({ filename: `appeal_${pid}_${Date.now()}.pdf`, mimeType: f.type }),
-                                    headers: { "Content-Type": "text/plain;charset=utf-8" }
-                                });
-                                const initData = await initRes.json();
-                                if(!initData.success) throw new Error(initData.error);
-
-                                // 2. ยิงไฟล์ตรงเข้าเซิร์ฟเวอร์ Google (ไม่แปลง Base64)
-                                const uploadRes = await fetch(initData.uploadUrl, { method: 'PUT', body: f });
-                                const driveData = await uploadRes.json();
-                                fileLink = `https://drive.google.com/file/d/${driveData.id}/view`;
-                            } 
-                        } 
-                        await supabaseClient.from('appeals').insert([{ project_id: pid, appeal_option: document.getElementById('appeal_opt').value, central_audit_document_path: fileLink }]); 
-                        if(action === 'cancel') { await supabaseClient.from('projects').update({is_cancelled: true, cancellation_reason: 'ยกเลิกจากผลอุทธรณ์'}).eq('id', pid); ui.toast('ยกเลิกแล้ว', 'warning'); app.navigate('projects'); } 
-                        else if(action === 'save') { await handlers.updateStatus(7, "ผ่านอุทธรณ์"); } 
-                        else { ui.toast('บันทึกเรียบร้อย', 'info'); app.navigate('workflow', pid); } 
-                    } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } 
-                }); 
-            },
-
-            // 🌟 อัปเดต: ขอตั๋วอัปโหลดจาก Apps Script แล้วยิงไฟล์เข้า Google Drive ตรงๆ (เร็วขึ้น 10 เท่า)
-            saveContract: async () => { 
-                const f = document.getElementById('c_file')?.files[0]; 
-                if(!f) return ui.toast('กรุณาแนบไฟล์สัญญา PDF', 'warning'); 
-                if(f.type !== 'application/pdf') return ui.toast('รองรับไฟล์ PDF เท่านั้น', 'error'); 
-                ui.showLoader('กำลังอัปโหลดไฟล์สัญญา (ไม่เกิน 3 วินาที)...'); 
-                try { 
-                    const pid = state.selectedProject.id; 
-                    
-                    // 1. ขอตั๋วอัปโหลดจาก Apps Script
-                    const initRes = await fetch(GOOGLE_DRIVE_UPLOAD_URL, {
-                        method: "POST",
-                        body: JSON.stringify({ filename: `contract_${pid}_${Date.now()}.pdf`, mimeType: f.type }),
-                        headers: { "Content-Type": "text/plain;charset=utf-8" }
-                    });
-                    const initData = await initRes.json();
-                    if(!initData.success) throw new Error(initData.error);
-
-                    // 2. ยิงไฟล์ตรงเข้าเซิร์ฟเวอร์ Google (ไม่แปลง Base64)
-                    const uploadRes = await fetch(initData.uploadUrl, { method: 'PUT', body: f });
-                    const driveData = await uploadRes.json();
-                    const fileLink = `https://drive.google.com/file/d/${driveData.id}/view`;
-                    
-                    const {data: cData, error:e2} = await supabaseClient.from('contracts').upsert({ project_id: pid, signed_amount: Number(document.getElementById('contract_amt').value), remaining_budget: Number(document.getElementById('remain_amt').value.replace(/,/g,'')), contract_signed_date: document.getElementById('c_start').value, contract_end_date: document.getElementById('c_end').value, installment_count: Number(document.getElementById('inst_count').value), contract_document_path: fileLink }, { onConflict: 'project_id' }).select(); 
-                    if(e2) throw e2; 
-                    
-                    await supabaseClient.from('contract_installments').delete().eq('contract_id', cData[0].id); 
-                    const instList = []; const contAmt = Number(document.getElementById('contract_amt').value); 
-                    document.querySelectorAll('.inst-inp').forEach((inp, i) => { const v = Number(inp.value); instList.push({ contract_id: cData[0].id, installment_no: i+1, installment_amount: v, percentage: (v/contAmt)*100 }); }); 
-                    const {error:e3} = await supabaseClient.from('contract_installments').insert(instList); 
-                    if(e3) throw e3; 
-                    
-                    await handlers.updateStatus(8, "ลงนามเรียบร้อย เริ่มบริหารสัญญา"); 
-                } catch(e) { ui.toast(e.message, 'error'); ui.hideLoader(); } 
-            },
-
-            changeYear: (year) => { state.fiscalYear = year; if (state.currentRoute === 'dashboard') pages.dashboard(); else if (state.currentRoute === 'projects') { state.projectPage = 1; pages.projects(true); } },
-            changeProjectPage: (p) => { state.projectPage = p; pages.projects(true); },
-            changeAuditPage: (p) => { state.auditPage = p; pages.audit(); },
-            searchProjects: (val) => { state.projectSearch = val; state.projectPage = 1; pages.projects(true); },
-            searchUsers: (val) => { state.userSearch = val; pages.users(true); },
-            filterAudit: () => { state.auditStartDate = document.getElementById('filter_start').value; state.auditEndDate = document.getElementById('filter_end').value; state.auditSearch = document.getElementById('filter_search').value; state.auditPage = 1; pages.audit(); },
-            clearAuditFilter: () => { state.auditStartDate = ''; state.auditEndDate = ''; state.auditSearch = ''; state.auditPage = 1; pages.audit(); },
-            
-            loadLoginUsers: async () => { 
-                try { 
-                    const usernames = await rpc("get_login_usernames"); 
-                    let html = ''; usernames.forEach(u => { html += `<option value="${utils.esc(u)}">`; }); 
-                    document.getElementById('login-user-list').innerHTML = html; 
-                } catch (e) { console.error("Error loading usernames", e); } 
-            },
-
-            toggleAppeal: () => { 
-                const v = document.getElementById('appeal_opt').value; 
-                document.getElementById('appeal_extra').classList[v==='3'?'remove':'add']('hidden'); 
-                let btn = ''; 
-                if(v==='1'||v==='5') btn = `<button onclick="handlers.doAppeal('save')" class="bg-primary text-white px-6 py-3.5 rounded-xl text-sm font-medium w-full shadow-md">บันทึกและไปสถานะที่ 7</button>`; 
-                else if(v==='2'||v==='4') btn = `<button onclick="handlers.doAppeal('cancel')" class="bg-danger text-white px-6 py-3.5 rounded-xl text-sm font-medium w-full shadow-md">บันทึกและยกเลิกโครงการ</button>`; 
-                else if(v==='3') btn = `<button onclick="handlers.doAppeal('hold')" class="bg-warning text-white px-6 py-3.5 rounded-xl text-sm font-medium w-full shadow-md">แนบหลักฐาน (ค้างสถานะเพื่อรอผล)</button>`; 
-                document.getElementById('appeal_btn').innerHTML = btn; 
-            },
-            calcRemaining: (budget) => { const amt = Number(document.getElementById('contract_amt').value||0); document.getElementById('remain_amt').value = utils.formatMoney(budget - amt); handlers.calcInst(); },
-            genInst: () => { const c = Number(document.getElementById('inst_count').value); const t = document.getElementById('inst_tbody'); if(c===0) { document.getElementById('inst_table').classList.add('hidden'); handlers.calcInst(); return; } document.getElementById('inst_table').classList.remove('hidden'); let h = ''; for(let i=1;i<=c;i++) h += `<tr><td class="p-3 border-b text-center font-medium text-slate-500 bg-slate-50/50">งวด ${i}</td><td class="p-3 border-b"><input type="number" class="inst-inp w-full border border-slate-300 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary text-right font-medium text-blue-700 transition" oninput="handlers.calcInst()"></td><td class="p-3 border-b text-right inst-pct text-slate-400 font-mono text-xs">0.00%</td></tr>`; h += `<tr><td class="p-4 bg-slate-50 font-bold text-center text-slate-600">รวมทั้งหมด</td><td class="p-4 bg-slate-50 font-bold text-right text-lg text-slate-800" id="inst_sum">0.00</td><td class="p-4 bg-slate-50 font-bold text-right text-emerald-600 text-lg" id="inst_pct_sum">0.00%</td></tr>`; t.innerHTML = h; handlers.calcInst(); },
-            calcInst: () => { const contAmt = Number(document.getElementById('contract_amt').value||0); let sum = 0; document.querySelectorAll('.inst-inp').forEach((inp, idx) => { const v = Number(inp.value||0); sum += v; document.querySelectorAll('.inst-pct')[idx].innerText = contAmt>0 ? ((v/contAmt)*100).toFixed(2)+'%' : '0.00%'; }); const btn = document.getElementById('btn_save_c'); if(!btn) return; if(document.getElementById('inst_sum')) { document.getElementById('inst_sum').innerText = utils.formatMoney(sum); document.getElementById('inst_pct_sum').innerText = contAmt>0 ? ((sum/contAmt)*100).toFixed(2)+'%' : '0.00%'; const valid = sum > 0 && Math.abs(sum - contAmt) < 0.01; btn.disabled = !valid; btn.className = valid ? "bg-primary text-white px-6 py-3.5 rounded-xl w-full text-sm font-medium shadow-lg shadow-blue-500/30 transition hover:bg-blue-700" : "bg-slate-300 text-slate-500 px-6 py-3.5 rounded-xl w-full text-sm font-medium opacity-70 cursor-not-allowed"; document.getElementById('inst_err').classList[valid?'add':'remove']('hidden'); } else { btn.disabled = true; } },
-            calcDisburseRow: (id, maxVal) => { const inp = document.getElementById(`paid_${id}`); let val = Number(inp.value || 0); if (val > maxVal) { ui.toast('เบิกจ่ายห้ามเกินยอดงวดงาน', 'warning'); val = maxVal; inp.value = maxVal; } document.getElementById(`pile_${id}`).innerText = utils.formatMoney(maxVal - val); let tPaid = 0; let tPile = 0; document.querySelectorAll('[id^="paid_"]').forEach(el => tPaid += Number(el.value || 0)); document.querySelectorAll('[id^="pile_"]').forEach(el => tPile += Number(el.innerText.replace(/,/g,'') || 0)); document.getElementById('total_paid').innerText = utils.formatMoney(tPaid); document.getElementById('total_pile').innerText = utils.formatMoney(tPile); },
-            saveDisburse: async (instId) => { const paid = Number(document.getElementById(`paid_${instId}`).value); const dt = document.getElementById(`date_${instId}`).value; const det = document.getElementById(`det_${instId}`).value; if(!dt) return ui.toast('กรุณาระบุวันที่เบิกจ่าย', 'warning'); ui.showLoader('บันทึกเบิกจ่าย...'); try { await rpc('custom_save_disbursement', { p_session_token: state.sessionToken, p_installment_id: instId, p_paid_amount: paid, p_payment_date: dt, p_payment_detail: det }); ui.toast('สำเร็จ'); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } },
-            saveProgress: async (contractId) => { const det = document.getElementById('prog_detail').value; if(!det) return ui.toast('กรุณาระบุรายละเอียด', 'warning'); ui.showLoader('บันทึกความก้าวหน้า...'); try { await rpc('custom_save_progress', { p_session_token: state.sessionToken, p_contract_id: contractId, p_progress_detail: det, p_problem_detail: document.getElementById('prog_prob').value, p_remark: document.getElementById('prog_rem').value }); ui.toast('สำเร็จ'); app.navigate('management', state.selectedProject.id); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } },
-            openImportUsersModal: () => { ui.openModal('นำเข้าบัญชีสถานศึกษา (Excel / CSV)', `<div class="space-y-4 p-1"><div class="bg-blue-50 border border-blue-100 text-blue-800 p-4 rounded-xl text-sm leading-relaxed"><p class="font-bold mb-2">💡 รูปแบบหัวคอลัมน์ (แถวแรก) สำหรับสร้างบัญชี:</p><p class="text-sm font-mono mb-2 bg-white p-2 rounded border border-blue-100 text-blue-600 text-center">ชื่อสถานศึกษา | รหัสผ่านเริ่มต้น</p><p class="text-xs text-slate-500">หมายเหตุ: ข้อมูลผู้รับผิดชอบ ทางสถานศึกษาจะเข้ามาแก้ไขเองในภายหลัง</p></div><div><label class="block text-sm font-semibold mb-1.5">เลือกไฟล์ Excel <span class="text-red-500">*</span></label><input type="file" id="excel_user_file" accept=".xlsx, .xls, .csv" class="w-full border border-slate-300 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition cursor-pointer"></div><button onclick="handlers.processImportUsers()" class="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-medium hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-2"><span class="text-lg">📥</span> ยืนยันสร้างบัญชี</button></div>`); },
-            processImportUsers: async () => { const fileInput = document.getElementById('excel_user_file'); if(!fileInput.files.length) return ui.toast('กรุณาเลือกไฟล์ก่อน', 'warning'); ui.showLoader('กำลังอ่านไฟล์ Excel...'); const file = fileInput.files[0]; const reader = new FileReader(); reader.onload = async (e) => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, {type: 'array'}); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); if(jsonData.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel'); const payload = jsonData.map(row => ({ institution_name: row['ชื่อสถานศึกษา'] || '', initial_password: String(row['รหัสผ่านเริ่มต้น'] || '') })).filter(r => r.institution_name !== '' && r.initial_password !== ''); if(payload.length === 0) throw new Error('ไม่พบหัวคอลัมน์ "ชื่อสถานศึกษา" และ "รหัสผ่านเริ่มต้น"'); ui.showLoader(`กำลังสร้าง ${payload.length} บัญชี เข้าสู่ระบบ...`); const res = await rpc('admin_import_users_excel', { p_session_token: state.sessionToken, p_data: payload }); ui.closeModal(); ui.toast(res.message || 'สร้างบัญชีสำเร็จ', 'success'); pages.users(); } catch(err) { ui.toast(err.message, 'error'); ui.hideLoader(); } }; reader.readAsArrayBuffer(file); },
-            submitProfile: async (e) => { e.preventDefault(); ui.showLoader('กำลังบันทึก...'); try { await rpc("custom_update_profile", { p_session_token: state.sessionToken, p_password: document.getElementById('prof_password').value, p_full_name: document.getElementById('prof_fullname').value, p_phone: document.getElementById('prof_phone').value, p_email: document.getElementById('prof_email').value }); state.user.full_name = document.getElementById('prof_fullname').value; document.getElementById('user-fullname').innerText = state.user.full_name; document.getElementById('prof_password').value = ''; ui.toast('บันทึกข้อมูลสำเร็จ', 'success'); } catch(err) { ui.toast(err.message, 'error'); } finally { ui.hideLoader(); } },
-            openEditUserModal: (userId) => { const user = state.users.find(u => u.id === userId); if(!user) return; ui.openModal('✏️ แก้ไขข้อมูลผู้ใช้งาน', `<form onsubmit="handlers.submitEditUser(event, '${user.id}')" class="space-y-4"><div><label class="block text-sm font-medium mb-1">Username (สถานศึกษา)</label><input type="text" value="${utils.esc(user.username)}" disabled class="w-full px-4 py-3 border border-slate-200 rounded-xl bg-slate-100 text-slate-500 cursor-not-allowed outline-none font-bold"></div><div class="p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-4"><div><label class="block text-sm font-bold text-blue-800 mb-1">🔑 กำหนดรหัสผ่านใหม่ <span class="text-xs font-normal text-blue-600">(เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน)</span></label><input type="password" id="edit_password" minlength="6" class="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-primary" placeholder="กรอกรหัสผ่านใหม่..."></div><div><label class="block text-sm font-bold text-blue-800 mb-1">🛡️ สิทธิ์การใช้งาน</label><select id="edit_role" required class="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none bg-white focus:ring-2 focus:ring-primary"><option value="user" ${user.role==='user'?'selected':''}>User (ผู้ใช้งานวิทยาลัย)</option><option value="admin" ${user.role==='admin'?'selected':''}>Admin (ผู้ดูแลระบบส่วนกลาง)</option></select></div></div><div><label class="block text-sm font-medium mb-1">ชื่อผู้รับผิดชอบ</label><input type="text" id="edit_fullname" value="${utils.esc(user.full_name || '')}" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="ระบุชื่อเจ้าหน้าที่..."></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium mb-1">เบอร์โทรศัพท์</label><input type="text" id="edit_phone" value="${utils.esc(user.phone || '')}" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="08xxxxxxxx"></div><div><label class="block text-sm font-medium mb-1">Email</label><input type="email" id="edit_email" value="${utils.esc(user.email || '')}" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="email@example.com"></div></div><button type="submit" class="w-full bg-primary text-white font-medium py-3.5 rounded-xl hover:bg-blue-800 transition shadow-lg shadow-blue-500/30 mt-2">💾 บันทึกการแก้ไขข้อมูล</button></form>`); },
-            submitEditUser: async (e, userId) => { e.preventDefault(); ui.showLoader('กำลังบันทึก...'); try { await rpc("admin_update_user", { p_session_token: state.sessionToken, p_target_user_id: userId, p_password: document.getElementById('edit_password').value, p_role: document.getElementById('edit_role').value, p_full_name: document.getElementById('edit_fullname').value, p_phone: document.getElementById('edit_phone').value, p_email: document.getElementById('edit_email').value }); logger('USER_UPDATE', `แก้ไขข้อมูลผู้ใช้ ID: ${userId.substring(0,8)}`); ui.closeModal(); ui.toast('บันทึกข้อมูลสำเร็จ'); app.navigate('users'); } catch(err) { ui.toast(err.message, 'error'); } finally { ui.hideLoader(); } },
-            openImportProjectsModal: () => { ui.openModal('นำเข้าข้อมูลโครงการ (Excel / CSV)', `<div class="space-y-4 p-1"><div class="bg-blue-50 border border-blue-100 text-blue-800 p-4 rounded-xl text-sm leading-relaxed"><p class="font-bold mb-2">💡 รูปแบบหัวคอลัมน์ (แถวแรก) ที่ระบบต้องการทั้ง 13 หัวข้อ:</p><p class="text-[11px] font-mono mb-2 bg-white p-2 rounded border border-blue-100 text-blue-600 text-center leading-loose">ปีงบประมาณ | รหัสงบประมาณ | แผนงาน | ผลผลิต | ประเภท | ภาค | จังหวัด | <br><span class="font-bold underline">สถานศึกษา</span> | <span class="font-bold underline">รายการ</span> | จำนวน | หน่วยนับ | <span class="font-bold underline">งบตาม พรบ.</span> | หมายเหตุ</p></div><div><label class="block text-sm font-semibold mb-1.5">เลือกไฟล์ Excel ของคุณ <span class="text-red-500">*</span></label><input type="file" id="excel_project_file" accept=".xlsx, .xls, .csv" class="w-full border border-slate-300 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition cursor-pointer"></div><button onclick="handlers.processImportProjects()" class="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-medium hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-2"><span class="text-lg">📥</span> เริ่มการนำเข้าข้อมูล</button></div>`); },
-            processImportProjects: async () => { const fileInput = document.getElementById('excel_project_file'); if(!fileInput.files.length) return ui.toast('กรุณาเลือกไฟล์ก่อน', 'warning'); ui.showLoader('กำลังอ่านไฟล์ Excel...'); const file = fileInput.files[0]; const reader = new FileReader(); reader.onload = async (e) => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, {type: 'array'}); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); if(jsonData.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel นี้'); const payload = jsonData.map(row => { const instName = row['สถานศึกษา'] || ''; const projName = row['รายการ'] || ''; const projType = row['ประเภท'] || 'ที่ดิน/สิ่งก่อสร้าง'; let rawBudget = String(row['งบตาม พรบ.'] || '0').replace(/,/g, '').replace(/฿/g, '').trim(); const budgetAmt = parseFloat(rawBudget); let rawQty = String(row['จำนวน'] || '0').replace(/,/g, '').trim(); return { institution_name: instName, project_name: projName, project_type: projType, budget_amount: isNaN(budgetAmt) ? 0 : budgetAmt, fiscal_year: String(row['ปีงบประมาณ'] || ''), budget_code: String(row['รหัสงบประมาณ'] || ''), plan_type: String(row['แผนงาน'] || ''), output_type: String(row['ผลผลิต'] || ''), region: String(row['ภาค'] || ''), province: String(row['จังหวัด'] || ''), quantity: isNaN(parseFloat(rawQty)) ? 0 : parseFloat(rawQty), unit: String(row['หน่วยนับ'] || ''), remark: String(row['หมายเหตุ'] || '') }; }).filter(r => r.project_name !== ''); if(payload.length === 0) throw new Error('ไม่พบข้อมูลในคอลัมน์ "รายการ"'); ui.showLoader(`กำลังบันทึก ${payload.length} โครงการ สู่ฐานข้อมูล...`); const res = await rpc('custom_import_projects', { p_session_token: state.sessionToken, p_data: payload }); ui.closeModal(); ui.toast(res.message || 'นำเข้าข้อมูลสำเร็จ', 'success'); state.projectPage = 1; pages.projects(false); } catch(err) { ui.toast(err.message, 'error'); ui.hideLoader(); } }; reader.readAsArrayBuffer(file); },
-            openCreateModal: () => { ui.openModal('สร้างโครงการใหม่', `<form onsubmit="handlers.submitCreate(event)" class="space-y-5 p-1"><div><label class="block text-sm font-semibold mb-1.5">รหัสโครงการ <span class="text-red-500">*</span></label><input name="code" required placeholder="เช่น PRJ-001" class="w-full px-4 py-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-primary transition"></div><div><label class="block text-sm font-semibold mb-1.5">ชื่อโครงการ (รายการ) <span class="text-red-500">*</span></label><textarea name="name" required placeholder="ระบุชื่อโครงการ..." rows="2" class="w-full px-4 py-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-primary transition"></textarea></div><div><label class="block text-sm font-semibold mb-1.5">ประเภท <span class="text-red-500">*</span></label><select name="type" required class="w-full px-4 py-2.5 border rounded-xl outline-none bg-white focus:ring-2 focus:ring-primary transition"><option value="">เลือกประเภท...</option><option value="ที่ดิน/สิ่งก่อสร้าง">ที่ดิน/สิ่งก่อสร้าง</option><option value="ครุภัณฑ์">ครุภัณฑ์</option></select></div><div><label class="block text-sm font-semibold mb-1.5">งบตาม พรบ. (บาท) <span class="text-red-500">*</span></label><input name="budget" type="number" min="0" step="0.01" required placeholder="0.00" class="w-full px-4 py-2.5 border rounded-xl outline-none focus:ring-2 focus:ring-primary transition"></div><button type="submit" class="w-full bg-primary text-white py-3.5 rounded-xl font-medium hover:bg-blue-700 shadow-md transition">บันทึกและสร้างโครงการ (สถานะ 1)</button></form>`); },
-            submitCreate: async (e) => { e.preventDefault(); ui.showLoader('สร้างโครงการ...'); try { const fd = new FormData(e.target); const pCode = fd.get('code'); const pName = fd.get('name'); await rpc("custom_create_project", { p_session_token: state.sessionToken, p_project_code: pCode, p_project_name: pName, p_project_type: fd.get('type'), p_budget_amount: Number(fd.get('budget')) }); logger('CREATE_PROJECT', `สร้างโครงการ [${pCode}] ${pName}`); ui.closeModal(); ui.toast('สร้างโครงการสำเร็จ'); app.navigate('projects'); } catch(err) { ui.toast(err.message, 'error'); } finally { ui.hideLoader(); } },
-            openUserModal: () => { ui.openModal('เพิ่มบัญชีผู้ใช้งาน', `<form onsubmit="handlers.submitUser(event)" class="space-y-4"><div><label class="block text-sm font-medium mb-1">Username <span class="text-xs text-slate-400">(ชื่อสถานศึกษา)</span> <span class="text-red-500">*</span></label><input type="text" name="username" required class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="เช่น วิทยาลัยเทคนิค..."></div><div><label class="block text-sm font-medium mb-1">รหัสผ่าน <span class="text-red-500">*</span></label><input type="password" name="password" required minlength="6" class="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary"></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium mb-1">สิทธิ์การใช้งาน <span class="text-red-500">*</span></label><select name="role" required class="w-full px-4 py-2 border rounded-xl outline-none bg-white"><option value="user">User</option><option value="admin">Admin</option></select></div><div><label class="block text-sm font-medium mb-1">ชื่อ-นามสกุล <span class="text-xs text-slate-400">(เจ้าหน้าที่)</span></label><input type="text" name="full_name" class="w-full px-4 py-2 border rounded-xl outline-none"></div></div><button type="submit" class="w-full bg-primary text-white font-medium py-3.5 rounded-xl hover:bg-blue-800 transition">สร้างบัญชีผู้ใช้งาน</button></form>`); },
-            submitUser: async (e) => { e.preventDefault(); ui.showLoader('กำลังสร้าง...'); try { const fd = new FormData(e.target); await rpc("admin_create_user", { p_session_token: state.sessionToken, p_username: fd.get('username'), p_password: fd.get('password'), p_role: fd.get('role'), p_institution_name: fd.get('username'), p_full_name: fd.get('full_name'), p_phone: '', p_email: '' }); ui.closeModal(); ui.toast('สำเร็จ'); app.navigate('users'); } catch(err) { ui.toast(err.message, 'error'); } finally { ui.hideLoader(); } },
-            confirmDeleteUser: (userId, username) => { ui.openConfirm('ยืนยันลบ', `ลบ "${username}" ใช่หรือไม่?`, async () => { ui.showLoader(); try { await rpc("admin_delete_user", { p_session_token: state.sessionToken, p_user_id: userId }); ui.toast('ลบสำเร็จ'); app.navigate('users'); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } }); },
-
-            // --- ส่วนของ Leaderboard ---
-            loadLeaderboard: async (year = null) => {
-                try {
-                    const res = await rpc('get_public_leaderboard', { p_year: year });
-                    if(res && res.success) {
-                        window.leaderboardData = res.data || [];
-                        const yearSelect = document.getElementById('leaderboard-year');
-                        if (yearSelect) {
-                            if (res.years && res.years.length > 0) {
-                                yearSelect.innerHTML = res.years.map(y => `<option class="text-slate-800" value="${y}" ${y === res.current_year ? 'selected' : ''}>ปีงบประมาณ ${y}</option>`).join('');
-                            } else {
-                                yearSelect.innerHTML = `<option class="text-slate-800" value="">ยังไม่มีข้อมูล</option>`;
-                            }
-                        }
-                        handlers.renderLeaderboard();
-                    } else {
-                        document.getElementById('leaderboard-list').innerHTML = `<div class="text-center py-10 text-white/50">ยังไม่มีข้อมูลโครงการ</div>`;
-                    }
-                } catch(e) {
-                    console.error("Leaderboard Error:", e);
-                    const el = document.getElementById('leaderboard-list');
-                    if (el) el.innerHTML = `<div class="text-center py-10 text-white/50">ไม่พบข้อมูลจัดอันดับในปีที่เลือก</div>`;
-                }
-            },
-            switchLeaderboard: (tab) => {
-                window.leaderboardTab = tab;
-                document.getElementById('tab-best').className = tab === 'best' ? "flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold bg-white text-blue-900 shadow-sm transition" : "flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold text-white hover:bg-white/10 transition";
-                document.getElementById('tab-worst').className = tab === 'worst' ? "flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold bg-white text-blue-900 shadow-sm transition" : "flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold text-white hover:bg-white/10 transition";
-                handlers.renderLeaderboard();
-            },
-            renderLeaderboard: () => {
-                const listEl = document.getElementById('leaderboard-list');
-                if (!listEl) return;
-                if (!window.leaderboardData || window.leaderboardData.length === 0) {
-                    listEl.innerHTML = `<div class="text-center py-10 text-white/50">ยังไม่มีข้อมูลโครงการในปีนี้</div>`;
-                    return;
-                }
-                let sortedData = [...window.leaderboardData];
-                if (window.leaderboardTab === 'worst') sortedData.reverse(); 
-                const top100 = sortedData.slice(0, 100);
-
-                let html = '';
-                top100.forEach((item, idx) => {
-                    const rank = idx + 1;
-                    let rankBadge = `<div class="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center font-bold text-sm text-white/70 shrink-0">${rank}</div>`;
-                    if (window.leaderboardTab === 'best') {
-                        if (rank === 1) rankBadge = `<div class="w-9 h-9 rounded-full bg-yellow-400 flex items-center justify-center font-bold text-base text-yellow-900 shrink-0 shadow-[0_0_15px_rgba(250,204,21,0.5)]">1</div>`;
-                        else if (rank === 2) rankBadge = `<div class="w-9 h-9 rounded-full bg-slate-300 flex items-center justify-center font-bold text-base text-slate-800 shrink-0">2</div>`;
-                        else if (rank === 3) rankBadge = `<div class="w-9 h-9 rounded-full bg-orange-400 flex items-center justify-center font-bold text-base text-orange-900 shrink-0">3</div>`;
-                    }
-                    html += `
-                        <div class="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-4 sm:p-5 flex items-center gap-4 transition">
-                            ${rankBadge}
-                            <div class="flex-1 min-w-0">
-                                <h4 class="font-bold text-white text-[15px] sm:text-[17px] truncate" title="${item.institution_name}">${utils.esc(item.institution_name)}</h4>
-                                <div class="flex justify-between items-end mt-2 gap-3">
-                                    <div class="w-full bg-black/30 rounded-full h-2.5">
-                                        <div class="bg-gradient-to-r ${window.leaderboardTab === 'best' ? 'from-emerald-400 to-green-300' : 'from-red-500 to-orange-400'} h-2.5 rounded-full" style="width: ${item.performance_pct}%"></div>
-                                    </div>
-                                    <span class="text-[13px] font-mono font-bold text-white/90 shrink-0">${item.performance_pct}%</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-                listEl.innerHTML = html;
             }
         };
 
