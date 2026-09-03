@@ -73,6 +73,10 @@
             <nav class="flex-1 overflow-y-auto p-4 space-y-1.5" id="main-nav">
                 <button onclick="app.navigate('dashboard')" data-nav="dashboard" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">▣ แดชบอร์ด</button>
                 <button onclick="app.navigate('projects')" data-nav="projects" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">▤ โครงการงบประมาณ</button>
+                
+                <!-- 🌟 เพิ่มเมนูใหม่ รายงานผล -->
+                <button onclick="app.navigate('report')" data-nav="report" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">📊 รายงานผล</button>
+                
                 <button onclick="app.navigate('profile')" data-nav="profile" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">⚙️ ตั้งค่าบัญชีผู้ใช้</button>
                 <button id="nav-audit" onclick="app.navigate('audit')" data-nav="audit" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-slate-100 text-left font-medium transition-colors">◉ ประวัติการใช้งาน</button>
                 
@@ -109,8 +113,8 @@
 
             <div class="z-10 w-full max-w-xl flex flex-col h-full lg:h-auto max-h-full">
                 <div class="mb-5 text-center lg:text-left">
-                    <h2 class="text-2xl sm:text-3xl font-bold mb-2 flex items-center justify-center lg:justify-start gap-3 drop-shadow-md">🏆 Leaderboard</h2>
-                    <p class="text-sm text-blue-200">100 อันดับสถานศึกษาที่มีผลการใช้จ่ายงบประมาณ(งบลงทุน)</p>
+                    <h2 class="text-2xl sm:text-3xl font-bold mb-2 flex items-center justify-center lg:justify-start gap-3 drop-shadow-md">🏆 STIPS Leaderboard</h2>
+                    <p class="text-sm text-blue-200">100 อันดับวิทยาลัยที่มีผลการใช้จ่ายงบลงทุนยอดเยี่ยม</p>
                 </div>
                 
                 <div class="bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col flex-1 min-h-0">
@@ -225,6 +229,9 @@
         window.stipsCharts = { stages: null, pieTypes: null, pieConst: null, pieEquip: null };
         window.leaderboardData = [];
         window.leaderboardTab = 'best'; 
+        
+        // ตัวแปรเพิ่มสำหรับหน้า Report
+        window.rawReportData = [];
 
         const state = { 
             sessionToken: storage.get("stips_session_token"), 
@@ -539,6 +546,111 @@
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
 
+            // 🌟 เพิ่มหน้า Report (รายงานผลแบบตาราง)
+            report: async () => {
+                ui.showLoader('กำลังโหลดข้อมูลตารางรายงาน...');
+                try {
+                    // 1. ดึงข้อมูล Project พื้นฐาน
+                    const pRes = await rpc("custom_get_projects", { p_session_token: state.sessionToken });
+                    const projects = pRes.data || [];
+                    
+                    // 2. ดึงข้อมูล Contract สำหรับวันที่เริ่มและสิ้นสุดสัญญา (แบบทางลัด)
+                    const { data: contData } = await supabaseClient.from('contracts').select('project_id, contract_signed_date, contract_end_date');
+                    const contMap = {};
+                    if(contData) {
+                        contData.forEach(c => { contMap[c.project_id] = c; });
+                    }
+
+                    // 3. เตรียมข้อมูลทั้งหมดให้พร้อมแสดงผล
+                    window.rawReportData = projects.map(p => {
+                        const c = contMap[p.id] || {};
+                        return {
+                            ...p,
+                            contract_signed_date: c.contract_signed_date || '',
+                            contract_end_date: c.contract_end_date || ''
+                        };
+                    });
+
+                    // 4. ดึงข้อมูลแบบไม่ซ้ำ สำหรับ Dropdown กรอง
+                    const regions = [...new Set(projects.map(p => p.region).filter(Boolean))].sort();
+                    const provinces = [...new Set(projects.map(p => p.province).filter(Boolean))].sort();
+                    const budgetCodes = [...new Set(projects.map(p => p.budget_code).filter(Boolean))].sort();
+                    const institutions = [...new Set(projects.map(p => p.institution_name).filter(Boolean))].sort();
+
+                    let html = `
+                        <div class="mb-6">
+                            <h2 class="text-2xl font-bold text-slate-800 tracking-tight">รายงานผลการดำเนินงาน</h2>
+                            <p class="text-sm text-slate-500 mt-1">สรุปข้อมูลโครงการและสถานะการเบิกจ่าย</p>
+                        </div>
+                        
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+                                <input type="text" id="rep_search" placeholder="🔍 ค้นหาครอบคลุมทั้งหมด..." class="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary w-full lg:col-span-2">
+                                <select id="rep_region" class="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="">ทุกภาค</option>
+                                    ${regions.map(r => `<option value="${r}">${r}</option>`).join('')}
+                                </select>
+                                <select id="rep_province" class="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="">ทุกจังหวัด</option>
+                                    ${provinces.map(p => `<option value="${p}">${p}</option>`).join('')}
+                                </select>
+                                <select id="rep_bcode" class="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="">ทุกรหัสงบประมาณ</option>
+                                    ${budgetCodes.map(b => `<option value="${b}">${b}</option>`).join('')}
+                                </select>
+                                <select id="rep_inst" class="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="">ทุกสถานศึกษา</option>
+                                    ${institutions.map(i => `<option value="${i}">${i}</option>`).join('')}
+                                </select>
+                                <select id="rep_status" class="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="">ทุกสถานะ</option>
+                                    ${[1,2,3,4,5,6,7,8].map(s => `<option value="${s}">${s}. ${utils.getStatusName(s)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="handlers.applyReportFilters()" class="bg-primary text-white px-5 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition shadow-sm">🔍 ค้นหา/กรองข้อมูล</button>
+                                <button onclick="handlers.exportReportExcel()" class="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-medium hover:bg-emerald-700 transition shadow-sm flex items-center gap-2"><span>📥</span> Export Excel</button>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div class="overflow-x-auto max-h-[600px] custom-scrollbar">
+                                <table class="w-full text-left whitespace-nowrap text-sm">
+                                    <thead class="bg-slate-50 text-slate-600 sticky top-0 z-10 shadow-sm border-b border-slate-200">
+                                        <tr>
+                                            <th class="p-3 font-semibold border-r border-slate-100">ภาค</th>
+                                            <th class="p-3 font-semibold border-r border-slate-100">จังหวัด</th>
+                                            <th class="p-3 font-semibold border-r border-slate-100">รหัสงบประมาณ</th>
+                                            <th class="p-3 font-semibold border-r border-slate-100">สถานศึกษา</th>
+                                            <th class="p-3 font-semibold border-r border-slate-100">โครงการ</th>
+                                            <th class="p-3 font-semibold text-right">งบประมาณ</th>
+                                            <th class="p-3 font-semibold text-right">ลงนามสัญญา</th>
+                                            <th class="p-3 font-semibold text-right border-r border-slate-100">เบิกจ่ายแล้ว</th>
+                                            <th class="p-3 font-semibold text-right bg-orange-50/50">คงเหลือ</th>
+                                            <th class="p-3 font-semibold text-center border-l border-slate-100">สถานะ</th>
+                                            <th class="p-3 font-semibold text-center border-l border-slate-100">เริ่มสัญญา</th>
+                                            <th class="p-3 font-semibold text-center border-l border-slate-100">สิ้นสุดสัญญา</th>
+                                            <th class="p-3 font-semibold text-center border-l border-slate-100">จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reportTableBody" class="divide-y divide-slate-100">
+                                    </tbody>
+                                    <tfoot class="bg-slate-50 font-bold sticky bottom-0 border-t border-slate-200 shadow-[0_-2px_4px_rgba(0,0,0,0.02)]" id="reportTableFoot">
+                                    </tfoot>
+                                </table>
+                            </div>
+                            <div class="p-3 text-xs text-slate-500 bg-slate-50 border-t border-slate-100 flex justify-between" id="reportCount"></div>
+                        </div>
+                    `;
+                    document.getElementById('page-container').innerHTML = html;
+                    handlers.applyReportFilters(); // ให้ตารางโชว์ทันที
+                    ui.hideLoader();
+                } catch (e) {
+                    ui.toast(e.message, 'error');
+                    ui.hideLoader();
+                }
+            },
+
             projects: async (skipFetch = false) => {
                 let activeElement = document.activeElement;
                 let activeId = activeElement ? activeElement.id : null;
@@ -792,7 +904,7 @@
         };
 
         const handlers = {
-            changeYear: (year) => { state.fiscalYear = year; if (state.currentRoute === 'dashboard') pages.dashboard(); else if (state.currentRoute === 'projects') { state.projectPage = 1; pages.projects(true); } },
+            changeYear: (year) => { state.fiscalYear = year; if (state.currentRoute === 'dashboard') pages.dashboard(); else if (state.currentRoute === 'projects') { state.projectPage = 1; pages.projects(true); } else if (state.currentRoute === 'report') { handlers.applyReportFilters(); } },
             changeProjectPage: (p) => { state.projectPage = p; pages.projects(true); },
             changeAuditPage: (p) => { state.auditPage = p; pages.audit(); },
             searchProjects: (val) => { state.projectSearch = val; state.projectPage = 1; pages.projects(true); },
@@ -807,6 +919,123 @@
                     document.getElementById('login-user-list').innerHTML = html; 
                 } catch (e) { console.error("Error loading usernames", e); } 
             },
+
+            // --- 🌟 ส่วนการกรองและการ Export ข้อมูลของหน้า "รายงานผล" 🌟 ---
+            applyReportFilters: () => {
+                const search = (document.getElementById('rep_search')?.value || '').toLowerCase().trim();
+                const region = document.getElementById('rep_region')?.value || '';
+                const province = document.getElementById('rep_province')?.value || '';
+                const bcode = document.getElementById('rep_bcode')?.value || '';
+                const inst = document.getElementById('rep_inst')?.value || '';
+                const status = document.getElementById('rep_status')?.value || '';
+
+                const filtered = window.rawReportData.filter(p => {
+                    const matchYear = String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear;
+                    const matchSearch = search === '' || 
+                        (p.project_name || '').toLowerCase().includes(search) || 
+                        (p.institution_name || '').toLowerCase().includes(search) ||
+                        (p.budget_code || '').toLowerCase().includes(search) ||
+                        (p.province || '').toLowerCase().includes(search);
+                    const matchRegion = region === '' || p.region === region;
+                    const matchProv = province === '' || p.province === province;
+                    const matchBcode = bcode === '' || p.budget_code === bcode;
+                    const matchInst = inst === '' || p.institution_name === inst;
+                    const matchStatus = status === '' || String(p.current_status) === status;
+
+                    return matchYear && matchSearch && matchRegion && matchProv && matchBcode && matchInst && matchStatus;
+                });
+
+                let tBud = 0, tPO = 0, tDis = 0, tRem = 0;
+                let tbody = '';
+                filtered.forEach(p => {
+                    const b = Number(p.budget_amount) || 0;
+                    const po = Number(p.po_amount) || 0;
+                    const dis = Number(p.disbursed_amount) || 0;
+                    const rem = b - dis; // งบประมาณคงเหลือ = งบประมาณ - เบิกจ่ายแล้ว
+                    
+                    tBud += b; tPO += po; tDis += dis; tRem += rem;
+
+                    tbody += `<tr class="hover:bg-blue-50/50 transition">
+                        <td class="p-3 text-slate-600 border-r border-slate-100">${utils.esc(p.region || '-')}</td>
+                        <td class="p-3 text-slate-600 border-r border-slate-100">${utils.esc(p.province || '-')}</td>
+                        <td class="p-3 font-mono text-indigo-600 font-medium border-r border-slate-100">${utils.esc(p.budget_code || '-')}</td>
+                        <td class="p-3 text-slate-800 font-medium whitespace-normal min-w-[150px] border-r border-slate-100">${utils.esc(p.institution_name)}</td>
+                        <td class="p-3 text-slate-600 whitespace-normal min-w-[250px] border-r border-slate-100">${utils.esc(p.project_name)}</td>
+                        <td class="p-3 text-right font-bold text-slate-800">${utils.formatMoney(b)}</td>
+                        <td class="p-3 text-right font-medium text-indigo-600">${utils.formatMoney(po)}</td>
+                        <td class="p-3 text-right font-medium text-emerald-600 border-r border-slate-100">${utils.formatMoney(dis)}</td>
+                        <td class="p-3 text-right font-bold text-orange-600 bg-orange-50/30">${utils.formatMoney(rem)}</td>
+                        <td class="p-3 text-center border-l border-slate-100"><span class="px-2.5 py-1 text-[10px] font-bold rounded-md border ${utils.getStatusColor(p.current_status)}">${p.current_status}. ${utils.getStatusName(p.current_status)}</span></td>
+                        <td class="p-3 text-center text-slate-500 border-l border-slate-100">${utils.formatDateOnly(p.contract_signed_date)}</td>
+                        <td class="p-3 text-center text-slate-500 border-l border-slate-100">${utils.formatDateOnly(p.contract_end_date)}</td>
+                        <td class="p-3 text-center border-l border-slate-100"><button onclick="app.navigate('workflow', '${p.id}')" class="bg-slate-800 hover:bg-slate-700 text-white text-[11px] px-3 py-1.5 rounded-lg transition shadow-sm whitespace-nowrap">ดูข้อมูล</button></td>
+                    </tr>`;
+                });
+
+                if(filtered.length === 0) {
+                    tbody = `<tr><td colspan="13" class="p-8 text-center text-slate-400">ไม่พบข้อมูลที่ตรงกับเงื่อนไขการค้นหา</td></tr>`;
+                }
+
+                if(document.getElementById('reportTableBody')) {
+                    document.getElementById('reportTableBody').innerHTML = tbody;
+                    document.getElementById('reportTableFoot').innerHTML = `
+                        <tr>
+                            <td colspan="5" class="p-4 text-right text-slate-700 border-r border-slate-200">รวมทั้งสิ้น (ตามตัวกรอง):</td>
+                            <td class="p-4 text-right text-slate-900">${utils.formatMoney(tBud)}</td>
+                            <td class="p-4 text-right text-indigo-700">${utils.formatMoney(tPO)}</td>
+                            <td class="p-4 text-right text-emerald-700 border-r border-slate-200">${utils.formatMoney(tDis)}</td>
+                            <td class="p-4 text-right text-orange-700 bg-orange-50/50">${utils.formatMoney(tRem)}</td>
+                            <td colspan="4" class="border-l border-slate-200"></td>
+                        </tr>
+                    `;
+                    document.getElementById('reportCount').innerText = `แสดงผล ${filtered.length} รายการ`;
+                }
+            },
+            
+            exportReportExcel: () => {
+                if(!window.rawReportData || window.rawReportData.length === 0) return ui.toast('ไม่มีข้อมูลสำหรับ Export', 'warning');
+                
+                // กรองข้อมูลตามที่แสดงบนจอ
+                const search = (document.getElementById('rep_search')?.value || '').toLowerCase().trim();
+                const region = document.getElementById('rep_region')?.value || '';
+                const province = document.getElementById('rep_province')?.value || '';
+                const bcode = document.getElementById('rep_bcode')?.value || '';
+                const inst = document.getElementById('rep_inst')?.value || '';
+                const status = document.getElementById('rep_status')?.value || '';
+
+                const filtered = window.rawReportData.filter(p => {
+                    const matchYear = String(p.fiscal_year || 'ไม่ระบุ') === state.fiscalYear;
+                    const matchSearch = search === '' || (p.project_name || '').toLowerCase().includes(search) || (p.institution_name || '').toLowerCase().includes(search) || (p.budget_code || '').toLowerCase().includes(search) || (p.province || '').toLowerCase().includes(search);
+                    const matchRegion = region === '' || p.region === region;
+                    const matchProv = province === '' || p.province === province;
+                    const matchBcode = bcode === '' || p.budget_code === bcode;
+                    const matchInst = inst === '' || p.institution_name === inst;
+                    const matchStatus = status === '' || String(p.current_status) === status;
+                    return matchYear && matchSearch && matchRegion && matchProv && matchBcode && matchInst && matchStatus;
+                });
+
+                if(filtered.length === 0) return ui.toast('ไม่มีข้อมูลที่จะ Export', 'warning');
+
+                const dataToExport = filtered.map(p => ({
+                    'ภาค': p.region || '-',
+                    'จังหวัด': p.province || '-',
+                    'รหัสงบประมาณ': p.budget_code || '-',
+                    'สถานศึกษา': p.institution_name || '-',
+                    'โครงการ': p.project_name || '-',
+                    'งบประมาณ': Number(p.budget_amount) || 0,
+                    'ลงนามสัญญา': Number(p.po_amount) || 0,
+                    'เบิกจ่ายแล้ว': Number(p.disbursed_amount) || 0,
+                    'งบประมาณคงเหลือ': (Number(p.budget_amount)||0) - (Number(p.disbursed_amount)||0),
+                    'สถานะ': `${p.current_status}. ${utils.getStatusName(p.current_status)}`,
+                    'วันที่ลงนามสัญญา': p.contract_signed_date ? new Date(p.contract_signed_date).toLocaleDateString('th-TH') : '-',
+                    'วันที่สิ้นสุดสัญญา': p.contract_end_date ? new Date(p.contract_end_date).toLocaleDateString('th-TH') : '-'
+                }));
+                const ws = XLSX.utils.json_to_sheet(dataToExport);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "รายงานผล");
+                XLSX.writeFile(wb, `Report_STIPS_${Date.now()}.xlsx`);
+            },
+            // --- จบส่วนของรายงานผล ---
 
             // --- ส่วนของ Dashboard ---
             renderDashSummaryCards: (data) => { let tBud=0, tPO=0, tDis=0, tWait=0; data.forEach(p => { tBud += p.budget; tPO += p.poAmount; tDis += p.disbursed; if(p.statusNo < 7) tWait += p.budget; }); const cards = [ { t: 'รวมทั้งสิ้น (งบรวม)', amt: tBud, pct: 100, bg: 'bg-gradient-to-br from-blue-600 to-indigo-700', ic: '🏛️' }, { t: 'วางสัญญา PO แล้ว', amt: tPO, pct: tBud?((tPO/tBud)*100):0, bg: 'bg-gradient-to-br from-indigo-500 to-purple-600', ic: '📝' }, { t: 'เบิกจ่ายสำเร็จ', amt: tDis, pct: tBud?((tDis/tBud)*100):0, bg: 'bg-gradient-to-br from-emerald-500 to-teal-600', ic: '💸' }, { t: 'ผลการใช้จ่าย', amt: tDis, pct: tBud?((tDis/tBud)*100):0, bg: 'bg-gradient-to-br from-purple-600 to-pink-600', ic: '📊' }, { t: 'งบประมาณคงเหลือ', amt: tBud-tDis, pct: tBud?(((tBud-tDis)/tBud)*100):0, bg: 'bg-gradient-to-br from-amber-500 to-orange-600', ic: '⏳' } ]; let html = ''; cards.forEach(c => { html += `<div class="${c.bg} p-4 rounded-2xl shadow-md text-white flex flex-col justify-between hover:-translate-y-1 transition duration-200 border border-white/10"><div class="flex justify-between items-start"><span class="text-[13px] font-bold text-white/90">${c.t}</span><span class="w-8 h-8 rounded-xl bg-white/20 text-white flex items-center justify-center text-sm shadow-sm">${c.ic}</span></div><div class="my-2"><div class="text-xl font-extrabold tracking-tight">${utils.formatMoney(c.amt)}</div><div class="text-[10px] text-white/80 font-medium">บาท</div></div><div class="flex justify-between items-center pt-2 border-t border-white/20 text-[11px] font-semibold text-white/90"><span>สัดส่วน: <span class="text-white font-bold">${c.pct.toFixed(2)}%</span></span></div></div>`; }); document.getElementById('overviewCardsContainer').innerHTML = html; },
@@ -925,17 +1154,23 @@
             },
             doAppeal: async (action) => { 
                 ui.openConfirm('ยืนยันอุทธรณ์', 'บันทึกข้อมูลการอุทธรณ์', async () => { 
-                    ui.showLoader('บันทึกอุทธรณ์ และอัปโหลดไฟล์...'); 
+                    ui.showLoader('กำลังอัปโหลดไฟล์ (ไม่เกิน 3 วินาที)...'); 
                     try { 
                         const pid = state.selectedProject.id; let fileLink = null; 
                         if(action === 'hold') { 
-                            const file = document.getElementById('appeal_file')?.files[0]; 
-                            if(file) { 
-                                const base64Data = await handlers.getBase64(file); 
-                                const uploadRes = await fetch(GOOGLE_DRIVE_UPLOAD_URL, { method: "POST", body: JSON.stringify({ filename: `appeal_${pid}_${Date.now()}.pdf`, mimeType: file.type, base64: base64Data }), headers: { "Content-Type": "text/plain;charset=utf-8" } }); 
-                                const driveData = await uploadRes.json(); 
-                                if(!driveData.success) throw new Error(driveData.error); 
-                                fileLink = driveData.fileUrl; 
+                            const f = document.getElementById('appeal_file')?.files[0]; 
+                            if(f) { 
+                                const initRes = await fetch(GOOGLE_DRIVE_UPLOAD_URL, {
+                                    method: "POST",
+                                    body: JSON.stringify({ filename: `appeal_${pid}_${Date.now()}.pdf`, mimeType: f.type }),
+                                    headers: { "Content-Type": "text/plain;charset=utf-8" }
+                                });
+                                const initData = await initRes.json();
+                                if(!initData.success) throw new Error(initData.error);
+
+                                const uploadRes = await fetch(initData.uploadUrl, { method: 'PUT', body: f });
+                                const driveData = await uploadRes.json();
+                                fileLink = `https://drive.google.com/file/d/${driveData.id}/view`;
                             } 
                         } 
                         await supabaseClient.from('appeals').insert([{ project_id: pid, appeal_option: document.getElementById('appeal_opt').value, central_audit_document_path: fileLink }]); 
@@ -952,15 +1187,23 @@
                 const f = document.getElementById('c_file')?.files[0]; 
                 if(!f) return ui.toast('กรุณาแนบไฟล์สัญญา PDF', 'warning'); 
                 if(f.type !== 'application/pdf') return ui.toast('รองรับไฟล์ PDF เท่านั้น', 'error'); 
-                ui.showLoader('กำลังอัปโหลดไฟล์ไปที่ Google Drive...'); 
+                ui.showLoader('กำลังอัปโหลดไฟล์สัญญา (ไม่เกิน 3 วินาที)...'); 
                 try { 
                     const pid = state.selectedProject.id; 
-                    const base64Data = await handlers.getBase64(f); 
-                    const uploadRes = await fetch(GOOGLE_DRIVE_UPLOAD_URL, { method: "POST", body: JSON.stringify({ filename: `contract_${pid}_${Date.now()}.pdf`, mimeType: f.type, base64: base64Data }), headers: { "Content-Type": "text/plain;charset=utf-8" } }); 
-                    const driveData = await uploadRes.json(); 
-                    if(!driveData.success) throw new Error(driveData.error); 
                     
-                    const {data: cData, error:e2} = await supabaseClient.from('contracts').upsert({ project_id: pid, signed_amount: Number(document.getElementById('contract_amt').value), remaining_budget: Number(document.getElementById('remain_amt').value.replace(/,/g,'')), contract_signed_date: document.getElementById('c_start').value, contract_end_date: document.getElementById('c_end').value, installment_count: Number(document.getElementById('inst_count').value), contract_document_path: driveData.fileUrl }, { onConflict: 'project_id' }).select(); 
+                    const initRes = await fetch(GOOGLE_DRIVE_UPLOAD_URL, {
+                        method: "POST",
+                        body: JSON.stringify({ filename: `contract_${pid}_${Date.now()}.pdf`, mimeType: f.type }),
+                        headers: { "Content-Type": "text/plain;charset=utf-8" }
+                    });
+                    const initData = await initRes.json();
+                    if(!initData.success) throw new Error(initData.error);
+
+                    const uploadRes = await fetch(initData.uploadUrl, { method: 'PUT', body: f });
+                    const driveData = await uploadRes.json();
+                    const fileLink = `https://drive.google.com/file/d/${driveData.id}/view`;
+                    
+                    const {data: cData, error:e2} = await supabaseClient.from('contracts').upsert({ project_id: pid, signed_amount: Number(document.getElementById('contract_amt').value), remaining_budget: Number(document.getElementById('remain_amt').value.replace(/,/g,'')), contract_signed_date: document.getElementById('c_start').value, contract_end_date: document.getElementById('c_end').value, installment_count: Number(document.getElementById('inst_count').value), contract_document_path: fileLink }, { onConflict: 'project_id' }).select(); 
                     if(e2) throw e2; 
                     
                     await supabaseClient.from('contract_installments').delete().eq('contract_id', cData[0].id); 
@@ -972,12 +1215,9 @@
                     await handlers.updateStatus(8, "ลงนามเรียบร้อย เริ่มบริหารสัญญา"); 
                 } catch(e) { ui.toast(e.message, 'error'); ui.hideLoader(); } 
             },
-
             calcDisburseRow: (id, maxVal) => { const inp = document.getElementById(`paid_${id}`); let val = Number(inp.value || 0); if (val > maxVal) { ui.toast('เบิกจ่ายห้ามเกินยอดงวดงาน', 'warning'); val = maxVal; inp.value = maxVal; } document.getElementById(`pile_${id}`).innerText = utils.formatMoney(maxVal - val); let tPaid = 0; let tPile = 0; document.querySelectorAll('[id^="paid_"]').forEach(el => tPaid += Number(el.value || 0)); document.querySelectorAll('[id^="pile_"]').forEach(el => tPile += Number(el.innerText.replace(/,/g,'') || 0)); document.getElementById('total_paid').innerText = utils.formatMoney(tPaid); document.getElementById('total_pile').innerText = utils.formatMoney(tPile); },
             saveDisburse: async (instId) => { const paid = Number(document.getElementById(`paid_${instId}`).value); const dt = document.getElementById(`date_${instId}`).value; const det = document.getElementById(`det_${instId}`).value; if(!dt) return ui.toast('กรุณาระบุวันที่เบิกจ่าย', 'warning'); ui.showLoader('บันทึกเบิกจ่าย...'); try { await rpc('custom_save_disbursement', { p_session_token: state.sessionToken, p_installment_id: instId, p_paid_amount: paid, p_payment_date: dt, p_payment_detail: det }); ui.toast('สำเร็จ'); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } },
             saveProgress: async (contractId) => { const det = document.getElementById('prog_detail').value; if(!det) return ui.toast('กรุณาระบุรายละเอียด', 'warning'); ui.showLoader('บันทึกความก้าวหน้า...'); try { await rpc('custom_save_progress', { p_session_token: state.sessionToken, p_contract_id: contractId, p_progress_detail: det, p_problem_detail: document.getElementById('prog_prob').value, p_remark: document.getElementById('prog_rem').value }); ui.toast('สำเร็จ'); app.navigate('management', state.selectedProject.id); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } },
-
-            // --- ส่วนของจัดการผู้ใช้งาน ---
             openImportUsersModal: () => { ui.openModal('นำเข้าบัญชีสถานศึกษา (Excel / CSV)', `<div class="space-y-4 p-1"><div class="bg-blue-50 border border-blue-100 text-blue-800 p-4 rounded-xl text-sm leading-relaxed"><p class="font-bold mb-2">💡 รูปแบบหัวคอลัมน์ (แถวแรก) สำหรับสร้างบัญชี:</p><p class="text-sm font-mono mb-2 bg-white p-2 rounded border border-blue-100 text-blue-600 text-center">ชื่อสถานศึกษา | รหัสผ่านเริ่มต้น</p><p class="text-xs text-slate-500">หมายเหตุ: ข้อมูลผู้รับผิดชอบ ทางสถานศึกษาจะเข้ามาแก้ไขเองในภายหลัง</p></div><div><label class="block text-sm font-semibold mb-1.5">เลือกไฟล์ Excel <span class="text-red-500">*</span></label><input type="file" id="excel_user_file" accept=".xlsx, .xls, .csv" class="w-full border border-slate-300 p-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition cursor-pointer"></div><button onclick="handlers.processImportUsers()" class="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-medium hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-2"><span class="text-lg">📥</span> ยืนยันสร้างบัญชี</button></div>`); },
             processImportUsers: async () => { const fileInput = document.getElementById('excel_user_file'); if(!fileInput.files.length) return ui.toast('กรุณาเลือกไฟล์ก่อน', 'warning'); ui.showLoader('กำลังอ่านไฟล์ Excel...'); const file = fileInput.files[0]; const reader = new FileReader(); reader.onload = async (e) => { try { const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, {type: 'array'}); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); if(jsonData.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel'); const payload = jsonData.map(row => ({ institution_name: row['ชื่อสถานศึกษา'] || '', initial_password: String(row['รหัสผ่านเริ่มต้น'] || '') })).filter(r => r.institution_name !== '' && r.initial_password !== ''); if(payload.length === 0) throw new Error('ไม่พบหัวคอลัมน์ "ชื่อสถานศึกษา" และ "รหัสผ่านเริ่มต้น"'); ui.showLoader(`กำลังสร้าง ${payload.length} บัญชี เข้าสู่ระบบ...`); const res = await rpc('admin_import_users_excel', { p_session_token: state.sessionToken, p_data: payload }); ui.closeModal(); ui.toast(res.message || 'สร้างบัญชีสำเร็จ', 'success'); pages.users(); } catch(err) { ui.toast(err.message, 'error'); ui.hideLoader(); } }; reader.readAsArrayBuffer(file); },
             submitProfile: async (e) => { e.preventDefault(); ui.showLoader('กำลังบันทึก...'); try { await rpc("custom_update_profile", { p_session_token: state.sessionToken, p_password: document.getElementById('prof_password').value, p_full_name: document.getElementById('prof_fullname').value, p_phone: document.getElementById('prof_phone').value, p_email: document.getElementById('prof_email').value }); state.user.full_name = document.getElementById('prof_fullname').value; document.getElementById('user-fullname').innerText = state.user.full_name; document.getElementById('prof_password').value = ''; ui.toast('บันทึกข้อมูลสำเร็จ', 'success'); } catch(err) { ui.toast(err.message, 'error'); } finally { ui.hideLoader(); } },
@@ -991,7 +1231,6 @@
             submitUser: async (e) => { e.preventDefault(); ui.showLoader('กำลังสร้าง...'); try { const fd = new FormData(e.target); await rpc("admin_create_user", { p_session_token: state.sessionToken, p_username: fd.get('username'), p_password: fd.get('password'), p_role: fd.get('role'), p_institution_name: fd.get('username'), p_full_name: fd.get('full_name'), p_phone: '', p_email: '' }); ui.closeModal(); ui.toast('สำเร็จ'); app.navigate('users'); } catch(err) { ui.toast(err.message, 'error'); } finally { ui.hideLoader(); } },
             confirmDeleteUser: (userId, username) => { ui.openConfirm('ยืนยันลบ', `ลบ "${username}" ใช่หรือไม่?`, async () => { ui.showLoader(); try { await rpc("admin_delete_user", { p_session_token: state.sessionToken, p_user_id: userId }); ui.toast('ลบสำเร็จ'); app.navigate('users'); } catch(e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); } }); },
 
-            // --- ส่วนของ Leaderboard ---
             loadLeaderboard: async (year = null) => {
                 try {
                     const res = await rpc('get_public_leaderboard', { p_year: year });
@@ -1061,7 +1300,6 @@
         };
 
         const app = {
-            // 🌟 อัปเดต: แยกการแสดงผลป้ายชื่อชัดเจนระหว่าง Admin และ User
             initUserUI: () => {
                 if (state.user.role === 'admin') {
                     document.getElementById('user-fullname').innerText = state.user.full_name || 'ผู้ดูแลระบบ (Admin)';
@@ -1083,7 +1321,7 @@
                     state.currentRoute = route;
                     document.querySelectorAll('#main-nav button').forEach(b => {
                         b.classList.remove('bg-blue-100', 'text-primary', 'font-bold');
-                        if(b.dataset.nav === route || (route==='workflow' && b.dataset.nav==='projects') || (route==='management' && b.dataset.nav==='projects')) { 
+                        if(b.dataset.nav === route || (route==='workflow' && b.dataset.nav==='projects') || (route==='management' && b.dataset.nav==='projects') || (route==='report' && b.dataset.nav==='report')) { 
                             b.classList.add('bg-blue-100', 'text-primary', 'font-bold'); 
                         }
                     });
@@ -1097,6 +1335,7 @@
                         case 'profile': pages.profile(); break;
                         case 'users': pages.users(); break; 
                         case 'audit': pages.audit(); break; 
+                        case 'report': pages.report(); break; // เปิดใช้งานหน้ารายงาน
                         default: pages.dashboard(); 
                     }
                 } catch (err) { 
