@@ -981,7 +981,7 @@
                 const type = it.item_type || it.project_type || 'ที่ดิน/สิ่งก่อสร้าง';
                 ui.openModal('✏️ แก้ไขข้อมูลรายการ', `
                     <form onsubmit="handlers.submitEditItem(event, '${itemId}')" class="space-y-4 p-1">
-                        <div>
+                        <div class="hidden">
                             <label class="block text-sm font-medium mb-1 text-slate-500">รหัสอ้างอิงรายการ (สร้างโดยระบบ)</label>
                             <input type="text" value="${utils.esc(code)}" disabled class="w-full px-4 py-2 border rounded-xl outline-none bg-slate-100 text-slate-400 font-bold cursor-not-allowed">
                         </div>
