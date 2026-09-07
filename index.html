@@ -431,7 +431,7 @@
                                 <select id="rep_type" class="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"><option value="">ทุกประเภท</option>${itemTypes.map(t => `<option value="${t}">${t}</option>`).join('')}</select>
                                 <select id="rep_inst" class="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"><option value="">ทุกสถานศึกษา</option>${institutions.map(i => `<option value="${i}">${i}</option>`).join('')}</select>
                                 <select id="rep_status" class="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none"><option value="">ทุกสถานะ</option>${[1,2,3,4,5,6,7,8].map(s => `<option value="${s}">${s}. ${utils.getStatusName(s)}</option>`).join('')}</select>
-                                <select id="rep_group" class="border border-blue-200 bg-blue-50/50 text-blue-700 font-bold rounded-xl px-3 py-2 text-sm outline-none"><option value="">(ไม่จัดกลุ่ม)</option><option value="province">จัดกลุ่ม: จังหวัด</option><option value="institution_name">จัดกลุ่ม: สถานศึกษา</option><option value="current_status">จัดกลุ่ม: สถานะ</option></select>
+                                <select id="rep_group" class="border border-blue-200 bg-blue-50/50 text-blue-700 font-bold rounded-xl px-3 py-2 text-sm outline-none"><option value="">(ไม่จัดกลุ่ม)</option><option value="province">จัดกลุ่ม: จังหวัด</option><option value="plan_type">จัดกลุ่ม: โครงการ</option><option value="institution_name">จัดกลุ่ม: สถานศึกษา</option><option value="current_status">จัดกลุ่ม: สถานะ</option></select>
                             </div>
 
                             <div id="advanced_filters" class="hidden p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -870,6 +870,7 @@
                     { id: 'col_year', name: 'ปีงบฯ', default: true },
                     { id: 'col_type', name: 'ประเภท', default: true },
                     { id: 'col_prov', name: 'จังหวัด', default: true },
+                    { id: 'col_plan', name: 'โครงการ', default: true },
                     { id: 'col_bcode', name: 'รหัสงบประมาณ', default: true },
                     { id: 'col_inst', name: 'สถานศึกษา', default: true },
                     { id: 'col_item', name: 'รายการ', default: true },
@@ -916,7 +917,7 @@
             },
 
             applyReportFilters: () => {
-                const defaultCols = ['col_year', 'col_type', 'col_prov', 'col_bcode', 'col_inst', 'col_item', 'col_bud', 'col_po', 'col_dis', 'col_rem', 'col_stat', 'col_start', 'col_end', 'col_prog', 'col_prob', 'col_manage'];
+                const defaultCols = ['col_year', 'col_type', 'col_prov', 'col_plan', 'col_bcode', 'col_inst', 'col_item', 'col_bud', 'col_po', 'col_dis', 'col_rem', 'col_stat', 'col_start', 'col_end', 'col_prog', 'col_prob', 'col_manage'];
                 if(!window.reportColsState) window.reportColsState = {};
                 defaultCols.forEach(c => {
                     if(window.reportColsState[c] === undefined) window.reportColsState[c] = true;
@@ -974,6 +975,7 @@
                 if(cols.col_year) thead += `<th class="p-3 font-semibold border-r text-center min-w-[80px]">ปีงบฯ</th>`;
                 if(cols.col_type) thead += `<th class="p-3 font-semibold border-r text-center min-w-[100px]">ประเภท</th>`;
                 if(cols.col_prov) thead += `<th class="p-3 font-semibold border-r min-w-[100px]">จังหวัด</th>`;
+                if(cols.col_plan) thead += `<th class="p-3 font-semibold border-r min-w-[100px] max-w-[120px]">โครงการ</th>`;
                 if(cols.col_bcode) thead += `<th class="p-3 font-semibold border-r min-w-[120px]">รหัสงบประมาณ</th>`;
                 if(cols.col_inst) thead += `<th class="p-3 font-semibold border-r min-w-[100px] max-w-[150px]">สถานศึกษา</th>`;
                 
@@ -1026,6 +1028,7 @@
                     if(cols.col_year) row += `<td class="p-3 text-center font-bold text-slate-700 border-r border-slate-100 ${isDelayed||isCompleted?'text-inherit':''}">${utils.esc(p.fiscal_year || '-')}</td>`;
                     if(cols.col_type) row += `<td class="p-3 text-center text-slate-600 border-r border-slate-100 ${isDelayed||isCompleted?'text-inherit':''}">${utils.esc(p.item_type || '-')}</td>`;
                     if(cols.col_prov) row += `<td class="p-3 text-slate-600 border-r border-slate-100 ${isDelayed||isCompleted?'text-inherit':''}">${utils.esc(p.province || '-')}</td>`;
+                    if(cols.col_plan) row += `<td class="p-3 text-slate-600 border-r border-slate-100 ${isDelayed||isCompleted?'text-inherit':''} whitespace-normal min-w-[100px] max-w-[120px]"><p class="line-clamp-2 text-xs" title="${utils.esc(p.plan_type)}">${utils.esc(p.plan_type || '-')}</p></td>`;
                     if(cols.col_bcode) row += `<td class="p-3 font-mono text-indigo-600 font-medium border-r border-slate-100 ${isDelayed||isCompleted?'text-inherit':''}">${utils.esc(p.budget_code || '-')}</td>`;
                     if(cols.col_inst) row += `<td class="p-3 text-slate-800 font-medium whitespace-normal min-w-[100px] max-w-[150px] border-r border-slate-100 ${isDelayed||isCompleted?'text-inherit':''}"><p class="line-clamp-3" title="${utils.esc(p.institution_name)}">${utils.esc(p.institution_name)}</p></td>`;
                     
@@ -1049,7 +1052,7 @@
                 const visibleColCount = Object.values(cols).filter(Boolean).length + 1; // +1 for checkbox
                 
                 // Checkbox (1) + Item Name (1) = 2
-                const leftColsCount = 2 + (cols.col_year?1:0) + (cols.col_type?1:0) + (cols.col_prov?1:0) + (cols.col_bcode?1:0) + (cols.col_inst?1:0);
+                const leftColsCount = 2 + (cols.col_year?1:0) + (cols.col_type?1:0) + (cols.col_prov?1:0) + (cols.col_plan?1:0) + (cols.col_bcode?1:0) + (cols.col_inst?1:0);
                 const rightColsCount = [cols.col_stat, cols.col_start, cols.col_end, cols.col_prog, cols.col_prob, cols.col_manage].filter(Boolean).length;
                 
                 if(groupBy && groupBy !== '') {
@@ -1060,6 +1063,7 @@
                         
                         let prefixName = '';
                         if(groupBy==='province') prefixName = 'จังหวัด: ';
+                        if(groupBy==='plan_type') prefixName = 'โครงการ: ';
                         if(groupBy==='institution_name') prefixName = 'สถานศึกษา: ';
                         if(groupBy==='current_status') prefixName = 'สถานะ: ';
 
@@ -1103,7 +1107,7 @@
                 if(filtered.length === 0) return ui.toast('ไม่มีข้อมูลที่จะ Export', 'warning');
 
                 const dataToExport = filtered.map(p => ({
-                    'ปีงบประมาณ': p.fiscal_year || '-', 'จังหวัด': p.province || '-', 'รหัสงบประมาณ': p.budget_code || '-', 'สถานศึกษา': p.institution_name || '-', 'รายการ': p.item_name || p.project_name || '-', 'งบประมาณ': Number(p.budget_amount) || 0, 'ลงนามสัญญา': Number(p.po_amount) || 0, 'เบิกจ่ายแล้ว': Number(p.disbursed_amount) || 0, 'งบประมาณคงเหลือ': (Number(p.budget_amount)||0) - (Number(p.disbursed_amount)||0), 'สถานะ': `${p.current_status}. ${utils.getStatusName(p.current_status)}`, 'วันที่ลงนามสัญญา': p.contract_signed_date ? new Date(p.contract_signed_date).toLocaleDateString('th-TH') : '-', 'วันที่สิ้นสุดสัญญา': p.contract_end_date ? new Date(p.contract_end_date).toLocaleDateString('th-TH') : '-', 'จำนวนงวดงาน': p.installment_count ? p.installment_count + ' งวด' : '-', 'ปัญหาอุปสรรค': p.problem_detail || '-'
+                    'ปีงบฯ': p.fiscal_year || '-', 'ประเภท': p.item_type || '-', 'จังหวัด': p.province || '-', 'โครงการ': p.plan_type || '-', 'รหัสงบประมาณ': p.budget_code || '-', 'สถานศึกษา': p.institution_name || '-', 'รายการ': p.item_name || p.project_name || '-', 'งบประมาณ': Number(p.budget_amount) || 0, 'ลงนามสัญญา': Number(p.po_amount) || 0, 'เบิกจ่ายแล้ว': Number(p.disbursed_amount) || 0, 'คงเหลือ': (Number(p.budget_amount)||0) - (Number(p.disbursed_amount)||0), 'สถานะ': `${p.current_status}. ${utils.getStatusName(p.current_status)}`, 'เริ่มสัญญา': p.contract_signed_date ? new Date(p.contract_signed_date).toLocaleDateString('th-TH') : '-', 'สิ้นสุดสัญญา': p.contract_end_date ? new Date(p.contract_end_date).toLocaleDateString('th-TH') : '-', 'งวดงาน': p.installment_count ? p.installment_count + ' งวด' : '-', 'ปัญหาอุปสรรค': p.problem_detail || '-'
                 }));
                 const ws = XLSX.utils.json_to_sheet(dataToExport); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "รายงานผล"); XLSX.writeFile(wb, `Report_STIPS_${Date.now()}.xlsx`);
             },
