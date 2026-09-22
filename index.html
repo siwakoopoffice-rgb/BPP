@@ -172,7 +172,7 @@
             </nav>
             <div class="p-4 border-t border-slate-100 bg-slate-50/50">
                 <button onclick="auth.logout()"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl hover:bg-red-50 text-red-600 text-left font-medium transition-colors shadow-sm bg-white border border-red-100">
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl bg-red-600 hover:bg-red-700 text-white text-left font-medium transition-colors shadow-md shadow-red-600/20">
                     <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                     ออกจากระบบ
                 </button>
@@ -374,7 +374,43 @@
                 return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
             },
             getStatusName: (s) => ({ 1: 'ยังไม่ดำเนินการ', 2: 'จัดทำร่าง TOR', 3: 'เผยแพร่ร่าง TOR', 4: 'ประกาศเชิญชวน', 5: 'ประกาศผู้ชนะ', 6: 'รอผลอุทธรณ์', 7: 'ลงนามสัญญา', 8: 'บริหารสัญญา' })[s] || 'ไม่ทราบ',
-            getStatusColor: (s) => ({ 1: 'bg-slate-100 text-slate-700 border-slate-200', 2: 'bg-blue-50 text-blue-700 border-blue-200', 3: 'bg-indigo-50 text-indigo-700 border-indigo-200', 4: 'bg-purple-50 text-purple-700 border-purple-200', 5: 'bg-amber-50 text-amber-700 border-amber-200', 6: 'bg-orange-50 text-orange-700 border-orange-200', 7: 'bg-emerald-50 text-emerald-700 border-emerald-200', 8: 'bg-green-100 text-green-800 border-green-200' })[s] || 'bg-slate-100'
+            getStatusColor: (s) => ({
+                1: 'bg-red-50 text-red-700 border-red-200',
+                2: 'bg-rose-50 text-rose-700 border-rose-200',
+                3: 'bg-orange-50 text-orange-700 border-orange-200',
+                4: 'bg-amber-50 text-amber-700 border-amber-200',
+                5: 'bg-yellow-50 text-yellow-800 border-yellow-300',
+                6: 'bg-lime-50 text-lime-800 border-lime-300',
+                7: 'bg-emerald-50 text-emerald-700 border-emerald-300',
+                8: 'bg-green-100 text-green-800 border-green-300'
+            })[s] || 'bg-slate-100 text-slate-700 border-slate-200',
+            getItemNameFromLog: (L) => {
+                if (L.item_name) return L.item_name;
+                if (L.project_name) return L.project_name;
+                if (L.description) {
+                    const pipeMatch = L.description.match(/\|\s*รายการ:\s*(.+)$/);
+                    if (pipeMatch && pipeMatch[1]) return pipeMatch[1].trim();
+
+                    const createMatch = L.description.match(/สร้าง(?:รายการ|โครงการ)\s*(?:\[[^\]]*\])?\s*(.+)$/);
+                    if (createMatch && createMatch[1]) return createMatch[1].trim();
+
+                    const editMatch = L.description.match(/(?:แก้ไขข้อมูลรายการ|ลบรายการ|รายการ)\s*(?:\[[^\]]*\])?\s*[:]?\s*(.+)$/);
+                    if (editMatch && editMatch[1]) return editMatch[1].trim();
+                }
+                if (L.description && (state.items || []).length > 0) {
+                    for (let it of state.items) {
+                        const code = it.budget_code || it.item_code || it.project_code;
+                        if (code && L.description.includes(code)) {
+                            return it.item_name || it.project_name;
+                        }
+                    }
+                }
+                return '-';
+            },
+            getCleanDesc: (L) => {
+                if (!L.description) return '-';
+                return L.description.replace(/\|\s*รายการ:\s*.+$/, '').trim() || L.description;
+            }
         };
 
         const ui = {
@@ -517,7 +553,7 @@
                                 <canvas id="filterStagesBarChart"></canvas>
                             </div>
                             <div class="overflow-x-auto max-h-[500px] rounded-xl border border-slate-200 shadow-sm custom-scrollbar">
-                                <table class="w-full text-left bg-white whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 text-[13px] sticky top-0 z-10 border-b border-slate-200"><tr><th class="p-3 font-semibold border-r min-w-[120px]">รหัสงบประมาณ</th><th class="p-3 font-semibold border-r">ประเภท</th><th class="p-3 font-semibold border-r">สถานศึกษา</th><th class="p-3 font-semibold">ชื่อรายการ</th><th class="p-3 font-semibold text-right border-l">งบประมาณ</th><th class="p-3 font-semibold text-right border-l">ลงนามสัญญา</th><th class="p-3 font-semibold text-right border-l">เบิกจ่ายแล้ว</th><th class="p-3 font-semibold text-right border-l bg-orange-50/50">คงเหลือ</th><th class="p-3 font-semibold text-center border-l">เริ่มสัญญา</th><th class="p-3 font-semibold text-center border-l">สิ้นสุดสัญญา</th><th class="p-3 font-semibold text-center border-l">งวดงาน</th><th class="p-3 font-semibold text-center border-l">สถานะ</th><th class="p-3 font-semibold text-center border-l">จัดการ</th></tr></thead><tbody id="dashTableBody" class="text-sm divide-y divide-slate-100"></tbody></table>
+                                <table class="w-full text-left bg-white whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 text-[13px] sticky top-0 z-10 border-b border-slate-200"><tr><th class="p-3 font-semibold text-center border-r min-w-[80px]">จัดการ</th><th class="p-3 font-semibold border-r min-w-[120px]">รหัสงบประมาณ</th><th class="p-3 font-semibold border-r">ประเภท</th><th class="p-3 font-semibold border-r">สถานศึกษา</th><th class="p-3 font-semibold border-r">ชื่อรายการ</th><th class="p-3 font-semibold text-center border-r">สถานะ</th><th class="p-3 font-semibold text-right border-r">งบประมาณ</th><th class="p-3 font-semibold text-right border-r">ลงนามสัญญา</th><th class="p-3 font-semibold text-right border-r">เบิกจ่ายแล้ว</th><th class="p-3 font-semibold text-right border-r bg-orange-50/50">คงเหลือ</th><th class="p-3 font-semibold text-center border-r">เริ่มสัญญา</th><th class="p-3 font-semibold text-center border-r">สิ้นสุดสัญญา</th><th class="p-3 font-semibold text-center">งวดงาน</th></tr></thead><tbody id="dashTableBody" class="text-sm divide-y divide-slate-100"></tbody></table>
                             </div>
                             <div class="flex justify-between items-center text-xs text-gray-500 pt-2"><span id="tableCount">แสดง 0 รายการ</span></div>
                         </section>`;
@@ -652,7 +688,7 @@
                     html += `<div class="space-y-4 mb-6">${displayItems.map(p => {
                         const itemName = p.item_name || p.project_name || '';
                         const itemType = p.item_type || p.project_type || '';
-                        return `<div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col lg:flex-row justify-between lg:items-center gap-4 card-hover shadow-sm"><div><div class="flex items-center gap-2 mb-2">${p.budget_code ? `<span class="text-[11px] font-bold tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-md uppercase font-mono">${utils.esc(p.budget_code)}</span>` : `<span class="text-[10px] font-medium tracking-wider bg-slate-100 text-slate-400 px-2.5 py-1 rounded-md">ยังไม่ระบุรหัสงบฯ</span>`}${p.fiscal_year ? `<span class="text-[10px] font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md">ปี ${utils.esc(p.fiscal_year)}</span>` : ''}</div><h3 class="font-bold text-lg text-slate-800">${utils.esc(itemName)}</h3><div class="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-sm"><span class="text-slate-500">งบตาม พรบ.: <b class="text-blue-600">฿${utils.formatMoney(p.budget_amount)}</b></span><span class="text-slate-500">ประเภท: <b>${utils.esc(itemType)}</b></span>${state.user.role === 'admin' ? `<span class="text-slate-500">สถานศึกษา: <b class="text-primary">${utils.esc(p.institution_name)}</b></span>` : ''}</div></div><div class="flex flex-col sm:flex-row lg:flex-col xl:flex-row lg:items-end xl:items-center gap-3"><span class="px-3 py-1.5 text-xs rounded-full border font-bold text-center w-fit ${utils.getStatusColor(p.current_status)}">${p.current_status}. ${utils.getStatusName(p.current_status)}</span><div class="flex flex-wrap gap-2 mt-3 sm:mt-0"><button onclick="handlers.openEditItemModal('${p.id}')" class="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-50">✏️ แก้ไข</button>${state.user.role === 'admin' ? `<button onclick="handlers.confirmDeleteItem('${p.id}', '${utils.esc(itemName)}')" class="bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-50">🗑️ ลบ</button>` : ''}<button onclick="app.navigate('workflow', '${p.id}')" class="bg-slate-900 text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-700 whitespace-nowrap">รายงานผล →</button></div></div></div>`;
+                        return `<div class="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col lg:flex-row justify-between lg:items-center gap-4 card-hover shadow-sm"><div><div class="flex items-center gap-2 mb-2">${p.budget_code ? `<span class="text-[11px] font-bold tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-md uppercase font-mono">${utils.esc(p.budget_code)}</span>` : `<span class="text-[10px] font-medium tracking-wider bg-slate-100 text-slate-400 px-2.5 py-1 rounded-md">ยังไม่ระบุรหัสงบฯ</span>`}${p.fiscal_year ? `<span class="text-[10px] font-bold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md">ปี ${utils.esc(p.fiscal_year)}</span>` : ''}</div><h3 class="font-bold text-lg text-slate-800">${utils.esc(itemName)}</h3><div class="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-sm"><span class="text-slate-500">งบตาม พรบ.: <b class="text-blue-600">฿${utils.formatMoney(p.budget_amount)}</b></span><span class="text-slate-500">ประเภท: <b>${utils.esc(itemType)}</b></span>${state.user.role === 'admin' ? `<span class="text-slate-500">สถานศึกษา: <b class="text-primary">${utils.esc(p.institution_name)}</b></span>` : ''}</div></div><div class="flex flex-col sm:flex-row lg:flex-col xl:flex-row lg:items-end xl:items-center gap-3"><span class="px-3 py-1.5 text-xs rounded-full border font-bold text-center w-fit ${utils.getStatusColor(p.current_status)}">${p.current_status}. ${utils.getStatusName(p.current_status)}</span><div class="flex flex-wrap gap-2 mt-3 sm:mt-0"><button onclick="handlers.openEditItemModal('${p.id}')" class="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-50">✏️ แก้ไข</button>${state.user.role === 'admin' ? `<button onclick="handlers.confirmDeleteItem('${p.id}', '${utils.esc(itemName)}')" class="bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-50">🗑️ ลบ</button>` : ''}<button onclick="app.navigate('workflow', '${p.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition shadow-sm whitespace-nowrap">รายงานผล →</button></div></div></div>`;
                     }).join('')}</div>`;
                     html += `<div class="flex items-center justify-between bg-white px-4 py-3 border border-slate-200 rounded-xl shadow-sm"><div class="text-sm text-slate-500">แสดง <span class="font-medium text-slate-900">${startIdx + 1}</span> ถึง <span class="font-medium text-slate-900">${Math.min(startIdx + state.itemLimit, totalItems)}</span> จาก <span class="font-medium text-slate-900">${totalItems}</span></div><div class="flex gap-2"><button onclick="handlers.changeItemPage(${state.itemPage - 1})" ${state.itemPage === 1 ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ก่อนหน้า</button><button onclick="handlers.changeItemPage(${state.itemPage + 1})" ${state.itemPage === totalPages ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ถัดไป</button></div></div>`;
                 }
@@ -699,7 +735,7 @@
                             if (i === 1 && wfRecord) infoContent = `<span class="text-slate-700 font-medium">เริ่มจัดทำ TOR เรียบร้อย</span>`;
                             else if (i === 2 && wfRecord) { let obj = parseJSON(wfRecord.remarks); if (obj && obj.s2_d) infoContent = `📅 เสร็จวันที่: <span class="font-bold">${utils.formatDateOnly(obj.s2_d)}</span>`; else infoContent = utils.esc(wfRecord.remarks); }
                             else if (i === 3 && wfRecord) { let obj = parseJSON(wfRecord.remarks); if (obj && obj.s3_s) { infoContent = `📅 เผยแพร่: <span class="font-bold">${utils.formatDateOnly(obj.s3_s)}</span>`; if (obj.s3_e) infoContent += `<br>📅 สิ้นสุด: <span class="font-bold">${utils.formatDateOnly(obj.s3_e)}</span>`; if (obj.s3_issue) { const issMap = { "1": "ไม่มี", "2": "รับฟังข้อเสนอบริษัท(แก้ไขทบทวน TOR ให้ระบบกลับไปสถานะ 1)", "3": "ไม่รับฟังข้อเสนอบริษัท(ดำเนินการต่อไปสถานะ 4)" }; infoContent += `<br>⚠️ ปัญหา/อุปสรรค: <span class="font-bold text-orange-600">${issMap[obj.s3_issue] || '-'}</span>`; } if (obj.s3_note) infoContent += `<br>📝 หมายเหตุ: <span class="text-slate-600">${utils.esc(obj.s3_note)}</span>`; } else infoContent = utils.esc(wfRecord.remarks); }
-                            else if (i === 4 && wfRecord) { let obj = parseJSON(wfRecord.remarks); if (obj && obj.s4_d) { infoContent = `📢 ประกาศเชิญชวน: <span class="font-bold">${utils.formatDateOnly(obj.s4_d)}</span> ${obj.s4_end ? `- <span class="font-bold">${utils.formatDateOnly(obj.s4_end)}</span>` : ''}`; if (obj.s4_issue) { const issMap = { "1": "ไม่มี", "2": "มียื่นแต่คุณสมบัติไม่ครบ(แก้ไขทบทวน TOR ให้ระบบกลับไปสถานะ 1)", "3": "คุณสมบัติครบถ้วน(ดำเนินการต่อไปสถานะ5)" }; infoContent += `<br>⚠️ ปัญหา/อุปสรรค: <span class="font-bold text-orange-600">${issMap[obj.s4_issue] || '-'}</span>`; } if (obj.s4_note) infoContent += `<br>📝 หมายเหตุ: <span class="text-slate-600">${utils.esc(obj.s4_note)}</span>`; } else infoContent = utils.esc(wfRecord.remarks); }
+                            else if (i === 4 && wfRecord) { let obj = parseJSON(wfRecord.remarks); if (obj && obj.s4_d) { infoContent = `📢 ประกาศเชิญชวน: <span class="font-bold">${utils.formatDateOnly(obj.s4_d)}</span> ${obj.s4_end ? `- <span class="font-bold">${utils.formatDateOnly(obj.s4_end)}</span>` : ''}`; if (obj.s4_issue) { const issMap = { "1": "ผ่าน - คุณสมบัติครบถ้วน (ดำเนินการต่อไปสถานะ 5)", "2": "มีผู้เสนอราคารายเดียว (เริ่มกระบวนการใหม่ สถานะ 1)", "3": "มีผู้ยื่น แต่ไม่ผ่านคุณสมบัติ (เริ่มกระบวนการใหม่ สถานะ 1)", "4": "ไม่มีผู้ยื่นเสนอราคา (เริ่มกระบวนการใหม่ สถานะ 1)" }; infoContent += `<br>⚠️ ผลการพิจารณา/ปัญหาอุปสรรค: <span class="font-bold text-orange-600">${issMap[obj.s4_issue] || '-' }</span>`; } if (obj.s4_note) infoContent += `<br>📝 หมายเหตุ: <span class="text-slate-600">${utils.esc(obj.s4_note)}</span>`; } else infoContent = utils.esc(wfRecord.remarks); }
                             else if (i === 5 && wfRecord) { let obj = parseJSON(wfRecord.remarks); if (obj && obj.s5_d) infoContent = `🏆 ผู้ชนะ: <span class="font-bold text-primary">${utils.esc(obj.s5_n)}</span><br>📅 ประกาศผล: <span class="font-bold">${utils.formatDateOnly(obj.s5_d)}</span>`; else infoContent = utils.esc(wfRecord.remarks); }
                             else if (i === 6) {
                                 if (appealData) {
@@ -768,7 +804,7 @@
                         <div><label class="block text-sm font-medium mb-1.5 text-slate-600">ชื่อสถานศึกษา (Username)</label><input type="text" value="${utils.esc(state.user.username)}" disabled class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 cursor-not-allowed font-bold"></div>
                         <div class="pt-4 border-t border-slate-100"><h3 class="font-bold text-slate-800 mb-4 text-lg">ข้อมูลผู้รับผิดชอบระบบ</h3><div class="space-y-4"><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">ชื่อ-นามสกุล ผู้รับผิดชอบ</label><input type="text" id="prof_fullname" value="${utils.esc(myInfo.full_name || '')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="ระบุชื่อเจ้าหน้าที่..."></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">เบอร์โทรศัพท์ติดต่อ</label><input type="text" id="prof_phone" value="${utils.esc(myInfo.phone || '')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="08xxxxxxxx"></div><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">Email</label><input type="email" id="prof_email" value="${utils.esc(myInfo.email || '')}" class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="email@example.com"></div></div></div></div>
                         <div class="pt-4 border-t border-slate-100"><h3 class="font-bold text-slate-800 mb-4 text-lg">เปลี่ยนรหัสผ่านใหม่</h3><div class="bg-blue-50 border border-blue-100 p-4 rounded-xl"><label class="block text-sm font-bold text-blue-800 mb-2">กำหนดรหัสผ่านใหม่ <span class="text-xs font-normal text-blue-600">(เว้นว่างไว้หากไม่ต้องการเปลี่ยน)</span></label><input type="password" id="prof_password" minlength="6" class="w-full px-4 py-3 border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-primary" placeholder="พิมพ์รหัสผ่านใหม่..."></div></div>
-                        <div class="pt-4"><button type="submit" class="w-full bg-slate-900 text-white font-medium py-4 rounded-xl hover:bg-slate-800 transition shadow-lg flex items-center justify-center gap-2 text-lg">💾 บันทึกการเปลี่ยนแปลง</button></div></form></div></div>`;
+                        <div class="pt-4"><button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-4 rounded-xl transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 text-lg">💾 บันทึกการเปลี่ยนแปลง</button></div></form></div></div>`;
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
 
@@ -827,13 +863,39 @@
                 if (state.user.role !== 'admin') return app.navigate('dashboard');
                 ui.showLoader('กำลังโหลดประวัติ...');
                 try {
+                    if (!state.items || state.items.length === 0) {
+                        try {
+                            let itRes;
+                            try {
+                                itRes = await rpc('custom_get_items', { p_session_token: state.sessionToken, p_limit: 1000, p_offset: 0 });
+                            } catch (e) {
+                                itRes = await rpc('custom_get_projects', { p_session_token: state.sessionToken, p_limit: 1000, p_offset: 0 });
+                            }
+                            if (itRes && itRes.data) state.items = itRes.data;
+                        } catch (e) { }
+                    }
                     const offset = (state.auditPage - 1) * state.auditLimit;
                     const res = await rpc('custom_get_audit_logs', { p_session_token: state.sessionToken, p_limit: state.auditLimit, p_offset: offset, p_start_date: state.auditStartDate || null, p_end_date: state.auditEndDate || null, p_search: state.auditSearch || null });
                     const logs = res.data || []; const totalItems = res.total || 0; const totalPages = Math.ceil(totalItems / state.auditLimit) || 1;
                     const pageTitleDesc = state.user.role === 'admin' ? 'ติดตามความเคลื่อนไหวของผู้ใช้ทั้งหมดในระบบ' : 'ประวัติการเปลี่ยนแปลงข้อมูลของคุณ';
                     let html = `<div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6"><div><h2 class="text-2xl font-bold text-slate-800 tracking-tight">ประวัติการใช้งาน</h2><p class="text-sm text-slate-500 mt-1">${pageTitleDesc}</p></div><div class="flex flex-wrap gap-2 items-center bg-white p-2 rounded-2xl shadow-sm border border-slate-200"><input type="text" id="filter_search" value="${utils.esc(state.auditSearch)}" placeholder="🔍 ค้นหาชื่อ, ข้อความ..." class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none w-full sm:w-auto min-w-[200px]"><input type="date" id="filter_start" value="${state.auditStartDate}" class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none"><span class="text-slate-400 text-xs font-medium">ถึง</span><input type="date" id="filter_end" value="${state.auditEndDate}" class="border border-slate-200 px-3 py-2 rounded-xl text-sm outline-none"><button onclick="handlers.filterAudit()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm">ค้นหา</button><button onclick="handlers.clearAuditFilter()" class="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-200">ล้าง</button></div></div>`;
                     if (logs.length === 0) html += `<div class="p-12 text-center bg-white border border-dashed rounded-2xl text-slate-400 shadow-sm">ไม่มีข้อมูลประวัติในระบบหรือในช่วงเวลาที่เลือก</div>`;
-                    else { html += `<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-6"><div class="overflow-x-auto"><table class="w-full text-left text-sm whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 border-b"><tr><th class="px-5 py-4">วัน-เวลา</th><th class="px-5 py-4">ผู้ใช้งาน</th>${state.user.role === 'admin' ? '<th class="px-5 py-4">สถานศึกษา</th>' : ''}<th class="px-5 py-4">รายการ</th><th class="px-5 py-4">Action</th><th class="px-5 py-4">รายละเอียด</th></tr></thead><tbody id="auditTableBody" class="divide-y divide-slate-100">${logs.map(L => `<tr class="hover:bg-slate-50 transition-colors"><td class="px-5 py-4 text-xs font-mono text-slate-500">${utils.formatDate(L.created_at)}</td><td class="px-5 py-4 font-medium text-primary">${utils.esc(L.full_name)}</td>${state.user.role === 'admin' ? `<td class="px-5 py-4 text-slate-600 text-xs">${utils.esc(L.institution_name)}</td>` : ''}<td class="px-5 py-4 text-slate-600 text-xs max-w-[200px] truncate" title="${utils.esc(L.item_name || L.project_name || '-')}">${utils.esc(L.item_name || L.project_name || '-')}</td><td class="px-5 py-4"><span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border border-slate-200">${utils.esc(L.action)}</span></td><td class="px-5 py-4 text-slate-700">${utils.esc(L.description)}</td></tr>`).join('')}</tbody></table></div></div><div class="flex items-center justify-between bg-white px-4 py-3 border border-slate-200 rounded-xl shadow-sm"><div class="text-sm text-slate-500">แสดงที่ <span class="font-medium text-slate-900">${offset + 1}</span> - <span class="font-medium text-slate-900">${Math.min(offset + state.auditLimit, totalItems)}</span> จาก <span class="font-medium text-slate-900">${totalItems}</span></div><div class="flex gap-2"><button onclick="handlers.changeAuditPage(${state.auditPage - 1})" ${state.auditPage === 1 ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ก่อนหน้า</button><button onclick="handlers.changeAuditPage(${state.auditPage + 1})" ${state.auditPage === totalPages ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ถัดไป</button></div></div>`; }
+                    else {
+                        html += `<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-6"><div class="overflow-x-auto"><table class="w-full text-left text-sm whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 border-b"><tr><th class="px-5 py-4">วัน-เวลา</th><th class="px-5 py-4">ผู้ใช้งาน</th>${state.user.role === 'admin' ? '<th class="px-5 py-4">สถานศึกษา</th>' : ''}<th class="px-5 py-4">รายการ</th><th class="px-5 py-4">Action</th><th class="px-5 py-4">รายละเอียด</th></tr></thead><tbody id="auditTableBody" class="divide-y divide-slate-100">${logs.map(L => {
+                            const itName = utils.getItemNameFromLog(L);
+                            const cleanDesc = utils.getCleanDesc(L);
+                            return `<tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-5 py-4 text-xs font-mono text-slate-500">${utils.formatDate(L.created_at)}</td>
+                                <td class="px-5 py-4 font-medium text-primary">${utils.esc(L.full_name || L.username || '-')}</td>
+                                ${state.user.role === 'admin' ? `<td class="px-5 py-4 text-slate-600 text-xs">${utils.esc(L.institution_name || '-')}</td>` : ''}
+                                <td class="px-5 py-4 text-slate-700 text-xs max-w-[240px]">
+                                    ${itName !== '-' ? `<span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg border border-blue-200 font-semibold inline-block max-w-full truncate" title="${utils.esc(itName)}">${utils.esc(itName)}</span>` : '<span class="text-slate-400 font-mono">-</span>'}
+                                </td>
+                                <td class="px-5 py-4"><span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border border-slate-200">${utils.esc(L.action)}</span></td>
+                                <td class="px-5 py-4 text-slate-700">${utils.esc(cleanDesc)}</td>
+                            </tr>`;
+                        }).join('')}</tbody></table></div></div><div class="flex items-center justify-between bg-white px-4 py-3 border border-slate-200 rounded-xl shadow-sm"><div class="text-sm text-slate-500">แสดงที่ <span class="font-medium text-slate-900">${offset + 1}</span> - <span class="font-medium text-slate-900">${Math.min(offset + state.auditLimit, totalItems)}</span> จาก <span class="font-medium text-slate-900">${totalItems}</span></div><div class="flex gap-2"><button onclick="handlers.changeAuditPage(${state.auditPage - 1})" ${state.auditPage === 1 ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ก่อนหน้า</button><button onclick="handlers.changeAuditPage(${state.auditPage + 1})" ${state.auditPage === totalPages ? 'disabled class="px-3 py-1.5 rounded-lg border text-sm text-slate-400 bg-slate-50"' : 'class="px-3 py-1.5 rounded-lg border text-sm hover:bg-slate-50 font-medium"'}>ถัดไป</button></div></div>`;
+                    }
                     document.getElementById('page-container').innerHTML = html;
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
@@ -843,6 +905,7 @@
                 try {
                     const p = state.items.find(x => String(x.id) === String(itemId));
                     if (!p) return app.navigate('items');
+                    state.selectedItem = p;
                     let res;
                     try {
                         res = await rpc('custom_get_contract_details', { p_session_token: state.sessionToken, p_item_id: itemId });
@@ -869,11 +932,11 @@
                 });
 
                 const cards = [
-                    { t: 'รวมทั้งสิ้น (งบรวม)', amt: tBud, pct: 100, bg: 'bg-gradient-to-br from-blue-600 to-indigo-700', ic: '🏛️' },
-                    { t: 'วางสัญญา PO แล้ว', amt: tPO, pct: tBud ? ((tPO / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-indigo-500 to-purple-600', ic: '📝' },
-                    { t: 'เบิกจ่ายสำเร็จ', amt: tDis, pct: tBud ? ((tDis / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-emerald-500 to-teal-600', ic: '💸' },
-                    { t: 'ผลการใช้จ่าย', amt: tDis, pct: tBud ? ((tDis / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-purple-600 to-pink-600', ic: '📊' },
-                    { t: 'งบประมาณคงเหลือ', amt: tBud - tDis, pct: tBud ? (((tBud - tDis) / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-amber-500 to-orange-600', ic: '⏳' }
+                    { t: 'งบประมาณรวม', amt: tBud, pct: 100, bg: 'bg-gradient-to-br from-blue-600 to-indigo-700', ic: '🏛️', count: (data || []).length },
+                    { t: 'ทำสัญญา PO', amt: tPO, pct: tBud ? ((tPO / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-indigo-500 to-purple-600', ic: '📝', count: (data || []).filter(i => Number(i.poAmount) > 0 || i.statusNo >= 7).length },
+                    { t: 'เบิกจ่ายแล้ว', amt: tDis, pct: tBud ? ((tDis / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-emerald-500 to-teal-600', ic: '💸', count: (data || []).filter(i => Number(i.disbursed) > 0).length },
+                    { t: 'ผลการใช้จ่าย', amt: tDis, pct: tBud ? ((tDis / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-purple-600 to-pink-600', ic: '📊', count: (data || []).filter(i => Number(i.disbursed) > 0).length },
+                    { t: 'งบประมาณคงเหลือ', amt: tBud - tDis, pct: tBud ? (((tBud - tDis) / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-amber-500 to-orange-600', ic: '⏳', count: (data || []).filter(i => (Number(i.budget) || 0) - (Number(i.disbursed) || 0) > 0).length }
                 ];
 
                 let html = '';
@@ -890,6 +953,7 @@
                             </div>
                             <div class="flex justify-between items-center pt-2 border-t border-white/20 text-[11px] font-semibold text-white/90">
                                 <span>สัดส่วน: <span class="text-white font-bold">${c.pct.toFixed(2)}%</span></span>
+                                <span class="bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-lg text-white font-bold tracking-wide">${(c.count || 0).toLocaleString()} รายการ</span>
                             </div>
                         </div>
                     `;
@@ -972,11 +1036,11 @@
                 filtered.forEach(i => { tBud += (Number(i.budget) || 0); tPO += (Number(i.poAmount) || 0); tDis += (Number(i.disbursed) || 0); });
 
                 const fCards = [
-                    { t: 'งบประมาณรวม', amt: tBud, pct: 100, bg: 'bg-gradient-to-br from-blue-600 to-indigo-700', ic: '💎' },
-                    { t: 'ทำสัญญา PO', amt: tPO, pct: tBud ? ((tPO / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-indigo-500 to-purple-600', ic: '✍️' },
-                    { t: 'เบิกจ่ายแล้ว', amt: tDis, pct: tBud ? ((tDis / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-emerald-500 to-teal-600', ic: '💵' },
-                    { t: 'ผลการใช้จ่าย', amt: tDis, pct: tBud ? ((tDis / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-purple-600 to-pink-600', ic: '📊' },
-                    { t: 'งบประมาณคงเหลือ', amt: tBud - tDis, pct: tBud ? (((tBud - tDis) / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-amber-500 to-orange-600', ic: '⏳' }
+                    { t: 'งบประมาณรวม', amt: tBud, pct: 100, bg: 'bg-gradient-to-br from-blue-600 to-indigo-700', ic: '💎', count: filtered.length },
+                    { t: 'ทำสัญญา PO', amt: tPO, pct: tBud ? ((tPO / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-indigo-500 to-purple-600', ic: '✍️', count: filtered.filter(i => Number(i.poAmount) > 0 || i.statusNo >= 7).length },
+                    { t: 'เบิกจ่ายแล้ว', amt: tDis, pct: tBud ? ((tDis / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-emerald-500 to-teal-600', ic: '💵', count: filtered.filter(i => Number(i.disbursed) > 0).length },
+                    { t: 'ผลการใช้จ่าย', amt: tDis, pct: tBud ? ((tDis / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-purple-600 to-pink-600', ic: '📊', count: filtered.filter(i => Number(i.disbursed) > 0).length },
+                    { t: 'งบประมาณคงเหลือ', amt: tBud - tDis, pct: tBud ? (((tBud - tDis) / tBud) * 100) : 0, bg: 'bg-gradient-to-br from-amber-500 to-orange-600', ic: '⏳', count: filtered.filter(i => (Number(i.budget) || 0) - (Number(i.disbursed) || 0) > 0).length }
                 ];
 
                 let fHtml = '';
@@ -993,6 +1057,7 @@
                             </div>
                             <div class="flex justify-between items-center pt-2 border-t border-white/20 text-[11px] font-semibold text-white/90">
                                 <span>สัดส่วน: <span class="text-white font-bold">${c.pct.toFixed(2)}%</span></span>
+                                <span class="bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-lg text-white font-bold tracking-wide">${(c.count || 0).toLocaleString()} รายการ</span>
                             </div>
                         </div>`;
                 });
@@ -1000,22 +1065,21 @@
 
                 let html = '';
                 filtered.slice(0, 100).forEach(r => {
-                    let bCol = r.statusNo >= 7 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : r.statusNo >= 4 ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-slate-100 text-slate-700 border-slate-200';
                     let tCol = (r.type === 'ที่ดิน/สิ่งก่อสร้าง' || r.type === 'สิ่งก่อสร้าง') ? 'bg-slate-700 text-white' : 'bg-purple-600 text-white';
                     html += `<tr class="hover:bg-blue-50/40 transition">
+                        <td class="p-3 text-center border-r border-slate-100"><button onclick="app.navigate('workflow','${r.id}')" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition shadow-sm whitespace-nowrap font-medium">รายงานผล →</button></td>
                         <td class="p-3 font-mono text-sm font-bold text-indigo-600 border-r border-slate-100">${utils.esc(r.budgetCode) || '-'}</td>
                         <td class="p-3 border-r border-slate-100"><span class="text-[10px] px-2 py-0.5 rounded-md ${tCol}">${utils.esc(r.type)}</span></td>
-                        <td class="p-3 font-semibold text-slate-800 max-w-[150px] truncate" title="${utils.esc(r.institution)}">${utils.esc(r.institution)}</td>
-                        <td class="p-3 text-slate-600 max-w-[250px] truncate" title="${utils.esc(r.item)}">${utils.esc(r.item)}</td>
+                        <td class="p-3 font-semibold text-slate-800 max-w-[150px] truncate border-r border-slate-100" title="${utils.esc(r.institution)}">${utils.esc(r.institution)}</td>
+                        <td class="p-3 text-slate-600 max-w-[250px] truncate border-r border-slate-100" title="${utils.esc(r.item)}">${utils.esc(r.item)}</td>
+                        <td class="p-3 text-center border-r border-slate-100"><span class="px-2.5 py-1 rounded-lg text-[10px] font-bold border ${utils.getStatusColor(r.statusNo)}">${utils.esc(r.status)}</span></td>
                         <td class="p-3 text-right font-bold text-slate-800 border-r border-slate-100">${utils.formatMoney(r.budget)}</td>
                         <td class="p-3 text-right font-medium text-indigo-600 border-r border-slate-100">${utils.formatMoney(r.poAmount)}</td>
                         <td class="p-3 text-right font-medium text-emerald-600 border-r border-slate-100">${utils.formatMoney(r.disbursed)}</td>
                         <td class="p-3 text-right font-bold text-orange-600 bg-orange-50/30 border-r border-slate-100">${utils.formatMoney(r.budget - r.disbursed)}</td>
                         <td class="p-3 text-center text-slate-500 border-r border-slate-100">${utils.formatDateOnly(r.contractSignedDate)}</td>
                         <td class="p-3 text-center text-slate-500 border-r border-slate-100">${utils.formatDateOnly(r.contractEndDate)}</td>
-                        <td class="p-3 text-center font-bold text-blue-600 border-r border-slate-100">${r.installmentCount ? r.installmentCount + ' งวด' : '-'}</td>
-                        <td class="p-3 text-center border-r border-slate-100"><span class="px-2 py-1 rounded-lg text-[10px] font-bold border ${bCol}">${utils.esc(r.status)}</span></td>
-                        <td class="p-3 text-center border-l border-slate-100"><button onclick="app.navigate('workflow','${r.id}')" class="text-xs bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700">รายงานผล →</button></td>
+                        <td class="p-3 text-center font-bold text-blue-600">${r.installmentCount ? r.installmentCount + ' งวด' : '-'}</td>
                     </tr>`;
                 });
 
@@ -1062,7 +1126,7 @@
                     });
                 }
 
-                if (document.getElementById('dashTableBody')) document.getElementById('dashTableBody').innerHTML = html || `<tr><td colspan="7" class="p-8 text-center text-slate-400">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>`;
+                if (document.getElementById('dashTableBody')) document.getElementById('dashTableBody').innerHTML = html || `<tr><td colspan="13" class="p-8 text-center text-slate-400">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>`;
                 if (document.getElementById('tableCount')) document.getElementById('tableCount').innerText = `แสดง ${Math.min(filtered.length, 100)} จาก ${filtered.length} รายการ`;
 
                 // Pie charts removed
@@ -1087,6 +1151,7 @@
 
             toggleColumnSettings: () => {
                 const cols = [
+                    { id: 'col_manage', name: 'รายงานผล', default: true },
                     { id: 'col_year', name: 'ปีงบฯ', default: true },
                     { id: 'col_type', name: 'ประเภท', default: true },
                     { id: 'col_prov', name: 'จังหวัด', default: true },
@@ -1094,16 +1159,15 @@
                     { id: 'col_bcode', name: 'รหัสงบประมาณ', default: true },
                     { id: 'col_inst', name: 'สถานศึกษา', default: true },
                     { id: 'col_item', name: 'รายการ', default: true },
+                    { id: 'col_stat', name: 'สถานะ', default: true },
                     { id: 'col_bud', name: 'งบประมาณ', default: true },
                     { id: 'col_po', name: 'ลงนามสัญญา', default: true },
                     { id: 'col_dis', name: 'เบิกจ่ายแล้ว', default: true },
                     { id: 'col_rem', name: 'คงเหลือ', default: true },
-                    { id: 'col_stat', name: 'สถานะ', default: true },
                     { id: 'col_start', name: 'เริ่มสัญญา', default: true },
                     { id: 'col_end', name: 'สิ้นสุดสัญญา', default: true },
                     { id: 'col_prog', name: 'งวดงาน', default: true },
-                    { id: 'col_prob', name: 'ปัญหาอุปสรรค', default: true },
-                    { id: 'col_manage', name: 'จัดการ', default: true }
+                    { id: 'col_prob', name: 'ปัญหาอุปสรรค', default: true }
                 ];
                 if (!window.reportColsState) window.reportColsState = {};
                 cols.forEach(c => {
@@ -1121,7 +1185,7 @@
                 ui.openModal('👁️ ตั้งค่าการแสดงคอลัมน์', html);
             },
             saveColumnSettings: () => {
-                const cols = ['col_year', 'col_type', 'col_prov', 'col_bcode', 'col_inst', 'col_item', 'col_bud', 'col_po', 'col_dis', 'col_rem', 'col_stat', 'col_start', 'col_end', 'col_prog', 'col_prob', 'col_manage'];
+                const cols = ['col_manage', 'col_year', 'col_type', 'col_prov', 'col_plan', 'col_bcode', 'col_inst', 'col_item', 'col_stat', 'col_bud', 'col_po', 'col_dis', 'col_rem', 'col_start', 'col_end', 'col_prog', 'col_prob'];
                 if (!window.reportColsState) window.reportColsState = {};
                 cols.forEach(c => {
                     const el = document.getElementById(`chk_${c}`);
@@ -1137,7 +1201,7 @@
             },
 
             applyReportFilters: () => {
-                const defaultCols = ['col_year', 'col_type', 'col_prov', 'col_plan', 'col_bcode', 'col_inst', 'col_item', 'col_bud', 'col_po', 'col_dis', 'col_rem', 'col_stat', 'col_start', 'col_end', 'col_prog', 'col_prob', 'col_manage'];
+                const defaultCols = ['col_manage', 'col_year', 'col_type', 'col_prov', 'col_plan', 'col_bcode', 'col_inst', 'col_item', 'col_stat', 'col_bud', 'col_po', 'col_dis', 'col_rem', 'col_start', 'col_end', 'col_prog', 'col_prob'];
                 if (!window.reportColsState) window.reportColsState = {};
                 defaultCols.forEach(c => {
                     if (window.reportColsState[c] === undefined) window.reportColsState[c] = true;
@@ -1191,6 +1255,7 @@
 
                 const cols = window.reportColsState;
                 let thead = '<tr>';
+                if (cols.col_manage) thead += `<th class="p-3 font-semibold text-center border-r min-w-[80px]">รายงานผล</th>`;
                 thead += `<th class="p-3 font-semibold border-r text-center w-12 bg-slate-50">✔</th>`;
                 if (cols.col_year) thead += `<th class="p-3 font-semibold border-r text-center min-w-[80px]">ปีงบฯ</th>`;
                 if (cols.col_type) thead += `<th class="p-3 font-semibold border-r text-center min-w-[100px]">ประเภท</th>`;
@@ -1202,16 +1267,17 @@
                 // Item Name
                 thead += `<th class="p-3 font-semibold border-r bg-slate-50 min-w-[150px] max-w-[250px]">รายการ</th>`;
 
+                // Status (หน้า คอลัม งบประมาณ)
+                if (cols.col_stat) thead += `<th class="p-3 font-semibold text-center border-r min-w-[120px]">สถานะ</th>`;
+
                 if (cols.col_bud) thead += `<th class="p-3 font-semibold text-right border-r min-w-[100px]">งบประมาณ</th>`;
                 if (cols.col_po) thead += `<th class="p-3 font-semibold text-right border-r min-w-[100px]">ลงนามสัญญา</th>`;
                 if (cols.col_dis) thead += `<th class="p-3 font-semibold text-right border-r min-w-[100px]">เบิกจ่ายแล้ว</th>`;
                 if (cols.col_rem) thead += `<th class="p-3 font-semibold text-right bg-orange-50/50 border-r min-w-[100px]">คงเหลือ</th>`;
-                if (cols.col_stat) thead += `<th class="p-3 font-semibold text-center border-l min-w-[120px]">สถานะ</th>`;
                 if (cols.col_start) thead += `<th class="p-3 font-semibold text-center border-l min-w-[100px]">เริ่มสัญญา</th>`;
                 if (cols.col_end) thead += `<th class="p-3 font-semibold text-center border-l min-w-[100px]">สิ้นสุดสัญญา</th>`;
                 if (cols.col_prog) thead += `<th class="p-3 font-semibold border-l text-center min-w-[120px]">งวดงาน</th>`;
                 if (cols.col_prob) thead += `<th class="p-3 font-semibold border-l min-w-[150px]">ปัญหาอุปสรรค</th>`;
-                if (cols.col_manage) thead += `<th class="p-3 font-semibold text-center border-l min-w-[80px]">จัดการ</th>`;
                 thead += '</tr>';
 
                 let tBud = 0, tPO = 0, tDis = 0, tRem = 0; let tbody = '';
@@ -1244,6 +1310,7 @@
                     else { trClass = 'hover:bg-blue-50/50 transition bg-white group'; }
 
                     let row = `<tr class="${trClass}">`;
+                    if (cols.col_manage) row += `<td class="p-3 text-center border-r border-slate-100"><button onclick="app.navigate('workflow', '${p.id}')" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] px-3 py-1.5 rounded-lg transition shadow-sm whitespace-nowrap font-medium">รายงานผล →</button></td>`;
                     row += `<td class="p-3 text-center border-r border-slate-100"><input type="checkbox" class="w-4 h-4 cursor-pointer accent-primary rounded shadow-sm"></td>`;
                     if (cols.col_year) row += `<td class="p-3 text-center font-bold text-slate-700 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.esc(p.fiscal_year || '-')}</td>`;
                     if (cols.col_type) row += `<td class="p-3 text-center text-slate-600 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.esc(p.item_type || '-')}</td>`;
@@ -1254,16 +1321,18 @@
 
                     row += `<td class="p-3 font-medium whitespace-normal min-w-[150px] max-w-[250px] border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : 'text-slate-800'}"><p class="line-clamp-3" title="${utils.esc(p.project_name)}">${utils.esc(p.project_name)}</p></td>`;
 
+                    // Status (หน้า คอลัม งบประมาณ)
+                    if (cols.col_stat) row += `<td class="p-3 text-center border-r border-slate-100"><span class="px-2.5 py-1 text-[10px] font-bold rounded-md border ${utils.getStatusColor(p.current_status)}">${p.current_status}. ${utils.getStatusName(p.current_status)}</span></td>`;
+
                     if (cols.col_bud) row += `<td class="p-3 text-right font-bold text-slate-800 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatMoney(b)}</td>`;
                     if (cols.col_po) row += `<td class="p-3 text-right font-medium text-indigo-600 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatMoney(po)}</td>`;
                     if (cols.col_dis) row += `<td class="p-3 text-right font-medium text-emerald-600 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatMoney(dis)}</td>`;
                     if (cols.col_rem) row += `<td class="p-3 text-right font-bold text-orange-600 bg-orange-50/30 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatMoney(rem)}</td>`;
-                    if (cols.col_stat) row += `<td class="p-3 text-center border-r border-slate-100"><span class="px-2.5 py-1 text-[10px] font-bold rounded-md border ${utils.getStatusColor(p.current_status)}">${p.current_status}. ${utils.getStatusName(p.current_status)}</span></td>`;
+
                     if (cols.col_start) row += `<td class="p-3 text-center text-slate-500 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatDateOnly(p.contract_signed_date)}</td>`;
                     if (cols.col_end) row += `<td class="p-3 text-center text-slate-500 border-r border-slate-100 ${isDelayed ? 'font-bold' : ''} ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatDateOnly(p.contract_end_date)}</td>`;
                     if (cols.col_prog) row += `<td class="p-3 text-center font-bold text-blue-600 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${p.installment_count ? p.installment_count + ' งวด' : '-'}</td>`;
                     if (cols.col_prob) row += `<td class="p-3 text-red-600 whitespace-normal min-w-[200px] border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}"><p class="line-clamp-2 text-[12px] leading-snug">${utils.esc(p.problem_detail)}</p></td>`;
-                    if (cols.col_manage) row += `<td class="p-3 text-center border-l border-slate-100"><button onclick="app.navigate('workflow', '${p.id}')" class="bg-slate-800 hover:bg-slate-700 text-white text-[11px] px-3 py-1.5 rounded-lg transition shadow-sm whitespace-nowrap">จัดการ</button></td>`;
                     row += `</tr>`;
 
                     return row;
@@ -1272,8 +1341,8 @@
                 const visibleColCount = Object.values(cols).filter(Boolean).length + 1; // +1 for checkbox
 
                 // Checkbox (1) + Item Name (1) = 2
-                const leftColsCount = 2 + (cols.col_year ? 1 : 0) + (cols.col_type ? 1 : 0) + (cols.col_prov ? 1 : 0) + (cols.col_plan ? 1 : 0) + (cols.col_bcode ? 1 : 0) + (cols.col_inst ? 1 : 0);
-                const rightColsCount = [cols.col_stat, cols.col_start, cols.col_end, cols.col_prog, cols.col_prob, cols.col_manage].filter(Boolean).length;
+                const leftColsCount = 2 + (cols.col_manage ? 1 : 0) + (cols.col_year ? 1 : 0) + (cols.col_type ? 1 : 0) + (cols.col_prov ? 1 : 0) + (cols.col_plan ? 1 : 0) + (cols.col_bcode ? 1 : 0) + (cols.col_inst ? 1 : 0) + (cols.col_stat ? 1 : 0);
+                const rightColsCount = [cols.col_start, cols.col_end, cols.col_prog, cols.col_prob].filter(Boolean).length;
 
                 if (groupBy && groupBy !== '') {
                     for (const groupKey in groupedData) {
@@ -1327,7 +1396,7 @@
                 if (filtered.length === 0) return ui.toast('ไม่มีข้อมูลที่จะ Export', 'warning');
 
                 const dataToExport = filtered.map(p => ({
-                    'ปีงบฯ': p.fiscal_year || '-', 'ประเภท': p.item_type || '-', 'จังหวัด': p.province || '-', 'โครงการ': p.plan_type || '-', 'รหัสงบประมาณ': p.budget_code || '-', 'สถานศึกษา': p.institution_name || '-', 'รายการ': p.item_name || p.project_name || '-', 'งบประมาณ': Number(p.budget_amount) || 0, 'ลงนามสัญญา': Number(p.po_amount) || 0, 'เบิกจ่ายแล้ว': Number(p.disbursed_amount) || 0, 'คงเหลือ': (Number(p.budget_amount) || 0) - (Number(p.disbursed_amount) || 0), 'สถานะ': `${p.current_status}. ${utils.getStatusName(p.current_status)}`, 'เริ่มสัญญา': p.contract_signed_date ? new Date(p.contract_signed_date).toLocaleDateString('th-TH') : '-', 'สิ้นสุดสัญญา': p.contract_end_date ? new Date(p.contract_end_date).toLocaleDateString('th-TH') : '-', 'งวดงาน': p.installment_count ? p.installment_count + ' งวด' : '-', 'ปัญหาอุปสรรค': p.problem_detail || '-'
+                    'ปีงบฯ': p.fiscal_year || '-', 'ประเภท': p.item_type || '-', 'จังหวัด': p.province || '-', 'โครงการ': p.plan_type || '-', 'รหัสงบประมาณ': p.budget_code || '-', 'สถานศึกษา': p.institution_name || '-', 'รายการ': p.item_name || p.project_name || '-', 'สถานะ': `${p.current_status}. ${utils.getStatusName(p.current_status)}`, 'งบประมาณ': Number(p.budget_amount) || 0, 'ลงนามสัญญา': Number(p.po_amount) || 0, 'เบิกจ่ายแล้ว': Number(p.disbursed_amount) || 0, 'คงเหลือ': (Number(p.budget_amount) || 0) - (Number(p.disbursed_amount) || 0), 'เริ่มสัญญา': p.contract_signed_date ? new Date(p.contract_signed_date).toLocaleDateString('th-TH') : '-', 'สิ้นสุดสัญญา': p.contract_end_date ? new Date(p.contract_end_date).toLocaleDateString('th-TH') : '-', 'งวดงาน': p.installment_count ? p.installment_count + ' งวด' : '-', 'ปัญหาอุปสรรค': p.problem_detail || '-'
                 }));
                 const ws = XLSX.utils.json_to_sheet(dataToExport); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "รายงานผล"); XLSX.writeFile(wb, `Report_STIPS_${Date.now()}.xlsx`);
             },
@@ -1355,7 +1424,7 @@
                     } catch (errRpc) {
                         await rpc("custom_create_project", { p_session_token: state.sessionToken, p_project_code: iCode, p_project_name: iName, p_project_type: iType, p_budget_amount: iBudget });
                     }
-                    logger('CREATE_ITEM', `สร้างรายการ [${iCode}] ${iName}`);
+                    logger('CREATE_ITEM', `สร้างรายการ [${iCode}] ${iName} | รายการ: ${iName}`);
                     ui.closeModal();
                     ui.toast('สร้างรายการสำเร็จ');
                     app.navigate('items');
@@ -1375,6 +1444,7 @@
                         } catch (errRpc) {
                             await rpc("admin_delete_project", { p_session_token: state.sessionToken, p_project_id: itemId });
                         }
+                        logger('DELETE_ITEM', `ลบรายการ: ${itemName} | รายการ: ${itemName}`);
                         ui.toast('ลบรายการสำเร็จ');
                         pages.items(false);
                     } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
@@ -1450,6 +1520,7 @@
                         });
                     }
                     if (!res.success) throw new Error(res.message);
+                    logger('UPDATE_ITEM', `แก้ไขข้อมูลรายการ [${bcode || '-'}] | รายการ: ${name}`);
                     ui.closeModal();
                     ui.toast('แก้ไขข้อมูลรายการสำเร็จ', 'success');
                     pages.items(false);
@@ -1468,9 +1539,10 @@
                         res = await rpc('custom_update_project_status', { p_session_token: state.sessionToken, p_project_id: itemId, p_next_step: parseInt(nextStep, 10), p_remarks: String(remarks) });
                     }
                     if (!res.success) throw new Error(res.message);
-                    logger('UPDATE_STATUS', `อัปเดตสถานะรายการไปที่ ${nextStep}`);
                     const items = state.items || state.projects || [];
-                    const it = items.find(x => String(x.id) === String(itemId));
+                    const it = items.find(x => String(x.id) === String(itemId)) || state.selectedItem || state.selectedProject || {};
+                    const itemName = it.item_name || it.project_name || '';
+                    logger('UPDATE_STATUS', `อัปเดตสถานะไปที่ ${nextStep} ${remarks ? `(${remarks})` : ''} | รายการ: ${itemName}`);
                     if (it) it.current_status = parseInt(nextStep, 10);
                     ui.toast('อัปเดตสถานะสำเร็จ', 'success');
                     app.navigate('workflow', itemId);
@@ -1487,9 +1559,11 @@
                         } catch (errRpc) {
                             await rpc('custom_revert_status', { p_session_token: state.sessionToken, p_project_id: itemId, p_target_status: step });
                         }
-                        ui.toast('สำเร็จ', 'success');
                         const items = state.items || state.projects || [];
-                        const it = items.find(x => String(x.id) === String(itemId));
+                        const it = items.find(x => String(x.id) === String(itemId)) || state.selectedItem || state.selectedProject || {};
+                        const itemName = it.item_name || it.project_name || '';
+                        logger('REVERT_STATUS', `ย้อนสถานะไปที่ ${step} | รายการ: ${itemName}`);
+                        ui.toast('สำเร็จ', 'success');
                         if (it) it.current_status = step;
                         app.navigate('workflow', itemId);
                     } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
@@ -1532,7 +1606,9 @@
                 if (new Date(end) < new Date(d)) return ui.toast('วันสิ้นสุด ต้องไม่ก่อนวันเริ่ม', 'error');
 
                 let nextStep = 5;
-                if (issue === '2') nextStep = 1;
+                if (issue === '2' || issue === '3' || issue === '4') {
+                    nextStep = 1;
+                }
 
                 await handlers.updateStatus(nextStep, JSON.stringify({ s4_d: d, s4_end: end, s4_issue: issue, s4_note: note }));
             },
@@ -1542,7 +1618,7 @@
                 if (step === 1) f += `<button onclick="handlers.updateStatus(${step + 1}, 'เริ่มจัดทำ TOR')" class="bg-primary text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">บันทึกรายงานขั้นตอน →</button>`;
                 else if (step === 2) f += `<div class="mb-4"><label class="block text-sm font-semibold mb-1.5">เสร็จวันที่ <span class="text-red-500">*</span></label><input type="date" id="s2_d" class="border border-slate-200 p-2.5 rounded-xl w-full sm:w-64 outline-none focus:ring-2 focus:ring-primary transition"></div><button onclick="handlers.saveStep(${step}, ['s2_d'])" class="bg-primary text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">บันทึกรายงานขั้นตอน →</button>`;
                 else if (step === 3) f += `<div class="mb-4"><div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div><label class="block text-sm font-semibold mb-1.5">เผยแพร่วันที่ <span class="text-red-500">*</span></label><input type="date" id="s3_s" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition"></div><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">สิ้นสุดวันที่ <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label><input type="date" id="s3_e" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition"></div></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">ปัญหา / อุปสรรคในการเผยแพร่ร่าง TOR <span class="text-red-500">*</span></label><select id="s3_issue" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition bg-white"><option value="">-- เลือกรายการ --</option><option value="1">1. ไม่มี</option><option value="2">2. รับฟังข้อเสนอบริษัท(แก้ไขทบทวน TOR ให้ระบบกลับไปสถานะ 1)</option><option value="3">3. ไม่รับฟังข้อเสนอบริษัท(ดำเนินการต่อไปสถานะ 4)</option></select></div><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">หมายเหตุ</label><input type="text" id="s3_note" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition" placeholder="ระบุหมายเหตุ..."></div></div></div><button onclick="handlers.saveStep3()" class="bg-primary text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">บันทึกรายงานขั้นตอน →</button>`;
-                else if (step === 4) f += `<div class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm font-semibold mb-1.5">เริ่มประกาศเชิญชวน <span class="text-red-500">*</span></label><input type="date" id="s4_d" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition"></div><div><label class="block text-sm font-semibold mb-1.5">สิ้นสุดประกาศเชิญชวน <span class="text-red-500">*</span></label><input type="date" id="s4_end" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition"></div></div><div class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">ปัญหา / อุปสรรคในการประกาศเชิญชวน <span class="text-red-500">*</span></label><select id="s4_issue" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition bg-white"><option value="">-- เลือกรายการ --</option><option value="1">1. ไม่มี</option><option value="2">2. มียื่นแต่คุณสมบัติไม่ครบ(แก้ไขทบทวน TOR ให้ระบบกลับไปสถานะ 1)</option><option value="3">3. คุณสมบัติครบถ้วน(ดำเนินการต่อไปสถานะ5)</option></select></div><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">หมายเหตุ</label><input type="text" id="s4_note" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition" placeholder="ระบุหมายเหตุ..."></div></div><button onclick="handlers.saveStep4()" class="bg-primary text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">บันทึกรายงานขั้นตอน →</button>`;
+                else if (step === 4) f += `<div class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm font-semibold mb-1.5">เริ่มประกาศเชิญชวน <span class="text-red-500">*</span></label><input type="date" id="s4_d" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition"></div><div><label class="block text-sm font-semibold mb-1.5">สิ้นสุดประกาศเชิญชวน <span class="text-red-500">*</span></label><input type="date" id="s4_end" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition"></div></div><div class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">ปัญหา / อุปสรรคในการประกาศเชิญชวน <span class="text-red-500">*</span></label><select id="s4_issue" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition bg-white"><option value="">-- เลือกรายการ --</option><option value="1">1. ผ่าน - คุณสมบัติครบถ้วน (ดำเนินการต่อไปสถานะ 5)</option><option value="2">2. มีผู้เสนอราคารายเดียว (เริ่มกระบวนการใหม่ สถานะ 1)</option><option value="3">3. มีผู้ยื่น แต่ไม่ผ่านคุณสมบัติ (เริ่มกระบวนการใหม่ สถานะ 1)</option><option value="4">4. ไม่มีผู้ยื่นเสนอราคา (เริ่มกระบวนการใหม่ สถานะ 1)</option></select></div><div><label class="block text-sm font-semibold mb-1.5 text-slate-700">หมายเหตุ</label><input type="text" id="s4_note" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition" placeholder="ระบุหมายเหตุ..."></div></div><button onclick="handlers.saveStep4()" class="bg-primary text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">บันทึกรายงานขั้นตอน →</button>`;
                 else if (step === 5) f += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div><label class="block text-sm font-semibold mb-1.5">วันประกาศผู้ชนะ <span class="text-red-500">*</span></label><input type="date" id="s5_d" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition"></div><div><label class="block text-sm font-semibold mb-1.5">ชื่อบริษัทที่ชนะ <span class="text-red-500">*</span></label><input type="text" id="s5_n" class="border border-slate-200 p-2.5 rounded-xl w-full outline-none focus:ring-2 focus:ring-primary transition" placeholder="ระบุชื่อบริษัท..."></div></div><button onclick="handlers.saveStep(${step}, ['s5_d','s5_n'])" class="bg-primary text-white px-6 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-sm transition">บันทึกรายงานขั้นตอน →</button>`;
                 else if (step === 6) f += `<div class="mb-4"><label class="block text-sm mb-2 font-bold text-slate-800">ผลการอุทธรณ์ <span class="text-red-500">*</span></label><select id="appeal_opt" onchange="handlers.toggleAppeal()" class="border border-slate-200 p-3 rounded-xl w-full bg-white outline-none focus:ring-2 focus:ring-primary transition font-medium"><option value="">-- เลือกสถานะอุทธรณ์ --</option><option value="1">1. ไม่มีการอุทธรณ์ (ไปสถานะ 7)</option><option value="2">2. มีการอุทธรณ์ แล้วยอมรับผล (เตรียมจัดทำ TOR ใหม่)</option><option value="3">3. ไม่เห็นด้วย/เห็นด้วยบางส่วน (ส่งกรมบัญชีกลาง)</option><option value="4">4. ผลอุทธรณ์ฟังขึ้น (เตรียมจัดทำ TOR ใหม่)</option><option value="5">5. ผลอุทธรณ์ไม่ขึ้น (ดำเนินการต่อ ไปสถานะ 7)</option></select></div><div id="appeal_extra" class="hidden mb-4 p-4 bg-slate-50 rounded-xl border border-slate-200"><label class="block text-sm font-semibold mb-2">แนบหลักฐาน (PDF)</label><input type="file" id="appeal_file" accept=".pdf" class="text-sm w-full file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-blue-700 transition"></div><div id="appeal_btn" class="mt-4"></div>`;
                 else if (step === 7) f += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div><label class="block text-xs font-semibold mb-1.5 text-slate-500 uppercase tracking-wider">วงเงินงบประมาณ</label><input type="text" value="${utils.formatMoney(p.budget_amount)}" disabled class="w-full bg-slate-100 border-none p-3 rounded-xl text-slate-500 font-semibold"></div><div><label class="block text-xs font-semibold mb-1.5 text-blue-600 uppercase tracking-wider">ราคาสัญญา (บาท) <span class="text-red-500">*</span></label><input type="number" id="contract_amt" oninput="handlers.calcRemaining(${p.budget_amount})" min="0" step="0.01" class="w-full border border-blue-200 bg-blue-50/30 p-3 rounded-xl outline-none focus:ring-2 focus:ring-primary font-bold text-blue-700 transition"></div><div><label class="block text-xs font-semibold mb-1.5 text-emerald-600 uppercase tracking-wider">เงินเหลือจ่าย (บาท)</label><input type="text" id="remain_amt" readonly class="w-full bg-emerald-50 border-none p-3 rounded-xl font-bold text-emerald-600"></div><div><label class="block text-xs font-semibold mb-1.5 text-slate-600 uppercase tracking-wider">จำนวนงวดงาน <span class="text-red-500">*</span></label><select id="inst_count" onchange="handlers.genInst()" class="w-full border border-slate-200 p-3 rounded-xl outline-none bg-white focus:ring-2 focus:ring-primary transition"><option value="0">เลือกจำนวนงวด...</option>${Array.from({ length: 16 }, (_, i) => `<option value="${i + 1}">${i + 1} งวด</option>`).join('')}</select></div></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4"><div><label class="block text-xs font-semibold mb-1.5 text-slate-600 uppercase tracking-wider">เริ่มสัญญา <span class="text-red-500">*</span></label><input type="date" id="c_start" class="w-full border border-slate-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-primary transition"></div><div><label class="block text-xs font-semibold mb-1.5 text-slate-600 uppercase tracking-wider">สิ้นสุดสัญญา <span class="text-red-500">*</span></label><input type="date" id="c_end" class="w-full border border-slate-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-primary transition"></div></div><div class="mb-5"><label class="block text-xs font-semibold mb-1.5 text-slate-600 uppercase tracking-wider">แนบไฟล์สัญญา (PDF) <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label><input type="file" id="c_file" accept=".pdf" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 transition"></div><div id="inst_table" class="hidden mt-4 mb-5 border border-slate-200 rounded-2xl overflow-hidden shadow-sm"><table class="w-full text-sm bg-white text-left"><thead class="bg-slate-50 border-b border-slate-100"><tr><th class="p-3 font-semibold text-slate-600 text-center">งวดงาน</th><th class="p-3 font-semibold text-slate-600 text-right">ราคางวดงาน (บาท)</th><th class="p-3 font-semibold text-slate-600 text-right">ร้อยละ (%)</th></tr></thead><tbody id="inst_tbody" class="divide-y divide-slate-100"></tbody></table><p id="inst_err" class="text-xs text-danger p-3 hidden font-medium bg-red-50 text-center border-t border-red-100">⚠️ ยอดรวมค่างวดงานต้องเท่ากับราคาสัญญาพอดี</p></div><button id="btn_save_c" onclick="handlers.saveContract()" disabled class="bg-primary text-white px-6 py-3.5 rounded-xl text-sm font-medium opacity-50 cursor-not-allowed w-full transition shadow-md">บันทึกข้อมูลและไปสถานะที่ 8</button>`;
@@ -1704,6 +1780,11 @@
                     const { error: e3 } = await supabaseClient.from('contract_installments').insert(instList);
                     if (e3) throw e3;
 
+                    const items = state.items || state.projects || [];
+                    const it = items.find(x => String(x.id) === String(itemId)) || state.selectedItem || state.selectedProject || {};
+                    const itemName = it.item_name || it.project_name || '';
+                    logger('SAVE_CONTRACT', `บันทึกข้อมูลสัญญาและงวดงาน (${instList.length} งวด) | รายการ: ${itemName}`);
+
                     await handlers.updateStatus(8, "ลงนามเรียบร้อย เริ่มบริหารสัญญา");
                 } catch (e) { ui.toast(e.message, 'error'); ui.hideLoader(); }
             },
@@ -1734,6 +1815,9 @@
                 ui.showLoader('บันทึกเบิกจ่าย...');
                 try {
                     await rpc('custom_save_disbursement', { p_session_token: state.sessionToken, p_installment_id: instId, p_paid_amount: paid, p_payment_date: dt, p_payment_detail: det });
+                    const it = state.selectedItem || state.selectedProject || {};
+                    const itemName = it.item_name || it.project_name || '';
+                    logger('SAVE_DISBURSEMENT', `บันทึกเบิกจ่ายงวดงาน จำนวน ${utils.formatMoney(paid)} บาท | รายการ: ${itemName}`);
                     ui.toast('สำเร็จ');
                 } catch (e) { ui.toast(e.message, 'error'); } finally { ui.hideLoader(); }
             },
@@ -1743,6 +1827,9 @@
                 ui.showLoader('บันทึกรายงาน...');
                 try {
                     await rpc('custom_save_progress', { p_session_token: state.sessionToken, p_contract_id: contractId, p_progress_detail: "อัปเดตสถานะ", p_problem_detail: prob, p_remark: "" });
+                    const it = state.selectedItem || state.selectedProject || {};
+                    const itemName = it.item_name || it.project_name || '';
+                    logger('SAVE_PROGRESS', `บันทึกรายงานปัญหา/อุปสรรค: ${prob || 'ไม่มีปัญหา'} | รายการ: ${itemName}`);
                     ui.toast('สำเร็จ');
                     const itemId = (state.selectedItem || state.selectedProject).id;
                     app.navigate('management', itemId);
