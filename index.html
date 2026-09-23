@@ -211,7 +211,7 @@
                 <div class="mb-5 text-center lg:text-left">
                     <h2
                         class="text-2xl sm:text-3xl font-bold mb-2 flex items-center justify-center lg:justify-start gap-3 drop-shadow-md">
-                        🏆 STIPS Leaderboard</h2>
+                        🏆 BPP Monitor Leaderboard</h2>
                     <p class="text-sm text-blue-200">100 อันดับวิทยาลัยที่มีผลการใช้จ่ายงบลงทุนยอดเยี่ยม</p>
                 </div>
                 <div
@@ -384,6 +384,31 @@
                 7: 'bg-emerald-50 text-emerald-700 border-emerald-300',
                 8: 'bg-green-100 text-green-800 border-green-300'
             })[s] || 'bg-slate-100 text-slate-700 border-slate-200',
+            getContractCountdownBadge: (dt) => {
+                if (!dt) return '<span class="text-slate-400 font-mono">-</span>';
+                const end = new Date(dt);
+                if (isNaN(end.getTime())) return '<span class="text-slate-400 font-mono">-</span>';
+
+                const now = new Date();
+                now.setHours(0, 0, 0, 0);
+                const target = new Date(end);
+                target.setHours(0, 0, 0, 0);
+
+                const diffTime = target.getTime() - now.getTime();
+                const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+                const formattedDate = utils.formatDateOnly(dt);
+
+                let badge = '';
+                if (diffDays < 0) {
+                    badge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 shadow-xs whitespace-nowrap">🚨 เกินกำหนด ${Math.abs(diffDays)} วัน</span>`;
+                } else if (diffDays <= 30) {
+                    badge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-xs whitespace-nowrap">⚠️ เหลือ ${diffDays} วัน</span>`;
+                } else {
+                    badge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">ปกติ (เหลือ ${diffDays} วัน)</span>`;
+                }
+
+                return `<div class="flex flex-col items-center justify-center gap-0.5 leading-tight"><span class="text-xs text-slate-700 font-medium">${formattedDate}</span>${badge}</div>`;
+            },
             getItemNameFromLog: (L) => {
                 if (L.item_name) return L.item_name;
                 if (L.project_name) return L.project_name;
@@ -538,15 +563,22 @@
                 document.getElementById('confirm-modal-box').classList.add('scale-95');
                 setTimeout(() => { document.getElementById('confirm-modal').classList.add('hidden'); document.getElementById('confirm-modal').classList.remove('flex'); }, 150);
             },
-            openModal: (title, html) => {
+            openModal: (title, html, maxWidth = 'sm:max-w-xl') => {
                 document.getElementById('modal-title').innerText = title; document.getElementById('modal-content').innerHTML = html;
                 const m = document.getElementById('general-modal');
+                const b = document.getElementById('general-modal-box');
+                b.className = `bg-white rounded-t-3xl sm:rounded-3xl w-full ${maxWidth} max-h-[90vh] flex flex-col shadow-2xl transition-transform transform translate-y-full sm:translate-y-0`;
                 m.classList.remove('hidden'); m.classList.add('flex');
-                setTimeout(() => document.getElementById('general-modal-box').classList.remove('translate-y-full'), 10);
+                setTimeout(() => b.classList.remove('translate-y-full'), 10);
             },
             closeModal: () => {
-                document.getElementById('general-modal-box').classList.add('translate-y-full');
-                setTimeout(() => { document.getElementById('general-modal').classList.add('hidden'); document.getElementById('general-modal').classList.remove('flex'); }, 300);
+                const b = document.getElementById('general-modal-box');
+                b.classList.add('translate-y-full');
+                setTimeout(() => {
+                    const m = document.getElementById('general-modal');
+                    m.classList.add('hidden'); m.classList.remove('flex');
+                    b.className = 'bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-xl max-h-[90vh] flex flex-col shadow-2xl transition-transform transform translate-y-full sm:translate-y-0';
+                }, 300);
             },
             openSidebar: () => { document.getElementById('sidebar').classList.remove('-translate-x-full'); document.getElementById('sidebar-overlay').classList.remove('hidden'); },
             closeSidebar: () => { document.getElementById('sidebar').classList.add('-translate-x-full'); document.getElementById('sidebar-overlay').classList.add('hidden'); }
@@ -651,7 +683,7 @@
                                 <canvas id="filterStagesBarChart"></canvas>
                             </div>
                             <div class="overflow-x-auto max-h-[500px] rounded-xl border border-slate-200 shadow-sm custom-scrollbar">
-                                <table class="w-full text-left bg-white whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 text-[13px] sticky top-0 z-10 border-b border-slate-200"><tr><th class="p-3 font-semibold text-center border-r min-w-[80px]">จัดการ</th><th class="p-3 font-semibold border-r min-w-[120px]">รหัสงบประมาณ</th><th class="p-3 font-semibold border-r">ประเภท</th><th class="p-3 font-semibold border-r">สถานศึกษา</th><th class="p-3 font-semibold border-r">ชื่อรายการ</th><th class="p-3 font-semibold text-center border-r">สถานะ</th><th class="p-3 font-semibold text-right border-r">งบประมาณ</th><th class="p-3 font-semibold text-right border-r">ลงนามสัญญา</th><th class="p-3 font-semibold text-right border-r">เบิกจ่ายแล้ว</th><th class="p-3 font-semibold text-right border-r bg-orange-50/50">คงเหลือ</th><th class="p-3 font-semibold text-center border-r">เริ่มสัญญา</th><th class="p-3 font-semibold text-center border-r">สิ้นสุดสัญญา</th><th class="p-3 font-semibold text-center">งวดงาน</th></tr></thead><tbody id="dashTableBody" class="text-sm divide-y divide-slate-100"></tbody></table>
+                                <table class="w-full text-left bg-white whitespace-nowrap"><thead class="bg-slate-50 text-slate-600 text-[13px] sticky top-0 z-10 border-b border-slate-200"><tr><th class="p-3 font-semibold text-center border-r min-w-[80px]">จัดการ</th><th class="p-3 font-semibold border-r min-w-[120px]">รหัสงบประมาณ</th><th class="p-3 font-semibold border-r">ประเภท</th><th class="p-3 font-semibold border-r">สถานศึกษา</th><th class="p-3 font-semibold border-r">ชื่อรายการ</th><th class="p-3 font-semibold text-center border-r min-w-[130px]">สถานะ</th><th class="p-3 font-semibold text-right border-r">งบประมาณ</th><th class="p-3 font-semibold text-right border-r">ลงนามสัญญา</th><th class="p-3 font-semibold text-right border-r">เบิกจ่ายแล้ว</th><th class="p-3 font-semibold text-right border-r bg-orange-50/50">คงเหลือ</th><th class="p-3 font-semibold text-center border-r">เริ่มสัญญา</th><th class="p-3 font-semibold text-center border-r min-w-[135px]">สิ้นสุดสัญญา</th><th class="p-3 font-semibold text-center">งวดงาน</th></tr></thead><tbody id="dashTableBody" class="text-sm divide-y divide-slate-100"></tbody></table>
                             </div>
                             <div class="flex justify-between items-center text-xs text-gray-500 pt-2"><span id="tableCount">แสดง 0 รายการ</span></div>
                         </section>`;
@@ -1253,13 +1285,13 @@
                         <td class="p-3 border-r border-slate-100"><span class="text-[10px] px-2 py-0.5 rounded-md ${tCol}">${utils.esc(r.type)}</span></td>
                         <td class="p-3 font-semibold text-slate-800 max-w-[150px] truncate border-r border-slate-100" title="${utils.esc(r.institution)}">${utils.esc(r.institution)}</td>
                         <td class="p-3 text-slate-600 max-w-[250px] truncate border-r border-slate-100" title="${utils.esc(r.item)}">${utils.esc(r.item)}</td>
-                        <td class="p-3 text-center border-r border-slate-100"><span class="px-2.5 py-1 rounded-lg text-[10px] font-bold border ${utils.getStatusColor(r.statusNo)}">${utils.esc(r.status)}</span></td>
+                        <td class="p-3 text-center border-r border-slate-100"><span class="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold border shadow-xs whitespace-nowrap inline-block ${utils.getStatusColor(r.statusNo)}">${utils.esc(r.status)}</span></td>
                         <td class="p-3 text-right font-bold text-slate-800 border-r border-slate-100">${utils.formatMoney(r.budget)}</td>
                         <td class="p-3 text-right font-medium text-indigo-600 border-r border-slate-100">${utils.formatMoney(r.poAmount)}</td>
                         <td class="p-3 text-right font-medium text-emerald-600 border-r border-slate-100">${utils.formatMoney(r.disbursed)}</td>
                         <td class="p-3 text-right font-bold text-orange-600 bg-orange-50/30 border-r border-slate-100">${utils.formatMoney(r.budget - r.disbursed)}</td>
                         <td class="p-3 text-center text-slate-500 border-r border-slate-100">${utils.formatDateOnly(r.contractSignedDate)}</td>
-                        <td class="p-3 text-center text-slate-500 border-r border-slate-100">${utils.formatDateOnly(r.contractEndDate)}</td>
+                        <td class="p-3 text-center border-r border-slate-100">${utils.getContractCountdownBadge(r.contractEndDate)}</td>
                         <td class="p-3 text-center font-bold text-blue-600">${r.installmentCount ? r.installmentCount + ' งวด' : '-'}</td>
                     </tr>`;
                 });
@@ -1332,7 +1364,7 @@
 
             toggleColumnSettings: () => {
                 const cols = [
-                    { id: 'col_manage', name: 'รายงานผล', default: true },
+                    { id: 'col_manage', name: 'จัดการ / สรุปย่อ (รายงานผล)', default: true },
                     { id: 'col_year', name: 'ปีงบฯ', default: true },
                     { id: 'col_type', name: 'ประเภท', default: true },
                     { id: 'col_prov', name: 'จังหวัด', default: true },
@@ -1436,7 +1468,7 @@
 
                 const cols = window.reportColsState;
                 let thead = '<tr>';
-                if (cols.col_manage) thead += `<th class="p-3 font-semibold text-center border-r min-w-[80px]">รายงานผล</th>`;
+                if (cols.col_manage) thead += `<th class="p-3 font-semibold text-center border-r min-w-[160px]">จัดการ / ข้อมูล</th>`;
                 thead += `<th class="p-3 font-semibold border-r text-center w-12 bg-slate-50">✔</th>`;
                 if (cols.col_year) thead += `<th class="p-3 font-semibold border-r text-center min-w-[80px]">ปีงบฯ</th>`;
                 if (cols.col_type) thead += `<th class="p-3 font-semibold border-r text-center min-w-[100px]">ประเภท</th>`;
@@ -1449,14 +1481,14 @@
                 thead += `<th class="p-3 font-semibold border-r bg-slate-50 min-w-[150px] max-w-[250px]">รายการ</th>`;
 
                 // Status (หน้า คอลัม งบประมาณ)
-                if (cols.col_stat) thead += `<th class="p-3 font-semibold text-center border-r min-w-[120px]">สถานะ</th>`;
+                if (cols.col_stat) thead += `<th class="p-3 font-semibold text-center border-r min-w-[150px]">สถานะ</th>`;
 
                 if (cols.col_bud) thead += `<th class="p-3 font-semibold text-right border-r min-w-[100px]">งบประมาณ</th>`;
                 if (cols.col_po) thead += `<th class="p-3 font-semibold text-right border-r min-w-[100px]">ลงนามสัญญา</th>`;
                 if (cols.col_dis) thead += `<th class="p-3 font-semibold text-right border-r min-w-[100px]">เบิกจ่ายแล้ว</th>`;
                 if (cols.col_rem) thead += `<th class="p-3 font-semibold text-right bg-orange-50/50 border-r min-w-[100px]">คงเหลือ</th>`;
                 if (cols.col_start) thead += `<th class="p-3 font-semibold text-center border-l min-w-[100px]">เริ่มสัญญา</th>`;
-                if (cols.col_end) thead += `<th class="p-3 font-semibold text-center border-l min-w-[100px]">สิ้นสุดสัญญา</th>`;
+                if (cols.col_end) thead += `<th class="p-3 font-semibold text-center border-l min-w-[135px]">สิ้นสุดสัญญา</th>`;
                 if (cols.col_prog) thead += `<th class="p-3 font-semibold border-l text-center min-w-[120px]">งวดงาน</th>`;
                 if (cols.col_prob) thead += `<th class="p-3 font-semibold border-l min-w-[150px]">ปัญหาอุปสรรค</th>`;
                 thead += '</tr>';
@@ -1491,7 +1523,7 @@
                     else { trClass = 'hover:bg-blue-50/50 transition bg-white group'; }
 
                     let row = `<tr class="${trClass}">`;
-                    if (cols.col_manage) row += `<td class="p-3 text-center border-r border-slate-100"><button onclick="app.navigate('workflow', '${p.id}')" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] px-3 py-1.5 rounded-lg transition shadow-sm whitespace-nowrap font-medium">รายงานผล →</button></td>`;
+                    if (cols.col_manage) row += `<td class="p-3 text-center border-r border-slate-100 whitespace-nowrap"><div class="flex items-center justify-center gap-1.5"><button onclick="handlers.openQuickPreview('${p.id}')" title="เปิดดูข้อมูลสรุปย่อและสถิติ" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition shadow-2xs flex items-center gap-1"><span>👁️</span> สรุปย่อ</button><button onclick="app.navigate('workflow', '${p.id}')" title="เข้าสู่หน้ารายงานผลขั้นตอน" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] px-3 py-1.5 rounded-lg transition shadow-sm font-medium">รายงานผล →</button></div></td>`;
                     row += `<td class="p-3 text-center border-r border-slate-100"><input type="checkbox" class="w-4 h-4 cursor-pointer accent-primary rounded shadow-sm"></td>`;
                     if (cols.col_year) row += `<td class="p-3 text-center font-bold text-slate-700 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.esc(p.fiscal_year || '-')}</td>`;
                     if (cols.col_type) row += `<td class="p-3 text-center text-slate-600 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.esc(p.item_type || '-')}</td>`;
@@ -1503,7 +1535,7 @@
                     row += `<td class="p-3 font-medium whitespace-normal min-w-[150px] max-w-[250px] border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : 'text-slate-800'}"><p class="line-clamp-3" title="${utils.esc(p.project_name)}">${utils.esc(p.project_name)}</p></td>`;
 
                     // Status (หน้า คอลัม งบประมาณ)
-                    if (cols.col_stat) row += `<td class="p-3 text-center border-r border-slate-100"><span class="px-2.5 py-1 text-[10px] font-bold rounded-md border ${utils.getStatusColor(p.current_status)}">${p.current_status}. ${utils.getStatusName(p.current_status)}</span></td>`;
+                    if (cols.col_stat) row += `<td class="p-3 text-center border-r border-slate-100"><span class="px-3 py-1.5 text-xs sm:text-sm font-bold rounded-xl border shadow-xs whitespace-nowrap inline-block ${utils.getStatusColor(p.current_status)}">${p.current_status}. ${utils.getStatusName(p.current_status)}</span></td>`;
 
                     if (cols.col_bud) row += `<td class="p-3 text-right font-bold text-slate-800 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatMoney(b)}</td>`;
                     if (cols.col_po) row += `<td class="p-3 text-right font-medium text-indigo-600 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatMoney(po)}</td>`;
@@ -1511,7 +1543,7 @@
                     if (cols.col_rem) row += `<td class="p-3 text-right font-bold text-orange-600 bg-orange-50/30 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatMoney(rem)}</td>`;
 
                     if (cols.col_start) row += `<td class="p-3 text-center text-slate-500 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatDateOnly(p.contract_signed_date)}</td>`;
-                    if (cols.col_end) row += `<td class="p-3 text-center text-slate-500 border-r border-slate-100 ${isDelayed ? 'font-bold' : ''} ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.formatDateOnly(p.contract_end_date)}</td>`;
+                    if (cols.col_end) row += `<td class="p-3 text-center border-r border-slate-100 ${isDelayed ? 'font-bold' : ''} ${isDelayed || isCompleted ? 'text-inherit' : ''}">${utils.getContractCountdownBadge(p.contract_end_date)}</td>`;
                     if (cols.col_prog) row += `<td class="p-3 text-center font-bold text-blue-600 border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}">${p.installment_count ? p.installment_count + ' งวด' : '-'}</td>`;
                     if (cols.col_prob) row += `<td class="p-3 text-red-600 whitespace-normal min-w-[200px] border-r border-slate-100 ${isDelayed || isCompleted ? 'text-inherit' : ''}"><p class="line-clamp-2 text-[12px] leading-snug">${utils.esc(p.problem_detail)}</p></td>`;
                     row += `</tr>`;
@@ -1580,6 +1612,377 @@
                     'ปีงบฯ': p.fiscal_year || '-', 'ประเภท': p.item_type || '-', 'จังหวัด': p.province || '-', 'โครงการ': p.plan_type || '-', 'รหัสงบประมาณ': p.budget_code || '-', 'สถานศึกษา': p.institution_name || '-', 'รายการ': p.item_name || p.project_name || '-', 'สถานะ': `${p.current_status}. ${utils.getStatusName(p.current_status)}`, 'งบประมาณ': Number(p.budget_amount) || 0, 'ลงนามสัญญา': Number(p.po_amount) || 0, 'เบิกจ่ายแล้ว': Number(p.disbursed_amount) || 0, 'คงเหลือ': (Number(p.budget_amount) || 0) - (Number(p.disbursed_amount) || 0), 'เริ่มสัญญา': p.contract_signed_date ? new Date(p.contract_signed_date).toLocaleDateString('th-TH') : '-', 'สิ้นสุดสัญญา': p.contract_end_date ? new Date(p.contract_end_date).toLocaleDateString('th-TH') : '-', 'งวดงาน': p.installment_count ? p.installment_count + ' งวด' : '-', 'ปัญหาอุปสรรค': p.problem_detail || '-'
                 }));
                 const ws = XLSX.utils.json_to_sheet(dataToExport); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "รายงานผล"); XLSX.writeFile(wb, `Report_STIPS_${Date.now()}.xlsx`);
+            },
+
+            openQuickPreview: async (itemId) => {
+                ui.showLoader('กำลังโหลดข้อมูลสรุปย่อ...');
+                try {
+                    const allItems = window.rawReportData || state.items || state.projects || [];
+                    let p = allItems.find(x => String(x.id) === String(itemId));
+                    if (!p) {
+                        let res = await supabaseClient.from('items').select('*').eq('id', itemId).maybeSingle();
+                        if (res.error || !res.data) {
+                            res = await supabaseClient.from('projects').select('*').eq('id', itemId).maybeSingle();
+                        }
+                        p = res.data;
+                    }
+                    if (!p) throw new Error('ไม่พบข้อมูลรายการที่ต้องการ');
+
+                    let [wfRes, appRes, contRes] = await Promise.all([
+                        supabaseClient.from('item_workflows').select('*').eq('item_id', itemId).order('created_at', { ascending: false }),
+                        supabaseClient.from('appeals').select('*').eq('item_id', itemId).order('created_at', { ascending: false }).limit(1),
+                        supabaseClient.from('contracts').select('*').eq('item_id', itemId).order('created_at', { ascending: false }).limit(1)
+                    ]);
+                    if (wfRes.error) {
+                        wfRes = await supabaseClient.from('project_workflows').select('*').eq('project_id', itemId).order('created_at', { ascending: false });
+                    }
+                    if (appRes.error) {
+                        appRes = await supabaseClient.from('appeals').select('*').eq('project_id', itemId).order('created_at', { ascending: false }).limit(1);
+                    }
+                    if (contRes.error) {
+                        contRes = await supabaseClient.from('contracts').select('*').eq('project_id', itemId).order('created_at', { ascending: false }).limit(1);
+                    }
+
+                    const wfHistory = wfRes.data || [];
+                    const appealData = appRes.data ? appRes.data[0] : null;
+                    const contractData = contRes.data ? contRes.data[0] : null;
+                    const curStat = parseInt(p.current_status, 10) || 1;
+
+                    // 1. Calculate status execution counts (Status 1 - 7)
+                    const statusCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 };
+                    wfHistory.forEach(w => {
+                        let obj = null;
+                        try { obj = JSON.parse(w.remarks); } catch (e) { }
+
+                        if (obj && typeof obj === 'object') {
+                            if (obj.s2_d) statusCounts[2]++;
+                            if (obj.s3_s) statusCounts[3]++;
+                            if (obj.s4_d) statusCounts[4]++;
+                            if (obj.s5_d) statusCounts[5]++;
+                        }
+
+                        if (w.status_no === 2 && (!obj || !obj.s2_d)) {
+                            statusCounts[1]++;
+                        }
+                        if (w.status_no === 7 && (!obj || (!obj.s2_d && !obj.s3_s && !obj.s4_d && !obj.s5_d))) {
+                            statusCounts[6]++;
+                        }
+                        if (w.status_no === 8) {
+                            statusCounts[7]++;
+                        }
+                    });
+
+                    if (appealData && statusCounts[6] === 0) statusCounts[6] = 1;
+                    if (contractData && statusCounts[7] === 0) statusCounts[7] = 1;
+
+                    for (let i = 1; i <= 7; i++) {
+                        if (curStat > i && statusCounts[i] === 0) {
+                            statusCounts[i] = 1;
+                        }
+                    }
+                    if (statusCounts[1] === 0 && curStat >= 1) {
+                        statusCounts[1] = 1;
+                    }
+
+                    // 2. Extract Rollback & Rework events (Reasons returning to status 1 from status 3 - 6)
+                    const rollbacks = [];
+                    wfHistory.forEach(w => {
+                        let obj = null;
+                        try { obj = JSON.parse(w.remarks); } catch (e) { }
+
+                        if (obj && typeof obj === 'object') {
+                            // Status 3: s3_issue === '2' -> rollback to 1
+                            if (String(obj.s3_issue) === '2') {
+                                rollbacks.push({
+                                    stage: 3,
+                                    stageName: 'สถานะ 3: เผยแพร่ร่าง TOR',
+                                    issueTitle: 'รับฟังข้อเสนอบริษัท (แก้ไขทบทวน TOR ให้ระบบกลับไปสถานะ 1)',
+                                    note: obj.s3_note || '',
+                                    dates: (obj.s3_s ? `วันที่เผยแพร่: ${utils.formatDateOnly(obj.s3_s)}` : '') + (obj.s3_e ? ` สิ้นสุด: ${utils.formatDateOnly(obj.s3_e)}` : ''),
+                                    createdAt: w.created_at,
+                                    author: w.created_by
+                                });
+                            }
+
+                            // Status 4: s4_issue in ['2', '3', '4'] -> rollback to 1
+                            if (['2', '3', '4'].includes(String(obj.s4_issue))) {
+                                const issMap4 = {
+                                    '2': 'มีผู้เสนอราคารายเดียว (เริ่มกระบวนการใหม่ สถานะ 1)',
+                                    '3': 'มีผู้ยื่น แต่ไม่ผ่านคุณสมบัติ (เริ่มกระบวนการใหม่ สถานะ 1)',
+                                    '4': 'ไม่มีผู้ยื่นเสนอราคา (เริ่มกระบวนการใหม่ สถานะ 1)'
+                                };
+                                rollbacks.push({
+                                    stage: 4,
+                                    stageName: 'สถานะ 4: ประกาศเชิญชวน (Bidding)',
+                                    issueTitle: issMap4[obj.s4_issue] || 'ปัญหาในการประกาศเชิญชวน',
+                                    note: obj.s4_note || '',
+                                    dates: (obj.s4_d ? `เริ่ม: ${utils.formatDateOnly(obj.s4_d)}` : '') + (obj.s4_end ? ` สิ้นสุด: ${utils.formatDateOnly(obj.s4_end)}` : ''),
+                                    createdAt: w.created_at,
+                                    author: w.created_by
+                                });
+                            }
+                        }
+
+                        // Explicit remarks indicating return/restart to status 1
+                        if (w.remarks && typeof w.remarks === 'string') {
+                            if (w.remarks.includes('เริ่มต้นจัดทำ TOR ใหม่') || (w.remarks.includes('ย้อน') && w.status_no === 1)) {
+                                const already = rollbacks.some(r => Math.abs(new Date(r.createdAt) - new Date(w.created_at)) < 3000);
+                                if (!already) {
+                                    rollbacks.push({
+                                        stage: 1,
+                                        stageName: 'ตีกลับไปเริ่มต้นสถานะที่ 1',
+                                        issueTitle: w.remarks,
+                                        note: '',
+                                        dates: '',
+                                        createdAt: w.created_at,
+                                        author: w.created_by
+                                    });
+                                }
+                            }
+                        }
+                    });
+
+                    // Check Appeal rollback (Status 6)
+                    if (appealData && ['2', '4'].includes(String(appealData.appeal_option))) {
+                        const issMap6 = {
+                            '2': 'มีการอุทธรณ์ แล้วยอมรับผล (เตรียมจัดทำ TOR ใหม่)',
+                            '4': 'ผลอุทธรณ์ฟังขึ้น (เตรียมจัดทำ TOR ใหม่)'
+                        };
+                        const already = rollbacks.some(r => Math.abs(new Date(r.createdAt) - new Date(appealData.created_at)) < 5000);
+                        if (!already) {
+                            rollbacks.push({
+                                stage: 6,
+                                stageName: 'สถานะ 6: การพิจารณาผลอุทธรณ์',
+                                issueTitle: issMap6[appealData.appeal_option],
+                                note: appealData.cancellation_reason || appealData.notes || '',
+                                dates: '',
+                                createdAt: appealData.created_at,
+                                author: appealData.created_by || ''
+                            });
+                        }
+                    }
+
+                    // Sort rollbacks newest first
+                    rollbacks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+                    // Build Status Stats Cards HTML (7 cards)
+                    const statusShortNames = {
+                        1: 'จัดทำ TOR',
+                        2: 'แต่งตั้ง กก. TOR',
+                        3: 'เผยแพร่ร่าง TOR',
+                        4: 'ประกาศเชิญชวน',
+                        5: 'ประกาศผู้ชนะ',
+                        6: 'ผลการอุทธรณ์',
+                        7: 'ลงนามสัญญา'
+                    };
+
+                    let statsGridHtml = '<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">';
+                    for (let i = 1; i <= 7; i++) {
+                        const count = statusCounts[i];
+                        const isCurrent = curStat === i;
+                        let countBadge = '';
+                        let cardBg = '';
+                        let numBg = '';
+
+                        if (count > 1) {
+                            countBadge = `<span class="inline-flex items-center gap-0.5 px-2 py-0.5 text-[11px] font-bold rounded-md bg-amber-500 text-white shadow-2xs">⚠️ ${count} ครั้ง</span>`;
+                            cardBg = 'bg-amber-50/70 border-amber-300 shadow-2xs';
+                            numBg = 'bg-amber-500 text-white';
+                        } else if (count === 1) {
+                            countBadge = `<span class="inline-flex items-center gap-0.5 px-2 py-0.5 text-[11px] font-bold rounded-md bg-emerald-100 text-emerald-800">✓ 1 ครั้ง</span>`;
+                            cardBg = isCurrent ? 'bg-blue-50/80 border-blue-300 ring-2 ring-blue-100' : 'bg-slate-50 border-slate-200';
+                            numBg = isCurrent ? 'bg-primary text-white' : 'bg-emerald-100 text-emerald-800 font-bold';
+                        } else if (isCurrent) {
+                            countBadge = `<span class="inline-flex items-center gap-0.5 px-2 py-0.5 text-[11px] font-bold rounded-md bg-blue-100 text-blue-700 animate-pulse">กำลังทำ</span>`;
+                            cardBg = 'bg-blue-50/80 border-blue-300 ring-2 ring-blue-100';
+                            numBg = 'bg-primary text-white';
+                        } else {
+                            countBadge = `<span class="inline-flex items-center px-1.5 py-0.5 text-[11px] font-medium rounded-md bg-slate-100 text-slate-400">ยังไม่ถึง</span>`;
+                            cardBg = 'bg-slate-50/50 border-slate-200/80 opacity-60';
+                            numBg = 'bg-slate-200 text-slate-400';
+                        }
+
+                        statsGridHtml += `
+                            <div class="p-2.5 rounded-2xl border flex flex-col justify-between items-center text-center transition-all ${cardBg}">
+                                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mb-1.5 ${numBg}">
+                                    ${i}
+                                </div>
+                                <span class="font-bold text-[11px] text-slate-700 leading-tight mb-2 line-clamp-2" title="${utils.getStatusName(i)}">
+                                    ${statusShortNames[i]}
+                                </span>
+                                ${countBadge}
+                            </div>
+                        `;
+                    }
+                    statsGridHtml += '</div>';
+
+                    // Build Rollback & Rework Section HTML
+                    let rollbackHtml = '';
+                    if (rollbacks.length > 0) {
+                        rollbackHtml = `
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
+                                        <h4 class="text-sm font-bold text-amber-900">ตรวจพบประวัติการตีกลับ / เริ่มกระบวนการใหม่ (${rollbacks.length} ครั้ง)</h4>
+                                    </div>
+                                    <span class="text-[11px] text-amber-700 font-semibold bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full">ย้อนกลับไปสถานะ 1</span>
+                                </div>
+                                ${rollbacks.map(r => `
+                                    <div class="p-3.5 sm:p-4 rounded-2xl bg-amber-50/60 border border-amber-200/90 shadow-2xs space-y-2">
+                                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/60 pb-2">
+                                            <div class="flex items-center gap-2">
+                                                <span class="px-2.5 py-0.5 text-xs font-bold bg-amber-200 text-amber-900 rounded-lg">
+                                                    ${r.stageName}
+                                                </span>
+                                                <span class="text-xs font-bold text-red-600">ตีกลับไปเริ่มสถานะที่ 1</span>
+                                            </div>
+                                            <span class="text-[11px] text-slate-500 font-medium">📅 ${utils.formatDate(r.createdAt)}</span>
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-bold text-slate-600">⚠️ ปัญหา / ทางเลือกที่ระบุ:</p>
+                                            <p class="text-sm font-bold text-amber-950 mt-0.5 leading-snug">${utils.esc(r.issueTitle)}</p>
+                                        </div>
+                                        ${r.dates ? `<p class="text-xs text-slate-600">📆 ${utils.esc(r.dates)}</p>` : ''}
+                                        <div class="bg-white/85 p-3 rounded-xl border border-amber-200/70">
+                                            <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">📝 หมายเหตุที่บันทึกไว้:</p>
+                                            <p class="text-sm text-slate-800 font-medium mt-1 leading-relaxed">${r.note ? utils.esc(r.note) : '<span class="text-slate-400 italic">ไม่มีการระบุข้อความหมายเหตุเพิ่มเติม</span>'}</p>
+                                        </div>
+                                        ${r.author ? `<p class="text-[10px] text-slate-400 text-right">👤 ผู้บันทึก: ${utils.esc(r.author)}</p>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    } else {
+                        rollbackHtml = `
+                            <div class="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-emerald-900 flex items-center gap-3">
+                                <span class="text-2xl">✅</span>
+                                <div>
+                                    <p class="font-bold text-sm text-emerald-900">ไม่มีประวัติการตีกลับไปเริ่มสถานะที่ 1</p>
+                                    <p class="text-xs text-emerald-700 mt-0.5">รายการนี้ดำเนินงานขั้นตอนต่อไปตามลำดับอย่างต่อเนื่อง ไม่พบปัญหาที่ต้องเริ่มกระบวนการใหม่ในสถานะ 3 - 6</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    // Build Recent Logs (Top 4)
+                    let recentLogsHtml = '';
+                    if (wfHistory.length > 0) {
+                        const topLogs = wfHistory.slice(0, 4);
+                        recentLogsHtml = `
+                            <div class="mt-4 pt-4 border-t border-slate-100">
+                                <h4 class="text-xs font-bold text-slate-700 mb-2.5 flex items-center gap-1.5">
+                                    <span>🕒</span> บันทึกการดำเนินงานล่าสุด (Log):
+                                </h4>
+                                <div class="space-y-2">
+                                    ${topLogs.map(w => {
+                                        let text = utils.formatRemarks(w.remarks);
+                                        return `
+                                            <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-start justify-between gap-2 text-xs">
+                                                <div class="min-w-0">
+                                                    <span class="font-bold text-primary mr-1.5">สถานะ ${w.status_no}:</span>
+                                                    <span class="text-slate-700">${utils.esc(text)}</span>
+                                                </div>
+                                                <span class="text-[10px] text-slate-400 shrink-0 text-right">${utils.formatDate(w.created_at)}</span>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    const bAmt = Number(p.budget_amount) || 0;
+                    const poAmt = Number(p.po_amount) || 0;
+                    const disAmt = Number(p.disbursed_amount) || 0;
+                    const disPct = bAmt > 0 ? ((disAmt / bAmt) * 100).toFixed(1) : 0;
+                    const itemName = p.item_name || p.project_name || '';
+
+                    const modalHtml = `
+                        <div class="space-y-5 text-slate-800">
+                            <!-- Top Item Card -->
+                            <div class="bg-gradient-to-br from-slate-50 to-blue-50/40 p-4 sm:p-5 rounded-2xl border border-slate-200">
+                                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        ${p.budget_code ? `<span class="font-mono bg-indigo-100 border border-indigo-200 text-indigo-800 text-xs px-2.5 py-1 rounded-lg font-bold">${utils.esc(p.budget_code)}</span>` : ''}
+                                        <span class="px-2.5 py-0.5 text-xs font-bold rounded-lg bg-blue-100 text-blue-800">ปี ${p.fiscal_year || '-'}</span>
+                                        <span class="text-xs text-slate-500 font-medium">📍 ${utils.esc(p.province || '-')}</span>
+                                    </div>
+                                    <span class="px-3 py-1 text-xs sm:text-sm font-bold rounded-xl border shadow-2xs whitespace-nowrap ${utils.getStatusColor(p.current_status)}">
+                                        สถานะปัจจุบัน: ${p.current_status}. ${utils.getStatusName(p.current_status)}
+                                    </span>
+                                </div>
+                                <h3 class="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                                    ${utils.esc(itemName)}
+                                </h3>
+                                <p class="text-xs text-slate-600 mt-1 font-medium">
+                                    🏛️ สถานศึกษา: <span class="font-bold text-slate-800">${utils.esc(p.institution_name || '-')}</span>
+                                    ${p.item_type ? `<span class="ml-3 text-slate-500">| ประเภท: ${utils.esc(p.item_type)}</span>` : ''}
+                                </p>
+
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-3.5 border-t border-slate-200/80">
+                                    <div class="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs">
+                                        <span class="text-[11px] text-slate-500 font-medium block">💰 งบประมาณ</span>
+                                        <span class="text-sm font-bold text-slate-800">${utils.formatMoney(bAmt)} ฿</span>
+                                    </div>
+                                    <div class="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs">
+                                        <span class="text-[11px] text-indigo-600 font-medium block">📑 ลงนามสัญญา</span>
+                                        <span class="text-sm font-bold text-indigo-700">${utils.formatMoney(poAmt)} ฿</span>
+                                    </div>
+                                    <div class="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs">
+                                        <span class="text-[11px] text-emerald-600 font-medium block">💳 เบิกจ่ายแล้ว (${disPct}%)</span>
+                                        <span class="text-sm font-bold text-emerald-700">${utils.formatMoney(disAmt)} ฿</span>
+                                    </div>
+                                    <div class="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs">
+                                        <span class="text-[11px] text-slate-500 font-medium block">⏳ สิ้นสุดสัญญา</span>
+                                        <div class="mt-0.5">${utils.getContractCountdownBadge(p.contract_end_date)}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 1: สถิติจำนวนครั้งที่ดำเนินการ -->
+                            <div>
+                                <div class="flex items-center justify-between mb-2.5">
+                                    <h4 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                        <span>📊</span> สถิติจำนวนครั้งที่ดำเนินการ (สถานะ 1 - 7)
+                                    </h4>
+                                    <span class="text-[11px] text-slate-400">นับตามประวัติรายงานขั้นตอน</span>
+                                </div>
+                                ${statsGridHtml}
+                            </div>
+
+                            <!-- Section 2: ประวัติหมายเหตุการตีกลับจากสถานะ 3-6 -->
+                            <div>
+                                <div class="flex items-center justify-between mb-2.5">
+                                    <h4 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                        <span>🔄</span> หมายเหตุ & ตัวเลือกก่อนกลับไปเริ่มสถานะที่ 1
+                                    </h4>
+                                    <span class="text-[11px] text-slate-400">สถานะ 3 - 6 ที่ส่งผลให้เริ่มใหม่</span>
+                                </div>
+                                ${rollbackHtml}
+                            </div>
+
+                            <!-- Recent Logs Section -->
+                            ${recentLogsHtml}
+
+                            <!-- Footer Actions -->
+                            <div class="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-end gap-2.5">
+                                <button onclick="ui.closeModal()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition">
+                                    ปิดหน้าต่าง
+                                </button>
+                                <button onclick="ui.closeModal(); app.navigate('workflow', '${itemId}')" class="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-1.5">
+                                    <span>🔗</span> เปิดดูหน้าติดตามขั้นตอนเต็ม (Workflow) →
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    ui.hideLoader();
+                    ui.openModal('📋 ข้อมูลสรุปย่อรายการและการดำเนินงาน', modalHtml, 'sm:max-w-4xl');
+                } catch (err) {
+                    ui.hideLoader();
+                    ui.toast(err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูลสรุปย่อ', 'error');
+                }
             },
 
             getBase64: (file) => { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => { let encoded = reader.result.toString().split(',')[1]; resolve(encoded); }; reader.onerror = error => reject(error); }); },
