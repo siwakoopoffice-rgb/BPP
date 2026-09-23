@@ -407,9 +407,107 @@
                 }
                 return '-';
             },
+            formatRemarks: (str) => {
+                if (!str) return '';
+                if (typeof str !== 'string' && typeof str !== 'object') return String(str);
+
+                let parsed = null;
+                let rawJson = '';
+
+                if (typeof str === 'object') {
+                    parsed = str;
+                } else {
+                    const match = str.match(/\{[\s\S]*?\}/);
+                    if (match) {
+                        try {
+                            parsed = JSON.parse(match[0]);
+                            rawJson = match[0];
+                        } catch (e) { }
+                    }
+                }
+
+                if (!parsed || typeof parsed !== 'object') return str;
+
+                const parts = [];
+
+                // Step 2: s2_d
+                if (parsed.s2_d) {
+                    parts.push(`เสร็จวันที่ ${utils.formatDateOnly(parsed.s2_d)}`);
+                }
+
+                // Step 3: s3_s, s3_e, s3_issue, s3_note
+                if (parsed.s3_s) {
+                    let p = `เผยแพร่วันที่ ${utils.formatDateOnly(parsed.s3_s)}`;
+                    if (parsed.s3_e) p += ` ถึง ${utils.formatDateOnly(parsed.s3_e)}`;
+                    parts.push(p);
+                }
+                if (parsed.s3_issue) {
+                    const issMap3 = {
+                        "1": "ไม่มีปัญหา/อุปสรรค",
+                        "2": "รับฟังข้อเสนอบริษัท (ทบทวน TOR เริ่มใหม่)",
+                        "3": "ไม่รับฟังข้อเสนอบริษัท (ไปสถานะ 4)"
+                    };
+                    parts.push(`ปัญหา: ${issMap3[parsed.s3_issue] || parsed.s3_issue}`);
+                }
+                if (parsed.s3_note && String(parsed.s3_note).trim()) {
+                    parts.push(`หมายเหตุ: ${String(parsed.s3_note).trim()}`);
+                }
+
+                // Step 4: s4_d, s4_end, s4_issue, s4_note
+                if (parsed.s4_d) {
+                    let p = `ประกาศเชิญชวน ${utils.formatDateOnly(parsed.s4_d)}`;
+                    if (parsed.s4_end) p += ` ถึง ${utils.formatDateOnly(parsed.s4_end)}`;
+                    parts.push(p);
+                }
+                if (parsed.s4_issue) {
+                    const issMap4 = {
+                        "1": "ผ่าน - คุณสมบัติครบถ้วน",
+                        "2": "มีผู้เสนอราคารายเดียว (เริ่มใหม่)",
+                        "3": "มีผู้ยื่นแต่ไม่ผ่านคุณสมบัติ (เริ่มใหม่)",
+                        "4": "ไม่มีผู้ยื่นเสนอราคา (เริ่มใหม่)"
+                    };
+                    parts.push(`ผลการพิจารณา: ${issMap4[parsed.s4_issue] || parsed.s4_issue}`);
+                }
+                if (parsed.s4_note && String(parsed.s4_note).trim()) {
+                    parts.push(`หมายเหตุ: ${String(parsed.s4_note).trim()}`);
+                }
+
+                // Step 5: s5_d, s5_n
+                if (parsed.s5_d) {
+                    parts.push(`ประกาศผลวันที่ ${utils.formatDateOnly(parsed.s5_d)}`);
+                }
+                if (parsed.s5_n && String(parsed.s5_n).trim()) {
+                    parts.push(`ผู้ชนะ: ${String(parsed.s5_n).trim()}`);
+                }
+
+                // Fallback for any other JSON keys
+                if (parts.length === 0) {
+                    const keyMap = {
+                        s2_d: "วันที่เสร็จ", s3_s: "วันที่เผยแพร่", s3_e: "วันสิ้นสุดเผยแพร่",
+                        s3_issue: "ปัญหา/อุปสรรค", s3_note: "หมายเหตุ",
+                        s4_d: "วันเริ่มประกาศเชิญชวน", s4_end: "วันสิ้นสุดประกาศเชิญชวน",
+                        s4_issue: "ผล/ปัญหาในการประกาศ", s5_d: "วันประกาศผู้ชนะ", s5_n: "ชื่อบริษัทที่ชนะ"
+                    };
+                    for (let k in parsed) {
+                        if (parsed[k]) {
+                            const label = keyMap[k] || k;
+                            parts.push(`${label}: ${parsed[k]}`);
+                        }
+                    }
+                }
+
+                const thaiText = parts.join(', ') || 'บันทึกข้อมูลเรียบร้อย';
+
+                if (typeof str === 'string' && rawJson) {
+                    return str.replace(rawJson, thaiText);
+                }
+                return thaiText;
+            },
             getCleanDesc: (L) => {
                 if (!L.description) return '-';
-                return L.description.replace(/\|\s*รายการ:\s*.+$/, '').trim() || L.description;
+                let desc = L.description.replace(/\|\s*รายการ:\s*.+$/, '').trim() || L.description;
+                desc = utils.formatRemarks(desc);
+                return desc;
             }
         };
 
@@ -1542,7 +1640,8 @@
                     const items = state.items || state.projects || [];
                     const it = items.find(x => String(x.id) === String(itemId)) || state.selectedItem || state.selectedProject || {};
                     const itemName = it.item_name || it.project_name || '';
-                    logger('UPDATE_STATUS', `อัปเดตสถานะไปที่ ${nextStep} ${remarks ? `(${remarks})` : ''} | รายการ: ${itemName}`);
+                    const thaiRemarks = utils.formatRemarks(remarks);
+                    logger('UPDATE_STATUS', `อัปเดตสถานะไปที่ ${nextStep} ${thaiRemarks ? `(${thaiRemarks})` : ''} | รายการ: ${itemName}`);
                     if (it) it.current_status = parseInt(nextStep, 10);
                     ui.toast('อัปเดตสถานะสำเร็จ', 'success');
                     app.navigate('workflow', itemId);
