@@ -863,6 +863,89 @@
 
                         html += `<div class="flex gap-4 sm:gap-6 ${isWait ? 'opacity-50 pointer-events-none grayscale-[50%]' : ''}"><div class="flex flex-col items-center"><div class="w-10 h-10 rounded-full border-2 flex items-center justify-center font-bold text-sm z-10 shrink-0 transition-all ${iconBg}">${isDone ? '✓' : (isCur ? '●' : i)}</div>${i < 8 ? `<div class="w-0.5 h-full min-h-[40px] my-1 ${isDone ? 'bg-emerald-300' : 'bg-slate-200'}"></div>` : ''}</div><div class="flex-1 pb-8 w-full min-w-0"><div class="${isCur ? 'bg-white border-blue-200 shadow-lg shadow-blue-900/5 ring-1 ring-blue-50' : 'bg-slate-50 border-slate-200'} border rounded-2xl p-5 sm:p-6 transition-all"><div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2"><div><h4 class="font-bold text-lg ${isCur ? 'text-blue-800' : 'text-slate-700'}">${i}. ${utils.getStatusName(i)}</h4>${isDone ? `<button onclick="handlers.revertStatus(${i})" class="text-[11px] font-bold text-warning bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-lg transition shadow-sm mt-3 flex items-center gap-1"><span>↺</span> ย้อนกลับมาแก้ไข</button>` : ''}</div>${stepInfoHtml}</div>${isCur ? handlers.renderStepForm(i, p) : ''}</div></div></div>`;
                     }
+                    // Calculate status execution counts (Status 1 - 7)
+                    const statusCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 };
+                    wfHistory.forEach(w => {
+                        let obj = null;
+                        try { obj = JSON.parse(w.remarks); } catch (e) { }
+
+                        if (obj && typeof obj === 'object') {
+                            if (obj.s2_d) statusCounts[2]++;
+                            if (obj.s3_s) statusCounts[3]++;
+                            if (obj.s4_d) statusCounts[4]++;
+                            if (obj.s5_d) statusCounts[5]++;
+                        }
+
+                        if (w.status_no === 2 && (!obj || !obj.s2_d)) {
+                            statusCounts[1]++;
+                        }
+                        if (w.status_no === 7 && (!obj || (!obj.s2_d && !obj.s3_s && !obj.s4_d && !obj.s5_d))) {
+                            statusCounts[6]++;
+                        }
+                        if (w.status_no === 8) {
+                            statusCounts[7]++;
+                        }
+                    });
+
+                    if (appealData && statusCounts[6] === 0) statusCounts[6] = 1;
+                    if (contractData && statusCounts[7] === 0) statusCounts[7] = 1;
+
+                    for (let i = 1; i <= 7; i++) {
+                        if (curStat > i && statusCounts[i] === 0) {
+                            statusCounts[i] = 1;
+                        }
+                    }
+                    if (statusCounts[1] === 0 && curStat >= 1) {
+                        statusCounts[1] = 1;
+                    }
+
+                    let statsCardsHtml = '';
+                    for (let i = 1; i <= 7; i++) {
+                        const count = statusCounts[i];
+                        const isCurrent = curStat === i;
+                        let badge = '';
+                        if (count > 1) {
+                            badge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-100 text-amber-800 border border-amber-300 shadow-xs"><span>⚠️</span> ทำไป ${count} ครั้ง</span>`;
+                        } else if (count === 1) {
+                            badge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200"><span>✓</span> 1 ครั้ง</span>`;
+                        } else if (isCurrent) {
+                            badge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-200"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> กำลังดำเนินการ</span>`;
+                        } else {
+                            badge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-50 text-slate-400 border border-slate-200">ยังไม่ถึง</span>`;
+                        }
+
+                        const rowBg = isCurrent
+                            ? 'bg-blue-50/70 border-blue-200 ring-2 ring-blue-100 shadow-xs'
+                            : count > 1
+                                ? 'bg-amber-50/40 border-amber-200/90 hover:bg-amber-50/60'
+                                : 'bg-slate-50/70 border-slate-100 hover:bg-slate-100/60';
+
+                        const numBg = isCurrent
+                            ? 'bg-primary text-white shadow-xs'
+                            : count > 1
+                                ? 'bg-amber-500 text-white shadow-xs'
+                                : count > 0
+                                    ? 'bg-emerald-100 text-emerald-800 font-bold'
+                                    : 'bg-slate-200 text-slate-400';
+
+                        statsCardsHtml += `
+                            <div class="p-2.5 sm:p-3 rounded-2xl border transition-all flex items-center justify-between gap-2 ${rowBg}">
+                                <div class="flex items-center gap-2.5 min-w-0">
+                                    <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${numBg}">
+                                        ${i}
+                                    </span>
+                                    <div class="truncate">
+                                        <span class="font-semibold text-xs ${isCurrent ? 'text-blue-900 font-bold' : 'text-slate-700'}">${i}. ${utils.getStatusName(i)}</span>
+                                        ${isCurrent ? '<span class="ml-1 text-[10px] font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full">ขั้นตอนปัจจุบัน</span>' : ''}
+                                    </div>
+                                </div>
+                                <div class="shrink-0">
+                                    ${badge}
+                                </div>
+                            </div>
+                        `;
+                    }
+
                     let logHtml = '';
                     if (wfHistory.length > 0) {
                         wfHistory.forEach(w => {
@@ -886,7 +969,7 @@
                         });
                     } else { logHtml = `<div class="text-center text-sm text-slate-400 py-6 border border-dashed rounded-xl">ยังไม่มีประวัติการบันทึก</div>`; }
 
-                    document.getElementById('page-container').innerHTML = html + `</div></div></div><div class="lg:col-span-1"><div class="bg-white rounded-3xl border border-slate-100 p-5 sm:p-6 mb-6 shadow-sm sticky top-6"><h3 class="font-bold text-base text-slate-800 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2"><span>📝</span> ประวัติการบันทึก (Log)</h3><div class="max-h-[600px] overflow-y-auto pr-1 custom-scrollbar">${logHtml}</div></div></div></div>`;
+                    document.getElementById('page-container').innerHTML = html + `</div></div></div><div class="lg:col-span-1"><div class="space-y-6 sticky top-6"><div class="bg-white rounded-3xl border border-slate-100 p-5 sm:p-6 shadow-sm"><div class="flex items-center justify-between pb-3.5 mb-3.5 border-b border-slate-100"><div class="flex items-center gap-2"><span class="text-xl">📊</span><div><h3 class="font-bold text-base text-slate-800 leading-tight">สถิติจำนวนครั้งที่ดำเนินการ</h3><p class="text-[11px] text-slate-400 mt-0.5">จำนวนครั้งที่บันทึกรายงานขั้นตอน (สถานะ 1 - 7)</p></div></div></div><div class="space-y-2">${statsCardsHtml}</div></div><div class="bg-white rounded-3xl border border-slate-100 p-5 sm:p-6 shadow-sm"><h3 class="font-bold text-base text-slate-800 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2"><span>📝</span> ประวัติการบันทึก (Log)</h3><div class="max-h-[450px] overflow-y-auto pr-1 custom-scrollbar">${logHtml}</div></div></div></div></div>`;
                     ui.hideLoader();
                 } catch (err) { ui.hideLoader(); alert("หน้าจอ Workflow เกิดข้อผิดพลาด: " + err.message); }
             },
